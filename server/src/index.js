@@ -11,7 +11,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check route
+// Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+
+// Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });
 });
