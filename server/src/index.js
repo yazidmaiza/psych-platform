@@ -2,8 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const psychologistRoutes = require('./routes/psychologist.routes');
+const messageRoutes = require('./routes/message.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 
-dotenv.config();
+dotenv.config({ path: require('path').resolve(__dirname, '../.env') });
 
 const app = express();
 
@@ -11,10 +14,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
 // Health check route
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });
 });
+
+app.use('/api/psychologists', psychologistRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // DB Connection
 mongoose.connect(process.env.MONGO_URI)
