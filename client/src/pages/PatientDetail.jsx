@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 function PatientDetail() {
     const [data, setData] = useState({ messages: [], notes: [] });
+    const [emotions, setEmotions] = useState([]);
     const [newNote, setNewNote] = useState('');
     const { psychologistId, patientId } = useParams();
     const navigate = useNavigate();
@@ -12,6 +13,9 @@ function PatientDetail() {
         try {
             const res = await axios.get(`http://localhost:5000/api/dashboard/patient/${psychologistId}/${patientId}`);
             setData(res.data);
+
+            const emotionRes = await axios.get(`http://localhost:5000/api/dashboard/emotions/${psychologistId}/${patientId}`);
+            setEmotions(emotionRes.data);
         } catch (err) {
             console.error(err);
         }
@@ -77,6 +81,77 @@ function PatientDetail() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Emotional Indicators */}
+                <div className="bg-white rounded-2xl shadow p-6">
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">📊 Emotional Indicators</h2>
+
+                    {emotions.length === 0 && (
+                        <p className="text-center text-gray-400">No emotional data yet.</p>
+                    )}
+
+                    {emotions.slice(0, 1).map(indicator => (
+                        <div key={indicator._id} className="flex flex-col gap-4">
+
+                            {/* Anxiety */}
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="font-semibold text-gray-700">😰 Anxiety</span>
+                                    <span className="text-gray-500">{indicator.scores.anxiety}%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                    <div
+                                        className="bg-red-400 h-3 rounded-full transition-all"
+                                        style={{ width: `${indicator.scores.anxiety}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Sadness */}
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="font-semibold text-gray-700">😔 Sadness</span>
+                                    <span className="text-gray-500">{indicator.scores.sadness}%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                    <div
+                                        className="bg-blue-400 h-3 rounded-full transition-all"
+                                        style={{ width: `${indicator.scores.sadness}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Anger */}
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="font-semibold text-gray-700">😤 Anger</span>
+                                    <span className="text-gray-500">{indicator.scores.anger}%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                    <div
+                                        className="bg-orange-400 h-3 rounded-full transition-all"
+                                        style={{ width: `${indicator.scores.anger}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Positivity */}
+                            <div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="font-semibold text-gray-700">😊 Positivity</span>
+                                    <span className="text-gray-500">{indicator.scores.positivity}%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                    <div
+                                        className="bg-green-400 h-3 rounded-full transition-all"
+                                        style={{ width: `${indicator.scores.positivity}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                        </div>
+                    ))}
                 </div>
 
                 {/* Private Notes */}
