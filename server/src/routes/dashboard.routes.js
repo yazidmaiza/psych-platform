@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const PrivateNote = require('../models/PrivateNote');
 const SessionRequest = require('../models/SessionRequest');
 const EmotionalIndicator = require('../models/EmotionalIndicator');
+const PatientHistory = require('../models/PatientHistory');
 
 // US-31 — Get chronological list of patients for a psychologist
 router.get('/patients/:psychologistId', async (req, res) => {
@@ -98,6 +99,39 @@ router.get('/emotions/:psychologistId/:patientId', async (req, res) => {
         }).sort({ createdAt: -1 });
 
         res.json(indicators);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// US-34 — Add a session to patient history
+router.post('/history', async (req, res) => {
+    try {
+        const { patientId, psychologistId, sessionType, summary, emotionalScores } = req.body;
+
+        const history = new PatientHistory({
+            patientId,
+            psychologistId,
+            sessionType,
+            summary,
+            emotionalScores
+        });
+
+        await history.save();
+        res.status(201).json(history);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
+// US-34 — Get patient history
+router.get('/history/:patientId', async (req, res) => {
+    try {
+        const history = await PatientHistory.find({
+            patientId: req.params.patientId
+        }).sort({ sessionDate: -1 });
+
+        res.json(history);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

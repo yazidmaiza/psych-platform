@@ -60,12 +60,20 @@ function Dashboard() {
                                     {request.status}
                                 </span>
                             </div>
-                            <button
-                                className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                                onClick={() => navigate(`/patient/${psychologistId}/${request.patientId}`)}
-                            >
-                                View Details →
-                            </button>
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
+                                    onClick={() => navigate(`/patient/${psychologistId}/${request.patientId}`)}
+                                >
+                                    💬 Session & Notes
+                                </button>
+                                <button
+                                    className="bg-purple-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition"
+                                    onClick={() => navigate(`/history/${request.patientId}`)}
+                                >
+                                    📋 Patient History
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>

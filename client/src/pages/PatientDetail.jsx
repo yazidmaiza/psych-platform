@@ -7,6 +7,7 @@ function PatientDetail() {
     const [emotions, setEmotions] = useState([]);
     const [newNote, setNewNote] = useState('');
     const { psychologistId, patientId } = useParams();
+    const [history, setHistory] = useState([]);
     const navigate = useNavigate();
 
     const fetchData = async () => {
@@ -19,6 +20,8 @@ function PatientDetail() {
         } catch (err) {
             console.error(err);
         }
+        const historyRes = await axios.get(`http://localhost:5000/api/dashboard/history/${patientId}`);
+        setHistory(historyRes.data);
     };
 
     useEffect(() => {
@@ -70,8 +73,8 @@ function PatientDetail() {
                                 className={`flex ${msg.senderId === patientId ? 'justify-start' : 'justify-end'}`}
                             >
                                 <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === patientId
-                                        ? 'bg-gray-100 text-gray-800'
-                                        : 'bg-blue-600 text-white'
+                                    ? 'bg-gray-100 text-gray-800'
+                                    : 'bg-blue-600 text-white'
                                     }`}>
                                     <p className="text-sm">{msg.content}</p>
                                     <p className={`text-xs mt-1 ${msg.senderId === patientId ? 'text-gray-400' : 'text-blue-200'}`}>
