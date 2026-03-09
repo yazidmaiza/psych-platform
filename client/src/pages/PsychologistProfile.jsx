@@ -7,18 +7,6 @@ function PsychologistProfile() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const handleRequestSession = async () => {
-        try {
-            await axios.post(`http://localhost:5000/api/psychologists/${id}/request-session`, {
-                patientId: '507f1f77bcf86cd799439011' // temporary fake ID until auth is ready
-            });
-            alert('Session request sent successfully! ✅');
-        } catch (err) {
-            alert('Something went wrong ❌');
-            console.error(err);
-        }
-    };
-
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -31,32 +19,88 @@ function PsychologistProfile() {
         fetchProfile();
     }, [id]);
 
-    if (!psy) return <p>Loading...</p>;
+    const handleRequestSession = async () => {
+        try {
+            await axios.post(`http://localhost:5000/api/psychologists/${id}/request-session`, {
+                patientId: '507f1f77bcf86cd799439011'
+            });
+            alert('Session request sent successfully! ✅');
+        } catch (err) {
+            alert('Something went wrong ❌');
+        }
+    };
+
+    if (!psy) return (
+        <div className="min-h-screen flex items-center justify-center text-gray-400 text-lg">
+            Loading...
+        </div>
+    );
 
     return (
-        <div style={{ padding: '20px' }}>
-            <button onClick={() => navigate('/')}>← Back to list</button>
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="bg-white shadow-sm">
+                <div className="max-w-3xl mx-auto px-6 py-5">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="text-blue-600 text-sm font-semibold hover:underline"
+                    >
+                        ← Back to list
+                    </button>
+                </div>
+            </div>
 
-            <h1>{psy.firstName} {psy.lastName}</h1>
-            <p>📍 {psy.city}</p>
-            <p>🗣 Languages: {psy.languages.join(', ')}</p>
-            <p>🧠 Specializations: {psy.specializations.join(', ')}</p>
-            <p>💰 Session price: {psy.sessionPrice} TND</p>
-            <p>📅 Availability: {psy.availability.join(', ')}</p>
-            <p>📝 {psy.bio}</p>
+            <div className="max-w-3xl mx-auto px-6 py-8">
+                {/* Profile Card */}
+                <div className="bg-white rounded-2xl shadow p-8 mb-6">
+                    <div className="flex items-center gap-6 mb-6">
+                        <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
+                            {psy.firstName[0]}{psy.lastName[0]}
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h1>
+                            <p className="text-gray-500 text-sm mt-1">📍 {psy.city}</p>
+                        </div>
+                    </div>
 
-            <button
-                style={{ marginTop: '20px', padding: '10px 20px', background: 'green', color: 'white' }}
-                onClick={handleRequestSession}
-            >
-                Request a Session
-            </button>
-            <button
-                style={{ marginTop: '10px', padding: '10px 20px', background: '#007bff', color: 'white', borderRadius: '8px', border: 'none' }}
-                onClick={() => navigate(`/conversation/507f1f77bcf86cd799439011/${id}`)}
-            >
-                💬 Send a Message
-            </button>
+                    <p className="text-gray-600 mb-6">{psy.bio}</p>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Languages</p>
+                            <p className="text-gray-700 text-sm">{psy.languages.join(', ')}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Specializations</p>
+                            <p className="text-gray-700 text-sm">{psy.specializations.join(', ')}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Availability</p>
+                            <p className="text-gray-700 text-sm">{psy.availability.join(', ')}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Session Price</p>
+                            <p className="text-gray-700 text-sm font-bold">{psy.sessionPrice} TND</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4">
+                    <button
+                        className="flex-1 bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600 transition"
+                        onClick={handleRequestSession}
+                    >
+                        📅 Request a Session
+                    </button>
+                    <button
+                        className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
+                        onClick={() => navigate(`/conversation/507f1f77bcf86cd799439011/${id}`)}
+                    >
+                        💬 Send a Message
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function Conversation() {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const { userId, otherUserId } = useParams();
+    const navigate = useNavigate();
     const bottomRef = useRef(null);
 
-    // Temporary fake current user until auth is ready
     const currentUser = {
         id: '507f1f77bcf86cd799439011',
         model: 'User'
@@ -25,12 +25,10 @@ function Conversation() {
 
     useEffect(() => {
         fetchMessages();
-        // Poll every 5 seconds for new messages
         const interval = setInterval(fetchMessages, 5000);
         return () => clearInterval(interval);
     }, [userId, otherUserId]);
 
-    // Auto scroll to bottom
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -53,57 +51,61 @@ function Conversation() {
     };
 
     return (
-        <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-            <h2>Conversation</h2>
-
-            {/* Messages */}
-            <div style={{
-                border: '1px solid #ccc',
-                borderRadius: '8px',
-                padding: '15px',
-                height: '400px',
-                overflowY: 'scroll',
-                marginBottom: '15px'
-            }}>
-                {messages.length === 0 && <p style={{ color: '#999' }}>No messages yet. Say hello! 👋</p>}
-                {messages.map(msg => (
-                    <div key={msg._id} style={{
-                        display: 'flex',
-                        justifyContent: msg.senderId === currentUser.id ? 'flex-end' : 'flex-start',
-                        marginBottom: '10px'
-                    }}>
-                        <div style={{
-                            background: msg.senderId === currentUser.id ? '#007bff' : '#f1f1f1',
-                            color: msg.senderId === currentUser.id ? 'white' : 'black',
-                            padding: '10px 15px',
-                            borderRadius: '18px',
-                            maxWidth: '70%'
-                        }}>
-                            <p style={{ margin: 0 }}>{msg.content}</p>
-                            <small style={{ opacity: 0.7 }}>
-                                {new Date(msg.createdAt).toLocaleTimeString()}
-                            </small>
-                        </div>
-                    </div>
-                ))}
-                <div ref={bottomRef} />
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="bg-white shadow-sm">
+                <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-4">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="text-blue-600 text-sm font-semibold hover:underline"
+                    >
+                        ←
+                    </button>
+                    <h1 className="text-xl font-bold text-gray-800">💬 Conversation</h1>
+                </div>
             </div>
 
-            {/* Input */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <input
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                />
-                <button
-                    style={{ padding: '10px 20px', background: '#007bff', color: 'white', borderRadius: '8px', border: 'none' }}
-                    onClick={sendMessage}
-                >
-                    Send
-                </button>
+            <div className="max-w-3xl mx-auto px-6 py-6 flex flex-col h-[80vh]">
+                {/* Messages */}
+                <div className="flex-1 bg-white rounded-2xl shadow p-5 overflow-y-auto mb-4">
+                    {messages.length === 0 && (
+                        <p className="text-center text-gray-400 mt-20">No messages yet. Say hello! 👋</p>
+                    )}
+                    {messages.map(msg => (
+                        <div
+                            key={msg._id}
+                            className={`flex mb-3 ${msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}
+                        >
+                            <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === currentUser.id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                <p className="text-sm">{msg.content}</p>
+                                <p className={`text-xs mt-1 ${msg.senderId === currentUser.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                                    {new Date(msg.createdAt).toLocaleTimeString()}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={bottomRef} />
+                </div>
+
+                {/* Input */}
+                <div className="bg-white rounded-2xl shadow px-4 py-3 flex gap-3 items-center">
+                    <input
+                        className="flex-1 text-sm focus:outline-none"
+                        placeholder="Type a message..."
+                        value={newMessage}
+                        onChange={e => setNewMessage(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                    />
+                    <button
+                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
+                        onClick={sendMessage}
+                    >
+                        Send →
+                    </button>
+                </div>
             </div>
         </div>
     );

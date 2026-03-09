@@ -37,76 +37,86 @@ function PatientDetail() {
     };
 
     return (
-        <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-            <button onClick={() => navigate('/dashboard')}>← Back to Dashboard</button>
-            <h1>Patient Detail</h1>
-
-            {/* Messages */}
-            <h2>💬 Conversation</h2>
-            <div style={{
-                border: '1px solid #ccc',
-                borderRadius: '8px',
-                padding: '15px',
-                height: '250px',
-                overflowY: 'scroll',
-                marginBottom: '20px'
-            }}>
-                {data.messages.length === 0 && <p style={{ color: '#999' }}>No messages yet.</p>}
-                {data.messages.map(msg => (
-                    <div key={msg._id} style={{
-                        display: 'flex',
-                        justifyContent: msg.senderId === patientId ? 'flex-start' : 'flex-end',
-                        marginBottom: '10px'
-                    }}>
-                        <div style={{
-                            background: msg.senderId === patientId ? '#f1f1f1' : '#007bff',
-                            color: msg.senderId === patientId ? 'black' : 'white',
-                            padding: '10px 15px',
-                            borderRadius: '18px',
-                            maxWidth: '70%'
-                        }}>
-                            <p style={{ margin: 0 }}>{msg.content}</p>
-                            <small style={{ opacity: 0.7 }}>
-                                {new Date(msg.createdAt).toLocaleTimeString()}
-                            </small>
-                        </div>
-                    </div>
-                ))}
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <div className="bg-white shadow-sm">
+                <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="text-blue-600 text-sm font-semibold hover:underline"
+                    >
+                        ← Back to Dashboard
+                    </button>
+                    <h1 className="text-xl font-bold text-gray-800">Patient Detail</h1>
+                </div>
             </div>
 
-            {/* Private Notes */}
-            <h2>🔒 Private Notes</h2>
-            <div style={{ marginBottom: '15px' }}>
-                {data.notes.length === 0 && <p style={{ color: '#999' }}>No notes yet.</p>}
-                {data.notes.map(note => (
-                    <div key={note._id} style={{
-                        background: '#fffbe6',
-                        border: '1px solid #ffe58f',
-                        borderRadius: '8px',
-                        padding: '10px 15px',
-                        marginBottom: '10px'
-                    }}>
-                        <p style={{ margin: 0 }}>{note.content}</p>
-                        <small style={{ color: '#999' }}>{new Date(note.createdAt).toLocaleDateString()}</small>
-                    </div>
-                ))}
-            </div>
+            <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
 
-            {/* Add Note */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <input
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
-                    placeholder="Add a private note..."
-                    value={newNote}
-                    onChange={e => setNewNote(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addNote()}
-                />
-                <button
-                    style={{ padding: '10px 20px', background: '#faad14', color: 'white', borderRadius: '8px', border: 'none' }}
-                    onClick={addNote}
-                >
-                    Add Note
-                </button>
+                {/* Conversation */}
+                <div className="bg-white rounded-2xl shadow p-6">
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">💬 Conversation</h2>
+                    <div className="h-64 overflow-y-auto flex flex-col gap-3">
+                        {data.messages.length === 0 && (
+                            <p className="text-center text-gray-400 mt-10">No messages yet.</p>
+                        )}
+                        {data.messages.map(msg => (
+                            <div
+                                key={msg._id}
+                                className={`flex ${msg.senderId === patientId ? 'justify-start' : 'justify-end'}`}
+                            >
+                                <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === patientId
+                                        ? 'bg-gray-100 text-gray-800'
+                                        : 'bg-blue-600 text-white'
+                                    }`}>
+                                    <p className="text-sm">{msg.content}</p>
+                                    <p className={`text-xs mt-1 ${msg.senderId === patientId ? 'text-gray-400' : 'text-blue-200'}`}>
+                                        {new Date(msg.createdAt).toLocaleTimeString()}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Private Notes */}
+                <div className="bg-white rounded-2xl shadow p-6">
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">🔒 Private Notes</h2>
+
+                    <div className="flex gap-3 mb-4">
+                        <input
+                            className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300"
+                            placeholder="Add a private note..."
+                            value={newNote}
+                            onChange={e => setNewNote(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && addNote()}
+                        />
+                        <button
+                            className="bg-yellow-400 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-yellow-500 transition"
+                            onClick={addNote}
+                        >
+                            Add Note
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                        {data.notes.length === 0 && (
+                            <p className="text-center text-gray-400">No notes yet.</p>
+                        )}
+                        {data.notes.map(note => (
+                            <div
+                                key={note._id}
+                                className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3"
+                            >
+                                <p className="text-sm text-gray-700">{note.content}</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    {new Date(note.createdAt).toLocaleDateString()}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
