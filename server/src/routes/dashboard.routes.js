@@ -2,15 +2,16 @@ const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
 const PrivateNote = require('../models/PrivateNote');
-const SessionRequest = require('../models/SessionRequest');
+const SessionRequest = require('../models/Session');
 const EmotionalIndicator = require('../models/EmotionalIndicator');
 const PatientHistory = require('../models/PatientHistory');
+const { protect } = require('../middleware/authMiddleware');
 
 // US-31 — Get chronological list of patients for a psychologist
-router.get('/patients/:psychologistId', async (req, res) => {
+router.get('/patients', protect, async (req, res) => {
     try {
         const requests = await SessionRequest.find({
-            psychologistId: req.params.psychologistId
+            psychologistId: req.user.id
         }).sort({ createdAt: -1 });
 
         res.json(requests);
@@ -20,11 +21,11 @@ router.get('/patients/:psychologistId', async (req, res) => {
 });
 
 // US-32 — Get detailed patient view
-router.get('/patient/:psychologistId/:patientId', async (req, res) => {
+router.get('/patient/:patientId', protect, async (req, res) => {
     try {
-        const { psychologistId, patientId } = req.params;
+        const psychologistId = req.user.id;
+        const { patientId } = req.params;
 
-        // Get conversation messages
         const messages = await Message.find({
             $or: [
                 { senderId: patientId, receiverId: psychologistId },
@@ -32,7 +33,6 @@ router.get('/patient/:psychologistId/:patientId', async (req, res) => {
             ]
         }).sort({ createdAt: 1 });
 
-        // Get private notes
         const notes = await PrivateNote.find({
             psychologistId,
             patientId
@@ -45,13 +45,17 @@ router.get('/patient/:psychologistId/:patientId', async (req, res) => {
 });
 
 // US-27 — Add a private note
-router.post('/notes', async (req, res) => {
+router.post('/notes', protect, async (req, res) => {
     try {
-        const { psychologistId, patientId, content } = req.body;
+        const { patientId, content } = req.body;
 
-        const note = new PrivateNote({ psychologistId, patientId, content });
+        const note = new PrivateNote({
+            psychologistId: req.user.id,
+            patientId,
+            content
+        });
+
         await note.save();
-
         res.status(201).json(note);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -59,10 +63,10 @@ router.post('/notes', async (req, res) => {
 });
 
 // US-27 — Get all private notes for a patient
-router.get('/notes/:psychologistId/:patientId', async (req, res) => {
+router.get('/notes/:patientId', protect, async (req, res) => {
     try {
         const notes = await PrivateNote.find({
-            psychologistId: req.params.psychologistId,
+            psychologistId: req.user.id,
             patientId: req.params.patientId
         }).sort({ createdAt: -1 });
 
@@ -73,13 +77,13 @@ router.get('/notes/:psychologistId/:patientId', async (req, res) => {
 });
 
 // US-33 — Add emotional indicators
-router.post('/emotions', async (req, res) => {
+router.post('/emotions', protect, async (req, res) => {
     try {
-        const { patientId, psychologistId, scores } = req.body;
+        const { patientId, scores } = req.body;
 
         const indicator = new EmotionalIndicator({
             patientId,
-            psychologistId,
+            psychologistId: req.user.id,
             scores
         });
 
@@ -91,10 +95,10 @@ router.post('/emotions', async (req, res) => {
 });
 
 // US-33 — Get emotional indicators for a patient
-router.get('/emotions/:psychologistId/:patientId', async (req, res) => {
+router.get('/emotions/:patientId', protect, async (req, res) => {
     try {
         const indicators = await EmotionalIndicator.find({
-            psychologistId: req.params.psychologistId,
+            psychologistId: req.user.id,
             patientId: req.params.patientId
         }).sort({ createdAt: -1 });
 
@@ -105,13 +109,13 @@ router.get('/emotions/:psychologistId/:patientId', async (req, res) => {
 });
 
 // US-34 — Add a session to patient history
-router.post('/history', async (req, res) => {
+router.post('/history', protect, async (req, res) => {
     try {
-        const { patientId, psychologistId, sessionType, summary, emotionalScores } = req.body;
+        const { patientId, sessionType, summary, emotionalScores } = req.body;
 
         const history = new PatientHistory({
             patientId,
-            psychologistId,
+            psychologistId: req.user.id,
             sessionType,
             summary,
             emotionalScores
@@ -125,7 +129,7 @@ router.post('/history', async (req, res) => {
 });
 
 // US-34 — Get patient history
-router.get('/history/:patientId', async (req, res) => {
+router.get('/history/:patientId', protect, async (req, res) => {
     try {
         const history = await PatientHistory.find({
             patientId: req.params.patientId

@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function Dashboard() {
     const [patients, setPatients] = useState([]);
     const navigate = useNavigate();
 
-    const psychologistId = '69ada9db3fbea70230edbf57';
-
     useEffect(() => {
         const fetchPatients = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/dashboard/patients/${psychologistId}`);
-                setPatients(res.data);
+                const data = await api.get('/api/dashboard/patients');
+                setPatients(data);
             } catch (err) {
                 console.error(err);
             }
@@ -28,7 +26,6 @@ function Dashboard() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5">
                     <h1 className="text-3xl font-bold text-blue-700">🏥 Dashboard</h1>
@@ -63,7 +60,7 @@ function Dashboard() {
                             <div className="flex flex-col gap-2">
                                 <button
                                     className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                                    onClick={() => navigate(`/patient/${psychologistId}/${request.patientId}`)}
+                                    onClick={() => navigate(`/patient/${request.patientId}`)}
                                 >
                                     💬 Session & Notes
                                 </button>

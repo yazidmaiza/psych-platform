@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 
 function PatientDetail() {
     const [data, setData] = useState({ messages: [], notes: [] });
@@ -11,36 +12,36 @@ function PatientDetail() {
     const navigate = useNavigate();
 
     const fetchData = async () => {
-        try {
-            const res = await axios.get(`http://localhost:5000/api/dashboard/patient/${psychologistId}/${patientId}`);
-            setData(res.data);
+    try {
+        const res = await api.get(`/api/dashboard/patient/${patientId}`);
+        setData(res);
 
-            const emotionRes = await axios.get(`http://localhost:5000/api/dashboard/emotions/${psychologistId}/${patientId}`);
-            setEmotions(emotionRes.data);
-        } catch (err) {
-            console.error(err);
-        }
-        const historyRes = await axios.get(`http://localhost:5000/api/dashboard/history/${patientId}`);
-        setHistory(historyRes.data);
+        const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
+        setEmotions(emotionRes);
+
+        const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
+        setHistory(historyRes);
+    } catch (err) {
+        console.error(err);
+    }
     };
 
     useEffect(() => {
         fetchData();
     }, [psychologistId, patientId]);
 
-    const addNote = async () => {
-        if (!newNote.trim()) return;
-        try {
-            await axios.post('http://localhost:5000/api/dashboard/notes', {
-                psychologistId,
-                patientId,
-                content: newNote
-            });
-            setNewNote('');
-            fetchData();
-        } catch (err) {
-            console.error(err);
-        }
+        const addNote = async () => {
+    if (!newNote.trim()) return;
+    try {
+        await api.post('/api/dashboard/notes', {
+        patientId,
+        content: newNote
+        });
+        setNewNote('');
+        fetchData();
+    } catch (err) {
+        console.error(err);
+    }
     };
 
     return (

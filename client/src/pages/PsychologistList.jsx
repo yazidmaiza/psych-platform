@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 
 function PsychologistList() {
     const [psychologists, setPsychologists] = useState([]);
@@ -9,13 +9,13 @@ function PsychologistList() {
 
     const fetchPsychologists = async () => {
         try {
-            const params = {};
-            if (filters.city) params.city = filters.city;
-            if (filters.language) params.language = filters.language;
-            if (filters.specialization) params.specialization = filters.specialization;
+            let url = '/api/psychologists?';
+            if (filters.city) url += `city=${filters.city}&`;
+            if (filters.language) url += `language=${filters.language}&`;
+            if (filters.specialization) url += `specialization=${filters.specialization}&`;
 
-            const res = await axios.get('http://localhost:5000/api/psychologists', { params });
-            setPsychologists(res.data);
+            const data = await api.get(url);
+            setPsychologists(data);
         } catch (err) {
             console.error(err);
         }
