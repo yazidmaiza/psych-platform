@@ -4,118 +4,51 @@ const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 
-// @POST /api/sessions
 exports.createSession = async (req, res) => {
   try {
     const { psychologistId, sessionType } = req.body;
-
     const session = new Session({
       patientId: req.user.id,
       psychologistId,
       sessionType,
       status: 'pending'
     });
-
     await session.save();
-
-    res.status(201).json({
-      sessionId: session._id,
-      status: session.status
-    });
-
+    res.status(201).json({ sessionId: session._id, status: session.status });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
-// @POST /api/sessions/:id/payment
 exports.confirmPayment = async (req, res) => {
   try {
     const session = await Session.findById(req.params.id);
-
-    if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-
-    if (session.patientId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    // Confirm payment
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (session.patientId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
     session.paymentConfirmed = true;
     await session.save();
-
-    // Generate 6-digit code
     const code = crypto.randomInt(100000, 999999).toString();
-
-    // Set expiry to 24 hours
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    // Save code to DB
-    const sessionCode = new SessionCode({
-      sessionId: session._id,
-      code,
-      expiresAt
-    });
+    const sessionCode = new SessionCode({ sessionId: session._id, code, expiresAt });
     await sessionCode.save();
-
-    // Get patient email from DB
     const patient = await User.findById(req.user.id);
-    console.log('user id:', req.user.id);
-    console.log('patient found:', patient);
     
-    // Send code via email
-    await sendEmail({
-      to: patient.email,
-      subject: 'Your Session Access Code',
-      html: `
-        <h2>Your Session Access Code</h2>
-        <p>Use the following code to access your session:</p>
-        <h1 style="letter-spacing: 8px; color: #2D6A9F;">${code}</h1>
-        <p>This code expires in 24 hours.</p>
-        <p>If you did not request this, please ignore this email.</p>
-      `
-    });
-
     res.status(200).json({ message: 'Payment confirmed. Code sent to your email.' });
-
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
-// @POST /api/sessions/:id/verify-code
 exports.verifyCode = async (req, res) => {
   try {
     const { code } = req.body;
-
-    const sessionCode = await SessionCode.findOne({
-      sessionId: req.params.id,
-      code,
-      used: false
-    });
-
-    if (!sessionCode) {
-      return res.status(400).json({ message: 'Invalid or expired code' });
-    }
-
-    // Check expiry
-    if (sessionCode.expiresAt < new Date()) {
-      return res.status(400).json({ message: 'Code has expired' });
-    }
-
-    // Mark code as used
+    const sessionCode = await SessionCode.findOne({ sessionId: req.params.id, code, used: false });
+    if (!sessionCode) return res.status(400).json({ message: 'Invalid or expired code' });
+    if (sessionCode.expiresAt < new Date()) return res.status(400).json({ message: 'Code has expired' });
     sessionCode.used = true;
     await sessionCode.save();
-
-    // Activate session
     await Session.findByIdAndUpdate(req.params.id, { status: 'active' });
-
-    res.status(200).json({
-      success: true,
-      sessionId: req.params.id
-    });
-
+    res.status(200).json({ success: true, sessionId: req.params.id });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
