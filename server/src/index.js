@@ -27,6 +27,7 @@ app.use('/api/chatbot', require('./routes/chatbotRoutes'));
 app.use('/api/messages', require('./routes/message.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/sessions', require('./routes/reportRoutes'));
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });
