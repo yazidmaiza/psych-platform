@@ -50,12 +50,19 @@ function PatientDetail() {
         }
     };
 
-    const downloadPDF = () => {
+    const downloadPDF = async () => {
         const token = localStorage.getItem('token');
-        window.open(
-            'http://localhost:5000/api/sessions/' + sessionId + '/report/pdf?token=' + token,
-            '_blank'
+        const res = await fetch(
+            'http://localhost:5000/api/sessions/' + sessionId + '/report/pdf',
+            { headers: { Authorization: 'Bearer ' + token } }
         );
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'report-' + sessionId + '.pdf';
+        a.click();
+        window.URL.revokeObjectURL(url);
     };
     console.log('patientId in PatientDetail:', patientId);
     console.log('userId from localStorage:', localStorage.getItem('userId'));
