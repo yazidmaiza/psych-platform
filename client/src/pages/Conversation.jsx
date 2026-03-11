@@ -2,56 +2,88 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getUser } from '../services/auth';
 import { api } from '../services/api';
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:5000');
 
 function Conversation() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const { otherUserId } = useParams();
   const navigate = useNavigate();
-  const bottomRef = useRef(null);
-
+  const messagesContainerRef = useRef(null);
   const { userId, role } = getUser();
-  const currentUser = {
-    id: userId,
-    model: role === 'psychologist' ? 'Psychologist' : 'User'
-  };
+  const roomId = [userId, otherUserId].sort().join('_');
+  console.log('Conversation - userId:', userId, 'otherUserId:', otherUserId, 'roomId:', roomId);
 
-  const fetchMessages = async () => {
-    try {
-      const data = await api.get(`/api/messages/${otherUserId}`);
-      setMessages(data);
-    } catch (err) {
-      console.error(err);
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   };
 
   useEffect(() => {
+    // Load existing messages once
+    const fetchMessages = async () => {
+      try {
+        const data = await api.get(`/api/messages/${otherUserId}`);
+        setMessages(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setMessages([]);
+      }
+    };
+
+    socket.emit('join_room', roomId);
     fetchMessages();
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
+
+    // Only add messages from the OTHER user
+    socket.on('receive_message', (data) => {
+      if (data.message?.senderId !== userId) {
+        setMessages(prev => {
+          if (prev.some(m => m._id === data.message._id)) return prev;
+          return [...prev, data.message];
+        });
+      }
+    });
+
+    return () => {
+      socket.off('receive_message');
+    };
   }, [otherUserId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
   }, [messages]);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
+    const content = newMessage;
+    setNewMessage('');
+
     try {
-      await api.post('/api/messages', {
+      const savedMessage = await api.post('/api/messages', {
         receiverId: otherUserId,
         receiverModel: role === 'psychologist' ? 'User' : 'Psychologist',
-        content: newMessage
+        content
       });
-      setNewMessage('');
-      fetchMessages();
+
+      // Add saved message (with real _id) to local state
+      setMessages(prev => {
+        if (prev.some(m => m._id === savedMessage._id)) return prev;
+        return [...prev, savedMessage];
+      });
+
+      // Emit to other user
+      socket.emit('send_message', { roomId, message: savedMessage });
+
     } catch (err) {
       console.error(err);
+      setNewMessage(content); // restore message if failed
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-4">
           <button
@@ -61,32 +93,37 @@ function Conversation() {
             ←
           </button>
           <h1 className="text-xl font-bold text-gray-800">💬 Conversation</h1>
+          <span className="text-xs text-green-500 font-semibold">● Live</span>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 py-6 flex flex-col h-[80vh]">
-        <div className="flex-1 bg-white rounded-2xl shadow p-5 overflow-y-auto mb-4">
+      <div
+        className="max-w-3xl w-full mx-auto px-6 py-6 flex flex-col"
+        style={{ height: 'calc(100vh - 80px)' }}
+      >
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 bg-white rounded-2xl shadow p-5 overflow-y-auto mb-4"
+        >
           {messages.length === 0 && (
             <p className="text-center text-gray-400 mt-20">No messages yet. Say hello! 👋</p>
           )}
-          {messages.map(msg => (
+          {messages.map((msg, index) => (
             <div
-              key={msg._id}
-              className={`flex mb-3 ${msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}
+              key={msg._id || index}
+              className={`flex mb-3 ${msg.senderId === userId ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${
-                msg.senderId === currentUser.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
+              <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === userId
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-800'
+                }`}>
                 <p className="text-sm">{msg.content}</p>
-                <p className={`text-xs mt-1 ${msg.senderId === currentUser.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                <p className={`text-xs mt-1 ${msg.senderId === userId ? 'text-blue-200' : 'text-gray-400'}`}>
                   {new Date(msg.createdAt).toLocaleTimeString()}
                 </p>
               </div>
             </div>
           ))}
-          <div ref={bottomRef} />
         </div>
 
         <div className="bg-white rounded-2xl shadow px-4 py-3 flex gap-3 items-center">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { logout } from '../services/auth';
 
 function Dashboard() {
     const [patients, setPatients] = useState([]);
@@ -30,6 +31,12 @@ function Dashboard() {
                 <div className="max-w-4xl mx-auto px-6 py-5">
                     <h1 className="text-3xl font-bold text-blue-700">🏥 Dashboard</h1>
                     <p className="text-gray-500 mt-1">Manage your patients and sessions</p>
+                    <button
+                        onClick={logout}
+                        className="text-red-500 text-sm font-semibold hover:underline"
+                    >
+                        Logout
+                    </button>
                 </div>
             </div>
 
@@ -60,7 +67,7 @@ function Dashboard() {
                             <div className="flex flex-col gap-2">
                                 <button
                                     className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                                    onClick={() => navigate(`/patient/${request.patientId}`)}
+                                    onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
                                 >
                                     💬 Session & Notes
                                 </button>

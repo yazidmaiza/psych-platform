@@ -8,7 +8,9 @@ const getHeaders = () => ({
 export const api = {
     get: async (url) => {
         const res = await fetch(`${BASE_URL}${url}`, { headers: getHeaders() });
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Request failed');
+        return data;
     },
     post: async (url, body) => {
         const res = await fetch(`${BASE_URL}${url}`, {
@@ -16,7 +18,9 @@ export const api = {
             headers: getHeaders(),
             body: JSON.stringify(body)
         });
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Request failed');
+        return data;
     },
     put: async (url, body) => {
         const res = await fetch(`${BASE_URL}${url}`, {
@@ -24,6 +28,8 @@ export const api = {
             headers: getHeaders(),
             body: JSON.stringify(body)
         });
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Request failed');
+        return data;
     }
 };

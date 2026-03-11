@@ -12,38 +12,40 @@ function PatientDetail() {
     const navigate = useNavigate();
 
     const fetchData = async () => {
-    try {
-        const res = await api.get(`/api/dashboard/patient/${patientId}`);
-        setData(res);
+        try {
+            const res = await api.get(`/api/dashboard/patient/${patientId}`);
+            setData(res);
 
-        const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
-        setEmotions(emotionRes);
+            const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
+            setEmotions(emotionRes);
 
-        const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
-        setHistory(historyRes);
-    } catch (err) {
-        console.error(err);
-    }
+            const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
+            setHistory(historyRes);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     useEffect(() => {
         fetchData();
     }, [psychologistId, patientId]);
 
-        const addNote = async () => {
-    if (!newNote.trim()) return;
-    try {
-        await api.post('/api/dashboard/notes', {
-        patientId,
-        content: newNote
-        });
-        setNewNote('');
-        fetchData();
-    } catch (err) {
-        console.error(err);
-    }
+    const addNote = async () => {
+        if (!newNote.trim()) return;
+        try {
+            await api.post('/api/dashboard/notes', {
+                patientId,
+                content: newNote
+            });
+            setNewNote('');
+            fetchData();
+        } catch (err) {
+            console.error(err);
+        }
     };
-
+    console.log('patientId in PatientDetail:', patientId);
+    console.log('userId from localStorage:', localStorage.getItem('userId'));
+    console.log('patientId:', patientId, typeof patientId);
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
@@ -56,6 +58,12 @@ function PatientDetail() {
                         ← Back to Dashboard
                     </button>
                     <h1 className="text-xl font-bold text-gray-800">Patient Detail</h1>
+                    <button
+                        onClick={() => navigate(`/conversation/${patientId}`)}
+                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
+                    >
+                        💬 Open Chat
+                    </button>
                 </div>
             </div>
 
