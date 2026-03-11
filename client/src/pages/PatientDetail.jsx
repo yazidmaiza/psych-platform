@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -7,9 +6,10 @@ function PatientDetail() {
     const [data, setData] = useState({ messages: [], notes: [] });
     const [emotions, setEmotions] = useState([]);
     const [newNote, setNewNote] = useState('');
-    const { psychologistId, patientId } = useParams();
+    const { patientId } = useParams();
     const [history, setHistory] = useState([]);
     const [sessionId, setSessionId] = useState(null);
+    const [summary, setSummary] = useState(null);
     const navigate = useNavigate();
 
     const fetchData = async () => {
@@ -18,14 +18,23 @@ function PatientDetail() {
             setData(res);
 
             const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
-            setEmotions(emotionRes);
+            setEmotions(Array.isArray(emotionRes) ? emotionRes : []);
 
             const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
-            setHistory(historyRes);
+            setHistory(Array.isArray(historyRes) ? historyRes : []);
+
             const sessionRes = await api.get(`/api/sessions/patient/${patientId}`);
-            if (sessionRes && sessionRes.length > 0) {
+            if (Array.isArray(sessionRes) && sessionRes.length > 0) {
                 const completed = sessionRes.find(s => s.status === 'completed');
-                if (completed) setSessionId(completed._id);
+                if (completed) {
+                    setSessionId(completed._id);
+                    try {
+                        const summaryRes = await api.get(`/api/chatbot/${completed._id}/summary`);
+                        setSummary(summaryRes);
+                    } catch (err) {
+                        setSummary(null);
+                    }
+                }
             }
         } catch (err) {
             console.error(err);
@@ -34,7 +43,7 @@ function PatientDetail() {
 
     useEffect(() => {
         fetchData();
-    }, [psychologistId, patientId]);
+    }, [patientId]);
 
     const addNote = async () => {
         if (!newNote.trim()) return;
@@ -53,25 +62,34 @@ function PatientDetail() {
     const downloadPDF = async () => {
         const token = localStorage.getItem('token');
         const res = await fetch(
-            'http://localhost:5000/api/sessions/' + sessionId + '/report/pdf',
-            { headers: { Authorization: 'Bearer ' + token } }
+            `http://localhost:5000/api/sessions/${sessionId}/report/pdf`,
+            { headers: { Authorization: `Bearer ${token}` } }
         );
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'report-' + sessionId + '.pdf';
+        a.download = `report-${sessionId}.pdf`;
         a.click();
         window.URL.revokeObjectURL(url);
     };
-    console.log('patientId in PatientDetail:', patientId);
-    console.log('userId from localStorage:', localStorage.getItem('userId'));
-    console.log('patientId:', patientId, typeof patientId);
+
+    const getSentimentColor = (trend) => {
+        if (trend === 'improving') return 'text-green-600 bg-green-50';
+        if (trend === 'declining') return 'text-red-600 bg-red-50';
+        return 'text-yellow-600 bg-yellow-50';
+    };
+
+    const getUrgencyColor = (score) => {
+        if (score >= 4) return 'text-red-600';
+        if (score >= 3) return 'text-orange-500';
+        return 'text-green-600';
+    };
+
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
             <div className="bg-white shadow-sm">
-                <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
+                <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4 flex-wrap">
                     <button
                         onClick={() => navigate('/dashboard')}
                         className="text-blue-600 text-sm font-semibold hover:underline"
@@ -98,6 +116,51 @@ function PatientDetail() {
 
             <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
 
+                {/* AI Chatbot Summary */}
+                {summary && (
+                    <div className="bg-white rounded-2xl shadow p-6">
+                        <h2 className="text-lg font-bold text-gray-700 mb-4">🤖 AI Session Summary</h2>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Dominant Emotion</p>
+                                <p className="text-lg font-bold text-blue-600 capitalize">{summary.emotionalIndicators?.dominantEmotion || 'N/A'}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Urgency Score</p>
+                                <p className={`text-lg font-bold ${getUrgencyColor(summary.emotionalIndicators?.urgencyScore)}`}>
+                                    {summary.emotionalIndicators?.urgencyScore || 'N/A'} / 5
+                                </p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Sentiment Trend</p>
+                                <span className={`text-sm font-bold px-3 py-1 rounded-full capitalize ${getSentimentColor(summary.emotionalIndicators?.sentimentTrend)}`}>
+                                    {summary.emotionalIndicators?.sentimentTrend || 'N/A'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {summary.keyThemes?.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-sm font-semibold text-gray-600 mb-2">Key Themes</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {summary.keyThemes.map((theme, i) => (
+                                        <span key={i} className="bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full">
+                                            {theme}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {summary.rawSummary && (
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Clinical Summary</p>
+                                <p className="text-sm text-gray-700 leading-relaxed">{summary.rawSummary}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Conversation */}
                 <div className="bg-white rounded-2xl shadow p-6">
                     <h2 className="text-lg font-bold text-gray-700 mb-4">💬 Conversation</h2>
@@ -111,8 +174,8 @@ function PatientDetail() {
                                 className={`flex ${msg.senderId === patientId ? 'justify-start' : 'justify-end'}`}
                             >
                                 <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === patientId
-                                    ? 'bg-gray-100 text-gray-800'
-                                    : 'bg-blue-600 text-white'
+                                        ? 'bg-gray-100 text-gray-800'
+                                        : 'bg-blue-600 text-white'
                                     }`}>
                                     <p className="text-sm">{msg.content}</p>
                                     <p className={`text-xs mt-1 ${msg.senderId === patientId ? 'text-gray-400' : 'text-blue-200'}`}>
@@ -127,70 +190,47 @@ function PatientDetail() {
                 {/* Emotional Indicators */}
                 <div className="bg-white rounded-2xl shadow p-6">
                     <h2 className="text-lg font-bold text-gray-700 mb-4">📊 Emotional Indicators</h2>
-
                     {emotions.length === 0 && (
                         <p className="text-center text-gray-400">No emotional data yet.</p>
                     )}
-
                     {emotions.slice(0, 1).map(indicator => (
                         <div key={indicator._id} className="flex flex-col gap-4">
-
-                            {/* Anxiety */}
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
                                     <span className="font-semibold text-gray-700">😰 Anxiety</span>
                                     <span className="text-gray-500">{indicator.scores.anxiety}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div
-                                        className="bg-red-400 h-3 rounded-full transition-all"
-                                        style={{ width: `${indicator.scores.anxiety}%` }}
-                                    />
+                                    <div className="bg-red-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.anxiety}%` }} />
                                 </div>
                             </div>
-
-                            {/* Sadness */}
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
                                     <span className="font-semibold text-gray-700">😔 Sadness</span>
                                     <span className="text-gray-500">{indicator.scores.sadness}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div
-                                        className="bg-blue-400 h-3 rounded-full transition-all"
-                                        style={{ width: `${indicator.scores.sadness}%` }}
-                                    />
+                                    <div className="bg-blue-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.sadness}%` }} />
                                 </div>
                             </div>
-
-                            {/* Anger */}
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
                                     <span className="font-semibold text-gray-700">😤 Anger</span>
                                     <span className="text-gray-500">{indicator.scores.anger}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div
-                                        className="bg-orange-400 h-3 rounded-full transition-all"
-                                        style={{ width: `${indicator.scores.anger}%` }}
-                                    />
+                                    <div className="bg-orange-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.anger}%` }} />
                                 </div>
                             </div>
-
-                            {/* Positivity */}
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
                                     <span className="font-semibold text-gray-700">😊 Positivity</span>
                                     <span className="text-gray-500">{indicator.scores.positivity}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div
-                                        className="bg-green-400 h-3 rounded-full transition-all"
-                                        style={{ width: `${indicator.scores.positivity}%` }}
-                                    />
+                                    <div className="bg-green-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.positivity}%` }} />
                                 </div>
                             </div>
-
                         </div>
                     ))}
                 </div>
@@ -198,7 +238,6 @@ function PatientDetail() {
                 {/* Private Notes */}
                 <div className="bg-white rounded-2xl shadow p-6">
                     <h2 className="text-lg font-bold text-gray-700 mb-4">🔒 Private Notes</h2>
-
                     <div className="flex gap-3 mb-4">
                         <input
                             className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300"
@@ -214,20 +253,14 @@ function PatientDetail() {
                             Add Note
                         </button>
                     </div>
-
                     <div className="flex flex-col gap-3">
                         {data.notes.length === 0 && (
                             <p className="text-center text-gray-400">No notes yet.</p>
                         )}
                         {data.notes.map(note => (
-                            <div
-                                key={note._id}
-                                className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3"
-                            >
+                            <div key={note._id} className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
                                 <p className="text-sm text-gray-700">{note.content}</p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                    {new Date(note.createdAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-xs text-gray-400 mt-1">{new Date(note.createdAt).toLocaleDateString()}</p>
                             </div>
                         ))}
                     </div>
