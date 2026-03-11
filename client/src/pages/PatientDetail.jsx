@@ -9,6 +9,7 @@ function PatientDetail() {
     const [newNote, setNewNote] = useState('');
     const { psychologistId, patientId } = useParams();
     const [history, setHistory] = useState([]);
+    const [sessionId, setSessionId] = useState(null);
     const navigate = useNavigate();
 
     const fetchData = async () => {
@@ -21,6 +22,11 @@ function PatientDetail() {
 
             const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
             setHistory(historyRes);
+            const sessionRes = await api.get(`/api/sessions/patient/${patientId}`);
+            if (sessionRes && sessionRes.length > 0) {
+                const completed = sessionRes.find(s => s.status === 'completed');
+                if (completed) setSessionId(completed._id);
+            }
         } catch (err) {
             console.error(err);
         }
@@ -43,6 +49,14 @@ function PatientDetail() {
             console.error(err);
         }
     };
+
+    const downloadPDF = () => {
+        const token = localStorage.getItem('token');
+        window.open(
+            'http://localhost:5000/api/sessions/' + sessionId + '/report/pdf?token=' + token,
+            '_blank'
+        );
+    };
     console.log('patientId in PatientDetail:', patientId);
     console.log('userId from localStorage:', localStorage.getItem('userId'));
     console.log('patientId:', patientId, typeof patientId);
@@ -64,6 +78,14 @@ function PatientDetail() {
                     >
                         💬 Open Chat
                     </button>
+                    {sessionId && (
+                        <button
+                            onClick={downloadPDF}
+                            className="bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-green-700 transition"
+                        >
+                            📄 Download Report
+                        </button>
+                    )}
                 </div>
             </div>
 
