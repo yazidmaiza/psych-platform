@@ -9,6 +9,7 @@ import Conversation from './pages/Conversation';
 import Dashboard from './pages/Dashboard';
 import PatientDetail from './pages/PatientDetail';
 import PatientHistory from './pages/PatientHistory';
+import AdminPanel from './pages/AdminPanel';
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
             <PatientDetail />
           </ProtectedRoute>
         } />
+        <Route path="/admin" element={<AdminPanel />} />
       </Routes>
     </BrowserRouter>
   );
