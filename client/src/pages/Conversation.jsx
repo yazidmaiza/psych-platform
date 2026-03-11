@@ -9,12 +9,15 @@ const socket = io('http://localhost:5000');
 function Conversation() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [sessionId, setSessionId] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
   const { otherUserId } = useParams();
   const navigate = useNavigate();
   const messagesContainerRef = useRef(null);
+  const recorderRef = useRef(null);
+
   const { userId, role } = getUser();
   const roomId = [userId, otherUserId].sort().join('_');
-  console.log('Conversation - userId:', userId, 'otherUserId:', otherUserId, 'roomId:', roomId);
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -23,7 +26,6 @@ function Conversation() {
   };
 
   useEffect(() => {
-    // Load existing messages once
     const fetchMessages = async () => {
       try {
         const data = await api.get(`/api/messages/${otherUserId}`);
@@ -33,10 +35,22 @@ function Conversation() {
       }
     };
 
+    const fetchSession = async () => {
+      try {
+        const data = await api.get(`/api/sessions/patient/${otherUserId}`);
+        if (Array.isArray(data) && data.length > 0) {
+          const active = data.find(s => s.status === 'active') || data[data.length - 1];
+          setSessionId(active._id);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     socket.emit('join_room', roomId);
     fetchMessages();
+    fetchSession();
 
-    // Only add messages from the OTHER user
     socket.on('receive_message', (data) => {
       if (data.message?.senderId !== userId) {
         setMessages(prev => {
@@ -55,30 +69,78 @@ function Conversation() {
     scrollToBottom();
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!newMessage.trim()) return;
-    const content = newMessage;
-    setNewMessage('');
+  const sendMessage = async (content) => {
+    const text = content || newMessage;
+    if (!text.trim()) return;
+    if (!content) setNewMessage('');
 
     try {
       const savedMessage = await api.post('/api/messages', {
         receiverId: otherUserId,
         receiverModel: role === 'psychologist' ? 'User' : 'Psychologist',
-        content
+        content: text
       });
 
-      // Add saved message (with real _id) to local state
       setMessages(prev => {
         if (prev.some(m => m._id === savedMessage._id)) return prev;
         return [...prev, savedMessage];
       });
 
-      // Emit to other user
       socket.emit('send_message', { roomId, message: savedMessage });
 
     } catch (err) {
       console.error(err);
-      setNewMessage(content); // restore message if failed
+      if (!content) setNewMessage(text);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', blob, 'voice.webm');
+        const token = localStorage.getItem('token');
+
+        try {
+          const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/voice`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData
+          });
+          const data = await res.json();
+          if (data.text) sendMessage(data.text);
+        } catch (err) {
+          console.error('Voice transcription failed:', err);
+        }
+
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+      };
+
+      recorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setTimeout(() => {
+        if (recorderRef.current?.state === 'recording') {
+          recorderRef.current.stop();
+        }
+      }, 5000);
+
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Microphone access denied ❌');
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop();
     }
   };
 
@@ -114,8 +176,8 @@ function Conversation() {
               className={`flex mb-3 ${msg.senderId === userId ? 'justify-end' : 'justify-start'}`}
             >
               <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === userId
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-800'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-800'
                 }`}>
                 <p className="text-sm">{msg.content}</p>
                 <p className={`text-xs mt-1 ${msg.senderId === userId ? 'text-blue-200' : 'text-gray-400'}`}>
@@ -134,9 +196,20 @@ function Conversation() {
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendMessage()}
           />
+          {sessionId && (
+            <button
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${isRecording
+                  ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              onClick={isRecording ? stopRecording : startRecording}
+            >
+              {isRecording ? '⏹ Stop' : '🎤'}
+            </button>
+          )}
           <button
             className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
           >
             Send →
           </button>
