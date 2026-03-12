@@ -14,7 +14,7 @@ exports.transcribeVoice = async (req, res) => {
       contentType: req.file.mimetype
     });
     formData.append('model', 'whisper-large-v3');
-    formData.append('language', 'fr');
+    //formData.append('language', 'fr');
     formData.append('response_format', 'json');
 
     const whisperResponse = await axios.post(
