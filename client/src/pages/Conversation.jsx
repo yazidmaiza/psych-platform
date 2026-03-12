@@ -11,6 +11,7 @@ function Conversation() {
   const [newMessage, setNewMessage] = useState('');
   const [sessionId, setSessionId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const { otherUserId } = useParams();
   const navigate = useNavigate();
   const messagesContainerRef = useRef(null);
@@ -23,6 +24,16 @@ function Conversation() {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
+  };
+
+  const speakMessage = (text) => {
+    if (!text || isMuted) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    //utterance.lang = 'fr-FR';
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
@@ -57,11 +68,13 @@ function Conversation() {
           if (prev.some(m => m._id === data.message._id)) return prev;
           return [...prev, data.message];
         });
+        speakMessage(data.message.content);
       }
     });
 
     return () => {
       socket.off('receive_message');
+      window.speechSynthesis.cancel();
     };
   }, [otherUserId]);
 
@@ -156,6 +169,15 @@ function Conversation() {
           </button>
           <h1 className="text-xl font-bold text-gray-800">💬 Conversation</h1>
           <span className="text-xs text-green-500 font-semibold">● Live</span>
+          <button
+            onClick={() => {
+              setIsMuted(!isMuted);
+              window.speechSynthesis.cancel();
+            }}
+            className="ml-auto text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+          >
+            {isMuted ? '🔇 Muted' : '🔊 Sound On'}
+          </button>
         </div>
       </div>
 
@@ -176,8 +198,8 @@ function Conversation() {
               className={`flex mb-3 ${msg.senderId === userId ? 'justify-end' : 'justify-start'}`}
             >
               <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === userId
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-800'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-800'
                 }`}>
                 <p className="text-sm">{msg.content}</p>
                 <p className={`text-xs mt-1 ${msg.senderId === userId ? 'text-blue-200' : 'text-gray-400'}`}>
@@ -199,8 +221,8 @@ function Conversation() {
           {sessionId && (
             <button
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${isRecording
-                  ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               onClick={isRecording ? stopRecording : startRecording}
             >
