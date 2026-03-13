@@ -44,6 +44,12 @@ function Dashboard() {
                         >
                             Logout
                         </button>
+                        <button
+                            onClick={() => navigate('/statistics')}
+                            className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                            📊 Statistics
+                        </button>
                     </div>
                 </div>
             </div>

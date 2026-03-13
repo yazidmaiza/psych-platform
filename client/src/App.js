@@ -16,6 +16,8 @@ import Chatbot from './pages/Chatbot';
 import VerifyCode from './pages/VerifyCode';
 import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
+import Statistics from './pages/Statistics';
+
 function App() {
   return (
     <BrowserRouter>
@@ -23,25 +25,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        {/* Chatbot routes */}
-        <Route path="/chatbot/:sessionId" element={
-          <ProtectedRoute role="patient">
-            <Chatbot />
-          </ProtectedRoute>
-        } />
-        {/* Edit profile */}
-        <Route path="/profile/edit" element={
-          <ProtectedRoute role="psychologist">
-            <EditProfile />
-          </ProtectedRoute>
-        } />
-        {/* Psychologist routes */}
 
-        <Route path="/setup" element={
-          <ProtectedRoute role="psychologist">
-            <PsychologistSetup />
-          </ProtectedRoute>
-        } />
         {/* Patient routes */}
         <Route path="/" element={
           <ProtectedRoute role="patient">
@@ -51,22 +35,6 @@ function App() {
         <Route path="/psychologist/:id" element={
           <ProtectedRoute role="patient">
             <PsychologistProfile />
-          </ProtectedRoute>
-        } />
-        <Route path="/conversation/:otherUserId" element={
-          <ProtectedRoute>
-            <Conversation />
-          </ProtectedRoute>
-        } />
-        {/* Patient history */}
-        <Route path="/history/:patientId" element={
-          <ProtectedRoute role="psychologist">
-            <PatientHistory />
-          </ProtectedRoute>
-        } />
-        <Route path="/chatbot/:sessionId" element={
-          <ProtectedRoute>
-            <Chatbot />
           </ProtectedRoute>
         } />
         <Route path="/session/create/:psychologistId" element={
@@ -84,7 +52,35 @@ function App() {
             <VerifyCode />
           </ProtectedRoute>
         } />
+        <Route path="/chatbot/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <Chatbot />
+          </ProtectedRoute>
+        } />
+
+        {/* Shared routes */}
+        <Route path="/conversation/:otherUserId" element={
+          <ProtectedRoute>
+            <Conversation />
+          </ProtectedRoute>
+        } />
+        <Route path="/statistics" element={
+          <ProtectedRoute>
+            <Statistics />
+          </ProtectedRoute>
+        } />
+
         {/* Psychologist routes */}
+        <Route path="/setup" element={
+          <ProtectedRoute role="psychologist">
+            <PsychologistSetup />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile/edit" element={
+          <ProtectedRoute role="psychologist">
+            <EditProfile />
+          </ProtectedRoute>
+        } />
         <Route path="/dashboard" element={
           <ProtectedRoute role="psychologist">
             <Dashboard />
@@ -95,6 +91,13 @@ function App() {
             <PatientDetail />
           </ProtectedRoute>
         } />
+        <Route path="/history/:patientId" element={
+          <ProtectedRoute role="psychologist">
+            <PatientHistory />
+          </ProtectedRoute>
+        } />
+
+        {/* Admin routes */}
         <Route path="/admin" element={
           <ProtectedRoute role="admin">
             <AdminPanel />
