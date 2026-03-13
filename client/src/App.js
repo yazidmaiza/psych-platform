@@ -51,8 +51,9 @@ function App() {
             <Conversation />
           </ProtectedRoute>
         } />
-        <Route path="/history/:patientId" element={
-          <ProtectedRoute>
+        {/* Patient history */}
+        <Route path="/history" element={
+          <ProtectedRoute role="patient">
             <PatientHistory />
           </ProtectedRoute>
         } />

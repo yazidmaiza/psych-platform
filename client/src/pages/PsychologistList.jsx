@@ -33,12 +33,20 @@ function PsychologistList() {
                 <div className="max-w-4xl mx-auto px-6 py-5">
                     <h1 className="text-3xl font-bold text-blue-700">🧠 Find a Psychologist</h1>
                     <p className="text-gray-500 mt-1">Browse and connect with certified professionals</p>
-                    <button
-                        onClick={logout}
-                        className="text-red-500 text-sm font-semibold hover:underline mt-2"
-                    >
-                        Logout
-                    </button>
+                    <div className="flex gap-4 mt-2">
+                        <button
+                            onClick={() => navigate('/history')}
+                            className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                            📋 My Sessions
+                        </button>
+                        <button
+                            onClick={logout}
+                            className="text-red-500 text-sm font-semibold hover:underline"
+                        >
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
 
