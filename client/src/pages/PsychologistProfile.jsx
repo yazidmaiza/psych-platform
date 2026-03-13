@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { getUser } from '../services/auth';
 
 function PsychologistProfile() {
     const [psy, setPsy] = useState(null);
     const { id } = useParams();
     const navigate = useNavigate();
-    const { userId } = getUser();
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -21,15 +19,8 @@ function PsychologistProfile() {
         fetchProfile();
     }, [id]);
 
-    const handleRequestSession = async () => {
-        try {
-            await api.post(`/api/psychologists/${id}/request-session`, {
-                patientId: userId
-            });
-            alert('Session request sent successfully! ✅');
-        } catch (err) {
-            alert('Something went wrong ❌');
-        }
+    const handleRequestSession = () => {
+        navigate(`/session/create/${id}`);
     };
 
     if (!psy) return (

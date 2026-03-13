@@ -45,3 +45,28 @@ exports.updatePsychologist = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+// @POST /api/psychologists/profile
+exports.createProfile = async (req, res) => {
+  try {
+    const existing = await Psychologist.findOne({ userId: req.user.id });
+    if (existing) return res.status(400).json({ message: 'Profile already exists' });
+
+    const { firstName, lastName, bio, specializations, languages, city, availability } = req.body;
+
+    const profile = new Psychologist({
+      userId: req.user.id,
+      firstName,
+      lastName,
+      bio,
+      specializations,
+      languages,
+      city,
+      availability
+    });
+
+    await profile.save();
+    res.status(201).json(profile);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};

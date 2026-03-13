@@ -1,6 +1,8 @@
 const nodemailer = require('nodemailer');
 
 const sendEmail = async ({ to, subject, html }) => {
+  console.log('Attempting to send email to:', to);
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -9,12 +11,18 @@ const sendEmail = async ({ to, subject, html }) => {
     }
   });
 
-  await transporter.sendMail({
-    from: '"Psych Platform" <' + process.env.EMAIL_USER + '>',
-    to,
-    subject,
-    html
-  });
+  try {
+    const info = await transporter.sendMail({
+      from: '"Psych Platform" <' + process.env.EMAIL_USER + '>',
+      to,
+      subject,
+      html
+    });
+    console.log('Email sent successfully:', info.messageId);
+  } catch (err) {
+    console.error('Email error:', err.message);
+    throw err;
+  }
 };
 
 module.exports = sendEmail;

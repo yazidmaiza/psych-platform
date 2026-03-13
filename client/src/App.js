@@ -10,7 +10,10 @@ import Dashboard from './pages/Dashboard';
 import PatientDetail from './pages/PatientDetail';
 import PatientHistory from './pages/PatientHistory';
 import AdminPanel from './pages/AdminPanel';
-
+import CreateSession from './pages/CreateSession';
+import PaymentConfirm from './pages/PaymentConfirm';
+import Chatbot from './pages/Chatbot';
+import VerifyCode from './pages/VerifyCode';
 function App() {
   return (
     <BrowserRouter>
@@ -18,7 +21,12 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-
+        {/* Chatbot routes */}
+        <Route path="/chatbot/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <Chatbot />
+          </ProtectedRoute>
+        } />
         {/* Patient routes */}
         <Route path="/" element={
           <ProtectedRoute role="patient">
@@ -40,7 +48,26 @@ function App() {
             <PatientHistory />
           </ProtectedRoute>
         } />
-
+        <Route path="/chatbot/:sessionId" element={
+          <ProtectedRoute>
+            <Chatbot />
+          </ProtectedRoute>
+        } />
+        <Route path="/session/create/:psychologistId" element={
+          <ProtectedRoute role="patient">
+            <CreateSession />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <PaymentConfirm />
+          </ProtectedRoute>
+        } />
+        <Route path="/verify/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <VerifyCode />
+          </ProtectedRoute>
+        } />
         {/* Psychologist routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute role="psychologist">
