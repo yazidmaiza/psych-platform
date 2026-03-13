@@ -20,7 +20,7 @@ function PsychologistProfile() {
     }, [id]);
 
     const handleRequestSession = () => {
-        navigate(`/session/create/${id}`);
+        navigate(`/session/create/${psy.userId?._id || psy.userId}`);
     };
 
     if (!psy) return (
