@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
 const SESSION_TYPE_LABELS = {
@@ -8,49 +8,49 @@ const SESSION_TYPE_LABELS = {
     free: '💬 Free Expression'
 };
 
-const STATUS_COLORS = {
-    pending: 'bg-yellow-100 text-yellow-700',
-    active: 'bg-blue-100 text-blue-700',
-    completed: 'bg-green-100 text-green-700'
-};
-
-export default function SessionHistory() {
+export default function PatientHistory() {
+    const { patientId } = useParams();
     const navigate = useNavigate();
     const [sessions, setSessions] = useState([]);
     const [summaries, setSummaries] = useState({});
+    const [emotions, setEmotions] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const userId = localStorage.getItem('userId');
-
     useEffect(() => {
-        const fetchSessions = async () => {
+        const fetchAll = async () => {
             try {
-                const data = await api.get('/api/sessions/patient/' + userId);
-                setSessions(data);
+                // Fetch chatbot sessions
+                const sessionData = await api.get('/api/sessions/patient/' + patientId);
+                setSessions(sessionData);
 
-                // Fetch summaries for completed sessions
+                // Fetch AI summaries for completed sessions
                 const summaryMap = {};
                 await Promise.all(
-                    data
+                    sessionData
                         .filter(s => s.status === 'completed')
                         .map(async s => {
                             try {
                                 const summary = await api.get('/api/chatbot/' + s._id + '/summary');
                                 summaryMap[s._id] = summary;
                             } catch {
-                                // no summary yet
+                                // no summary
                             }
                         })
                 );
                 setSummaries(summaryMap);
+
+                // Fetch Anas's emotional indicators
+                const emotionData = await api.get('/api/dashboard/emotions/' + patientId);
+                setEmotions(emotionData);
+
             } catch (err) {
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         };
-        fetchSessions();
-    }, [userId]);
+        fetchAll();
+    }, [patientId]);
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
@@ -60,94 +60,126 @@ export default function SessionHistory() {
         <div className="min-h-screen bg-gray-50">
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
-                    <button onClick={() => navigate('/')} className="text-blue-600 text-sm font-semibold hover:underline">
-                        ← Back
+                    <button onClick={() => navigate('/dashboard')} className="text-blue-600 text-sm font-semibold hover:underline">
+                        ← Back to Dashboard
                     </button>
-                    <h1 className="text-xl font-bold text-gray-800">📋 My Sessions</h1>
+                    <h1 className="text-xl font-bold text-gray-800">📋 Patient History</h1>
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-6 py-8">
-                {sessions.length === 0 && (
-                    <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-                        😶 No sessions yet. Book your first session to get started.
+            <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
+
+                {/* Emotional Indicators from Anas's dashboard */}
+                {emotions.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow p-6">
+                        <h2 className="text-lg font-bold text-gray-700 mb-4">📊 Emotional Indicators</h2>
+                        {emotions.slice(0, 1).map(indicator => (
+                            <div key={indicator._id} className="flex flex-col gap-4">
+                                {Object.entries(indicator.scores).map(([emotion, score]) => (
+                                    <div key={emotion}>
+                                        <div className="flex justify-between text-sm mb-1">
+                                            <span className="font-semibold text-gray-700">
+                                                {emotion === 'anxiety' ? '😰' : emotion === 'sadness' ? '😔' : emotion === 'anger' ? '😤' : '😊'} {emotion}
+                                            </span>
+                                            <span className="text-gray-500">{score}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-3">
+                                            <div
+                                                className={`h-3 rounded-full transition-all ${emotion === 'anxiety' ? 'bg-red-400' :
+                                                        emotion === 'sadness' ? 'bg-blue-400' :
+                                                            emotion === 'anger' ? 'bg-orange-400' : 'bg-green-400'
+                                                    }`}
+                                                style={{ width: `${score}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 )}
 
-                <div className="flex flex-col gap-6">
-                    {sessions.map(session => {
-                        const summary = summaries[session._id];
-                        return (
-                            <div key={session._id} className="bg-white rounded-2xl shadow p-6">
+                {/* AI Chatbot Sessions */}
+                <h2 className="text-lg font-bold text-gray-700">🤖 AI Pre-Interview Sessions</h2>
 
-                                {/* Header */}
-                                <div className="flex justify-between items-center mb-4">
-                                    <span className="text-sm font-bold text-gray-800">
-                                        {SESSION_TYPE_LABELS[session.sessionType] || session.sessionType}
-                                    </span>
-                                    <div className="flex items-center gap-3">
-                                        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[session.status]}`}>
-                                            {session.status}
-                                        </span>
-                                        <span className="text-xs text-gray-400">
-                                            📅 {new Date(session.createdAt).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                </div>
+                {sessions.length === 0 && (
+                    <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+                        😶 No chatbot sessions yet.
+                    </div>
+                )}
 
-                                {/* Summary if completed */}
-                                {summary ? (
-                                    <div className="flex flex-col gap-4">
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Emotion</p>
-                                                <p className="text-gray-800 font-bold capitalize text-sm">{summary.emotionalIndicators?.dominantEmotion}</p>
-                                            </div>
-                                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Urgency</p>
-                                                <p className="text-gray-800 font-bold text-sm">{summary.emotionalIndicators?.urgencyScore} / 5</p>
-                                            </div>
-                                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Trend</p>
-                                                <p className="text-gray-800 font-bold capitalize text-sm">{summary.emotionalIndicators?.sentimentTrend}</p>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Key Themes</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {summary.keyThemes?.map((theme, i) => (
-                                                    <span key={i} className="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold">
-                                                        {theme}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Summary</p>
-                                            <p className="text-sm text-gray-700 leading-relaxed">{summary.rawSummary}</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        {session.status === 'pending' && (
-                                            <p className="text-sm text-gray-400 text-center py-4">⏳ Payment pending</p>
-                                        )}
-                                        {session.status === 'active' && (
-                                            <button
-                                                onClick={() => navigate('/chatbot/' + session._id)}
-                                                className="w-full bg-blue-600 text-white py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                                            >
-                                                Continue Session →
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
+                {sessions.map(session => {
+                    const summary = summaries[session._id];
+                    return (
+                        <div key={session._id} className="bg-white rounded-2xl shadow p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-sm font-bold text-gray-800">
+                                    {SESSION_TYPE_LABELS[session.sessionType] || session.sessionType}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                    📅 {new Date(session.createdAt).toLocaleDateString()}
+                                </span>
                             </div>
-                        );
-                    })}
-                </div>
+
+                            {summary ? (
+                                <div className="flex flex-col gap-4">
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Emotion</p>
+                                            <p className="text-gray-800 font-bold capitalize text-sm">{summary.emotionalIndicators?.dominantEmotion}</p>
+                                        </div>
+                                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Urgency</p>
+                                            <p className="text-gray-800 font-bold text-sm">{summary.emotionalIndicators?.urgencyScore} / 5</p>
+                                        </div>
+                                        <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                            <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Trend</p>
+                                            <p className="text-gray-800 font-bold capitalize text-sm">{summary.emotionalIndicators?.sentimentTrend}</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Key Themes</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {summary.keyThemes?.map((theme, i) => (
+                                                <span key={i} className="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold">
+                                                    {theme}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Clinical Summary</p>
+                                        <p className="text-sm text-gray-700 leading-relaxed">{summary.rawSummary}</p>
+                                    </div>
+
+                                    {/* PDF Download */}
+                                    <button
+                                        onClick={async () => {
+                                            const token = localStorage.getItem('token');
+                                            const res = await fetch('http://localhost:5000/api/sessions/' + session._id + '/report/pdf', {
+                                                headers: { Authorization: 'Bearer ' + token }
+                                            });
+                                            const blob = await res.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = 'report-' + session._id + '.pdf';
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+                                        }}
+                                        className="bg-green-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-green-600 transition"
+                                    >
+                                        📄 Download PDF Report
+                                    </button>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400 text-center py-4">No summary available yet.</p>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

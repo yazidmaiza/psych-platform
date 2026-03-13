@@ -61,15 +61,19 @@ exports.endSession = async (req, res) => {
       {
         model: 'llama-3.1-8b-instant',
         messages: [
-          { role: 'system', content: `You are a clinical assistant that summarizes patient conversations for psychologists. Analyze the conversation and return ONLY a valid JSON object with this exact structure: { "dominantEmotion": "one word emotion", "urgencyScore": number between 1 and 5, "sentimentTrend": "improving or stable or declining", "keyThemes": ["theme1", "theme2"], "rawSummary": "2-3 sentence summary" } Return only the JSON. No extra text.` },
-          { role: 'user', content: `Summarize this conversation:\n\n` }
+          { role: 'system', content: 'You are a clinical assistant. You must respond with ONLY a valid JSON object, no other text, no explanation, no markdown. The JSON must have exactly these fields: {"dominantEmotion": "one word", "urgencyScore": 1, "sentimentTrend": "improving", "keyThemes": ["theme1"], "rawSummary": "summary text"}' },
+          { role: 'user', content: `Summarize this conversation:\n\n${conversationText}` }
         ],
         temperature: 0.3,
         max_tokens: 500
       },
       { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' } }
     );
-    const parsed = JSON.parse(summaryResponse.data.choices[0].message.content);
+    const rawContent = summaryResponse.data.choices[0].message.content;
+    const cleanContent = rawContent.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleanContent);
+    if (parsed.urgencyScore < 1) parsed.urgencyScore = 1;
+    if (parsed.urgencyScore > 5) parsed.urgencyScore = 5;
     const summary = await ChatbotSummary.create({
       sessionId,
       patientId: session.patientId,
@@ -80,6 +84,7 @@ exports.endSession = async (req, res) => {
     await Session.findByIdAndUpdate(sessionId, { status: 'completed' });
     res.status(200).json({ summary });
   } catch (err) {
+    console.log('endSession error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };

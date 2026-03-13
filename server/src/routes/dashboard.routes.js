@@ -10,11 +10,30 @@ const { protect } = require('../middleware/authMiddleware');
 // US-31 — Get chronological list of patients for a psychologist
 router.get('/patients', protect, async (req, res) => {
     try {
-        const requests = await SessionRequest.find({
+        const sessions = await SessionRequest.find({
             psychologistId: req.user.id
         }).sort({ createdAt: -1 });
 
-        res.json(requests);
+        // Get unique patient IDs
+        const User = require('../models/User');
+        const uniquePatientIds = [...new Set(sessions.map(s => s.patientId.toString()))];
+        const patients = await User.find({ _id: { $in: uniquePatientIds } }).select('-password');
+
+        // Merge session info with patient info
+        const result = uniquePatientIds.map(patientId => {
+            const patientSessions = sessions.filter(s => s.patientId.toString() === patientId);
+            const patient = patients.find(p => p._id.toString() === patientId);
+            return {
+                _id: patientSessions[0]._id,
+                patientId,
+                email: patient?.email || 'Unknown',
+                sessionCount: patientSessions.length,
+                lastSession: patientSessions[0].createdAt,
+                status: patientSessions[0].status
+            };
+        });
+
+        res.json(result);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

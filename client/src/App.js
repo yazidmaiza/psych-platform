@@ -59,8 +59,8 @@ function App() {
           </ProtectedRoute>
         } />
         {/* Patient history */}
-        <Route path="/history" element={
-          <ProtectedRoute role="patient">
+        <Route path="/history/:patientId" element={
+          <ProtectedRoute role="psychologist">
             <PatientHistory />
           </ProtectedRoute>
         } />

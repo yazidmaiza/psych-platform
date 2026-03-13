@@ -64,7 +64,8 @@ function Dashboard() {
                             className="bg-white rounded-2xl shadow p-6 flex justify-between items-center hover:shadow-md transition"
                         >
                             <div>
-                                <p className="text-gray-800 font-semibold">Patient ID: {request.patientId}</p>
+                                <p className="text-gray-800 font-semibold">📧 {request.email}</p>
+                                <p className="text-gray-500 text-sm mt-1">Sessions: {request.sessionCount}</p>
                                 <p className="text-gray-500 text-sm mt-1">
                                     📅 Requested: {new Date(request.createdAt).toLocaleDateString()}
                                 </p>
