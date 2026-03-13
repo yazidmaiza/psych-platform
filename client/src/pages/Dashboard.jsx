@@ -31,12 +31,20 @@ function Dashboard() {
                 <div className="max-w-4xl mx-auto px-6 py-5">
                     <h1 className="text-3xl font-bold text-blue-700">🏥 Dashboard</h1>
                     <p className="text-gray-500 mt-1">Manage your patients and sessions</p>
-                    <button
-                        onClick={logout}
-                        className="text-red-500 text-sm font-semibold hover:underline"
-                    >
-                        Logout
-                    </button>
+                    <div className="flex gap-4 mt-2">
+                        <button
+                            onClick={() => navigate('/profile/edit')}
+                            className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                            ✏️ Edit Profile
+                        </button>
+                        <button
+                            onClick={logout}
+                            className="text-red-500 text-sm font-semibold hover:underline"
+                        >
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
 
