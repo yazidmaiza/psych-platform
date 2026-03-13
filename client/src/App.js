@@ -14,6 +14,7 @@ import CreateSession from './pages/CreateSession';
 import PaymentConfirm from './pages/PaymentConfirm';
 import Chatbot from './pages/Chatbot';
 import VerifyCode from './pages/VerifyCode';
+import PsychologistSetup from './pages/PsychologistSetup';
 function App() {
   return (
     <BrowserRouter>
@@ -25,6 +26,13 @@ function App() {
         <Route path="/chatbot/:sessionId" element={
           <ProtectedRoute role="patient">
             <Chatbot />
+          </ProtectedRoute>
+        } />
+        {/* Psychologist routes */}
+
+        <Route path="/setup" element={
+          <ProtectedRoute role="psychologist">
+            <PsychologistSetup />
           </ProtectedRoute>
         } />
         {/* Patient routes */}

@@ -9,8 +9,16 @@ function Register() {
 
     const handleRegister = async () => {
         try {
-            await axios.post('http://localhost:5000/api/auth/register', form);
-            navigate('/login');
+            const res = await axios.post('http://localhost:5000/api/auth/register', form);
+            localStorage.setItem('token', res.data.token);
+            localStorage.setItem('role', res.data.user.role);
+            localStorage.setItem('userId', res.data.user.id);
+
+            if (form.role === 'psychologist') {
+                navigate('/setup');
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         }
@@ -56,8 +64,8 @@ function Register() {
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 className={`py-3 rounded-xl text-sm font-semibold border-2 transition ${form.role === 'patient'
-                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                        : 'border-gray-200 text-gray-500 hover:border-blue-300'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-200 text-gray-500 hover:border-blue-300'
                                     }`}
                                 onClick={() => setForm({ ...form, role: 'patient' })}
                             >
@@ -65,8 +73,8 @@ function Register() {
                             </button>
                             <button
                                 className={`py-3 rounded-xl text-sm font-semibold border-2 transition ${form.role === 'psychologist'
-                                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                        : 'border-gray-200 text-gray-500 hover:border-blue-300'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-200 text-gray-500 hover:border-blue-300'
                                     }`}
                                 onClick={() => setForm({ ...form, role: 'psychologist' })}
                             >
