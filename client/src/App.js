@@ -87,7 +87,11 @@ function App() {
             <PatientDetail />
           </ProtectedRoute>
         } />
-        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/admin" element={
+          <ProtectedRoute role="admin">
+            <AdminPanel />
+          </ProtectedRoute>
+        } />
       </Routes>
     </BrowserRouter>
   );

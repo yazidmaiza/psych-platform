@@ -18,7 +18,9 @@ function Login() {
             localStorage.setItem('userId', user.id);
 
             // Redirect based on role
-            if (user.role === 'psychologist') {
+            if (user.role === 'admin') {
+                navigate('/admin');
+            } else if (user.role === 'psychologist') {
                 navigate('/dashboard');
             } else {
                 navigate('/');
