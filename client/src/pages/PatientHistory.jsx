@@ -173,6 +173,15 @@ export default function PatientHistory() {
                                     >
                                         📄 Download PDF Report
                                     </button>
+
+                                    {!session.isRated && (
+                                        <button
+                                            onClick={() => navigate('/rate/' + session.psychologistId)}
+                                            className="w-full bg-purple-600 text-white py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition mt-2"
+                                        >
+                                            ⭐ End Relationship & Rate Psychologist
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-gray-400 text-center py-4">No summary available yet.</p>

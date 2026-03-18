@@ -90,6 +90,10 @@ function PsychologistList() {
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h2>
                                 <p className="text-gray-500 text-sm mt-1">📍 {psy.city}</p>
+                                <p className="text-gray-500 text-sm">
+                                    ⭐ {psy.averageRating > 0 ? psy.averageRating.toFixed(1) + ' / 5' : 'No ratings yet'}
+                                    {psy.totalRatings > 0 && ` (${psy.totalRatings} reviews)`}
+                                </p>
                                 <p className="text-gray-500 text-sm">🗣 {psy.languages.join(', ')}</p>
                                 <p className="text-gray-500 text-sm">🧠 {psy.specializations.join(', ')}</p>
                                 <div className="mt-2">

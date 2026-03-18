@@ -9,7 +9,7 @@ exports.getAllPsychologists = async (req, res) => {
     if (city) filter.city = { $regex: city, $options: 'i' };
     const psychologists = await Psychologist.find(filter)
       .populate('userId', 'email')
-      .sort({ createdAt: -1 });
+      .sort({ averageRating: -1, createdAt: -1 });
     res.status(200).json(psychologists);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

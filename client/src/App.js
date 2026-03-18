@@ -17,6 +17,7 @@ import VerifyCode from './pages/VerifyCode';
 import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
 import Statistics from './pages/Statistics';
+import RateConsultation from './pages/RateConsultation';
 
 function App() {
   return (
@@ -32,6 +33,11 @@ function App() {
             <PsychologistList />
           </ProtectedRoute>
         } />
+        <Route path="/rate/:psychologistId" element={
+          <ProtectedRoute role="patient">
+            <RateConsultation />
+          </ProtectedRoute>
+        } />
         <Route path="/psychologist/:id" element={
           <ProtectedRoute role="patient">
             <PsychologistProfile />
@@ -42,6 +48,7 @@ function App() {
             <CreateSession />
           </ProtectedRoute>
         } />
+
         <Route path="/payment/:sessionId" element={
           <ProtectedRoute role="patient">
             <PaymentConfirm />
@@ -76,6 +83,7 @@ function App() {
             <PsychologistSetup />
           </ProtectedRoute>
         } />
+
         <Route path="/profile/edit" element={
           <ProtectedRoute role="psychologist">
             <EditProfile />

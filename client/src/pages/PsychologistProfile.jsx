@@ -51,6 +51,10 @@ function PsychologistProfile() {
                         <div>
                             <h1 className="text-2xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h1>
                             <p className="text-gray-500 text-sm mt-1">📍 {psy.city || 'N/A'}</p>
+                            <p className="text-gray-500 text-sm mt-1">
+                                ⭐ {psy.averageRating > 0 ? psy.averageRating.toFixed(1) + ' / 5' : 'No ratings yet'}
+                                {psy.totalRatings > 0 && ` (${psy.totalRatings} reviews)`}
+                            </p>
                         </div>
                     </div>
 

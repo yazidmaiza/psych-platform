@@ -1,4 +1,4 @@
-console.log('sessionController loaded');
+
 const Session = require('../models/Session');
 const SessionCode = require('../models/SessionCode');
 const User = require('../models/User');
@@ -35,7 +35,7 @@ exports.confirmPayment = async (req, res) => {
     await sessionCode.save();
     const patient = await User.findById(req.user.id);
 
-    console.log('Sending email to:', patient.email);
+
     await sendEmail({
       to: patient.email,
       subject: 'Session Code',
