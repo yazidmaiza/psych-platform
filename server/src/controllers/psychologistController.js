@@ -3,7 +3,7 @@ const Psychologist = require('../models/Psychologist');
 exports.getAllPsychologists = async (req, res) => {
   try {
     const { specialization, language, city } = req.query;
-    let filter = {};
+    let filter = { isApproved: true };
     if (specialization) filter.specializations = { $in: [specialization] };
     if (language) filter.languages = { $in: [language] };
     if (city) filter.city = { $regex: city, $options: 'i' };
@@ -35,7 +35,7 @@ exports.updatePsychologist = async (req, res) => {
     const psychologist = await Psychologist.findOneAndUpdate(
       { userId: req.user.id },
       { photo, bio, specializations, languages, availability, city, firstName, lastName },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!psychologist) {
       return res.status(404).json({ message: 'Psychologist not found' });

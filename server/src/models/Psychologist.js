@@ -53,7 +53,23 @@ const psychologistSchema = new mongoose.Schema({
   },
   isApproved: {
     type: Boolean,
-    default: true
+    default: false
+  },
+  cvUrl: {
+    type: String,
+    default: ''
+  },
+  diplomaUrl: {
+    type: String,
+    default: ''
+  },
+  isRejected: {
+    type: Boolean,
+    default: false
+  },
+  aiVerificationSummary: {
+    type: String,
+    default: ''
   }
 }, { timestamps: true });
 

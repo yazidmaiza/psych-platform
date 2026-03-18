@@ -12,6 +12,7 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [pendingVerifications, setPendingVerifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -26,14 +27,17 @@ export default function AdminPanel() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, usersRes] = await Promise.all([
+      const [statsRes, usersRes, verifyRes] = await Promise.all([
         fetch(API + '/api/admin/stats', { headers: getHeaders() }),
-        fetch(API + '/api/admin/users', { headers: getHeaders() })
+        fetch(API + '/api/admin/users', { headers: getHeaders() }),
+        fetch(API + '/api/verification/pending', { headers: getHeaders() })
       ]);
       const statsData = await statsRes.json();
       const usersData = await usersRes.json();
+      const verifyData = await verifyRes.json();
       setStats(statsData);
       setUsers(usersData);
+      setPendingVerifications(Array.isArray(verifyData) ? verifyData : []);
     } catch (err) {
       setError('Failed to load data');
     } finally {
@@ -70,6 +74,36 @@ export default function AdminPanel() {
       setUsers(users.map(u => u._id === id ? { ...u, role: data.role } : u));
     } catch (err) {
       setError('Failed to update role');
+    }
+  };
+
+  const approvePsy = async (id) => {
+    try {
+      const res = await fetch(API + '/api/verification/' + id + '/approve', {
+        method: 'PUT',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) return setError(data.message);
+      setMessage('Psychologist approved');
+      setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
+    } catch (err) {
+      setError('Failed to approve');
+    }
+  };
+
+  const rejectPsy = async (id) => {
+    try {
+      const res = await fetch(API + '/api/verification/' + id + '/reject', {
+        method: 'PUT',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) return setError(data.message);
+      setMessage('Psychologist rejected');
+      setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
+    } catch (err) {
+      setError('Failed to reject');
     }
   };
 
@@ -149,6 +183,70 @@ export default function AdminPanel() {
           ))}
         </tbody>
       </table>
+
+      {/* Pending Verifications */}
+      <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, marginTop: 32 }}>
+        🔍 Pending Verifications
+      </h2>
+
+      {pendingVerifications.length === 0 && (
+        <p style={{ color: '#718096', fontSize: 14 }}>No pending verifications.</p>
+      )}
+
+      {pendingVerifications.map(psy => (
+        <div key={psy._id} style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ fontWeight: 'bold', fontSize: 15 }}>{psy.firstName} {psy.lastName}</p>
+              <p style={{ color: '#718096', fontSize: 13 }}>{psy.userId?.email}</p>
+              <p style={{ color: '#718096', fontSize: 13 }}>📍 {psy.city}</p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                {psy.cvUrl && (
+                  <a
+                    href={'http://localhost:5000/uploads/' + psy.cvUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
+                  >
+                    📄 View CV
+                  </a>
+                )}
+                {psy.diplomaUrl && (
+                  <a
+                    href={'http://localhost:5000/uploads/' + psy.diplomaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
+                  >
+                    🎓 View Diploma
+                  </a>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => approvePsy(psy._id)}
+                style={{ padding: '6px 14px', background: '#38a169', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+              >
+                ✅ Approve
+              </button>
+              <button
+                onClick={() => rejectPsy(psy._id)}
+                style={{ padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+              >
+                ❌ Reject
+              </button>
+            </div>
+          </div>
+
+          {psy.aiVerificationSummary && (
+            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 'bold', color: '#4a5568', marginBottom: 6 }}>🤖 AI Analysis</p>
+              <p style={{ fontSize: 13, color: '#4a5568', whiteSpace: 'pre-wrap' }}>{psy.aiVerificationSummary}</p>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

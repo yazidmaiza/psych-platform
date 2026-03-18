@@ -18,6 +18,7 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -30,6 +31,7 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/sessions', require('./routes/reportRoutes'));
 app.use('/api/ratings', require('./routes/ratingRoutes'));
 app.use('/api/sessions', require('./routes/voiceRoutes'));
+app.use('/api/verification', require('./routes/verificationRoutes'));
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });
