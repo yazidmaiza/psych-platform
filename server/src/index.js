@@ -4,7 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
 const { Server } = require('socket.io');
-
+const calendarRoutes = require('./routes/calendar.routes');
 dotenv.config();
 
 const app = express();
@@ -39,7 +39,11 @@ app.use('/api/sessions', require('./routes/reportRoutes'));
 app.use('/api/ratings', require('./routes/ratingRoutes'));
 app.use('/api/sessions', require('./routes/voiceRoutes'));
 app.use('/api/verification', require('./routes/verificationRoutes'));
+<<<<<<< HEAD
 app.use('/api/documents', require('./routes/documentRoutes'));
+=======
+app.use('/api/calendar', calendarRoutes);
+>>>>>>> 4b21308 (feat: calendar system with availability slots and booking)
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });

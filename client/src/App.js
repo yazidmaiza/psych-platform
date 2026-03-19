@@ -18,6 +18,7 @@ import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
 import Statistics from './pages/Statistics';
 import RateConsultation from './pages/RateConsultation';
+import CalendarPage from './pages/Calendar';
 
 function App() {
   return (
@@ -104,7 +105,11 @@ function App() {
             <PatientHistory />
           </ProtectedRoute>
         } />
-
+        <Route path="/calendar" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
         {/* Admin routes */}
         <Route path="/admin" element={
           <ProtectedRoute role="admin">
