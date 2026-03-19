@@ -4,7 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
 const { Server } = require('socket.io');
-
+const calendarRoutes = require('./routes/calendar.routes');
 dotenv.config();
 
 const app = express();
@@ -32,6 +32,7 @@ app.use('/api/sessions', require('./routes/reportRoutes'));
 app.use('/api/ratings', require('./routes/ratingRoutes'));
 app.use('/api/sessions', require('./routes/voiceRoutes'));
 app.use('/api/verification', require('./routes/verificationRoutes'));
+app.use('/api/calendar', calendarRoutes);
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });

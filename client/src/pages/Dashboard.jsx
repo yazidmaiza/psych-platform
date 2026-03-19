@@ -50,6 +50,12 @@ function Dashboard() {
                         >
                             📊 Statistics
                         </button>
+                        <button
+                            onClick={() => navigate('/calendar')}
+                            className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition"
+                        >
+                            📅 Calendar
+                        </button>
                     </div>
                 </div>
             </div>

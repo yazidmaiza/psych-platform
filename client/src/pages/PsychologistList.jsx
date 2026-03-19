@@ -41,6 +41,12 @@ function PsychologistList() {
                             📋 My Sessions
                         </button>
                         <button
+                            onClick={() => navigate('/calendar')}
+                            className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                            📅 My Calendar
+                        </button>
+                        <button
                             onClick={logout}
                             className="text-red-500 text-sm font-semibold hover:underline"
                         >
