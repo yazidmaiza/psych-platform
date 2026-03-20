@@ -123,6 +123,12 @@ function PsychologistProfile() {
                     >
                         📅 View Availability
                     </button>
+                    <button
+                        className="flex-1 bg-yellow-400 text-white py-3 rounded-xl font-semibold hover:bg-yellow-500 transition"
+                        onClick={() => navigate(`/rate/${psy._id}`)}
+                    >
+                        ⭐ Rate Psychologist
+                    </button>
                 </div>
             </div>
         </div>

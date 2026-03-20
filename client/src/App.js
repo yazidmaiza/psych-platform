@@ -115,6 +115,13 @@ function App() {
             <CalendarPage />
           </ProtectedRoute>
         } />
+
+        <Route path="/rate/:psychologistId" element={
+          <ProtectedRoute role="patient">
+            <RateConsultation />
+          </ProtectedRoute>
+        } />
+
         {/* Admin routes */}
         <Route path="/admin" element={
           <ProtectedRoute role="admin">
