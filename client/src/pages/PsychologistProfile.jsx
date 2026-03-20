@@ -101,6 +101,12 @@ function PsychologistProfile() {
                     >
                         💬 Send a Message
                     </button>
+                    <button
+                        className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition"
+                        onClick={() => navigate(`/calendar/${psy.userId?._id || psy.userId}`)}
+                    >
+                        📅 View Availability
+                    </button>
                 </div>
             </div>
         </div>

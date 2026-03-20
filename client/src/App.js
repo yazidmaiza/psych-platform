@@ -110,6 +110,11 @@ function App() {
             <CalendarPage />
           </ProtectedRoute>
         } />
+        <Route path="/calendar/:psychologistId" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
         {/* Admin routes */}
         <Route path="/admin" element={
           <ProtectedRoute role="admin">

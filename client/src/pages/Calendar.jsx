@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { getUser } from '../services/auth';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -21,9 +21,14 @@ function CalendarPage() {
         fetchSlots();
     }, []);
 
+    const { psychologistId } = useParams();
+
     const fetchSlots = async () => {
         try {
-            const data = await api.get(`/api/calendar/slots/${userId}`);
+            // If psychologistId in URL → patient viewing psy's calendar
+            // If no psychologistId → psychologist viewing own calendar
+            const targetId = psychologistId || userId;
+            const data = await api.get(`/api/calendar/slots/${targetId}`);
             const mapped = (Array.isArray(data) ? data : []).map(slot => ({
                 id: slot._id,
                 title: slot.isBooked ? '🔒 Booked' : '✅ Available',
@@ -41,7 +46,7 @@ function CalendarPage() {
 
     // Psychologist selects a time slot to add availability
     const handleSelectSlot = ({ start, end }) => {
-        if (role !== 'psychologist') return;
+        if (role !== 'psychologist' || psychologistId) return;
         setSelectedSlot({ start, end });
         setShowModal(true);
     };
@@ -103,7 +108,7 @@ function CalendarPage() {
                     <div>
                         <h1 className="text-3xl font-bold text-blue-700">📅 Calendar</h1>
                         <p className="text-gray-500 text-sm mt-1">
-                            {role === 'psychologist'
+                            {role === 'psychologist' && !psychologistId
                                 ? 'Click on any time slot to add your availability'
                                 : 'Click on a blue slot to book an appointment'}
                         </p>
