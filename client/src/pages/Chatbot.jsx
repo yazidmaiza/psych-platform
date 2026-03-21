@@ -17,7 +17,7 @@ export default function Chatbot() {
         // Welcome message
         setMessages([{
             role: 'assistant',
-            content: 'Hello! I am your AI assistant. I am here to help you prepare for your session. How are you feeling today?'
+            content: 'Hello! I am your AI assistant. I am here to help you prepare for your session. How are you feeling today? / مرحباً! أنا مساعدك الذكي. أنا هنا لمساعدتك في التحضير لجلستك. كيف حالك اليوم؟ / Bonjour! Je suis votre assistant IA. Je suis ici pour vous aider à préparer votre séance. Comment vous sentez-vous aujourd\'hui?'
         }]);
     }, []);
 
