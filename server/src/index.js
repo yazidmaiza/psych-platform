@@ -4,7 +4,25 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
 const { Server } = require('socket.io');
+const rateLimit = require('express-rate-limit');
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many requests, please try again later.' }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  message: { message: 'Too many requests, please try again later.' }
+});
+
+const chatbotLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 50,
+  message: { message: 'Chatbot message limit reached. Please try again later.' }
+});
 dotenv.config();
 
 const app = express();
@@ -28,18 +46,18 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static('uploads'));
 
 // Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/psychologists', require('./routes/psychologistRoutes'));
-app.use('/api/sessions', require('./routes/sessionRoutes'));
-app.use('/api/chatbot', require('./routes/chatbotRoutes'));
-app.use('/api/messages', require('./routes/message.routes'));
-app.use('/api/dashboard', require('./routes/dashboard.routes'));
-app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/sessions', require('./routes/reportRoutes'));
-app.use('/api/ratings', require('./routes/ratingRoutes'));
-app.use('/api/sessions', require('./routes/voiceRoutes'));
-app.use('/api/verification', require('./routes/verificationRoutes'));
-app.use('/api/documents', require('./routes/documentRoutes'));
+app.use('/api/auth', authLimiter, require('./routes/authRoutes'));
+app.use('/api/chatbot', chatbotLimiter, require('./routes/chatbotRoutes'));
+app.use('/api/psychologists', apiLimiter, require('./routes/psychologistRoutes'));
+app.use('/api/sessions', apiLimiter, require('./routes/sessionRoutes'));
+app.use('/api/messages', apiLimiter, require('./routes/message.routes'));
+app.use('/api/dashboard', apiLimiter, require('./routes/dashboard.routes'));
+app.use('/api/admin', apiLimiter, require('./routes/adminRoutes'));
+app.use('/api/sessions', apiLimiter, require('./routes/reportRoutes'));
+app.use('/api/ratings', apiLimiter, require('./routes/ratingRoutes'));
+app.use('/api/sessions', apiLimiter, require('./routes/voiceRoutes'));
+app.use('/api/verification', apiLimiter, require('./routes/verificationRoutes'));
+app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
 // Health check
 app.get('/', (req, res) => {
   res.json({ message: 'Psych Platform API running' });
@@ -62,7 +80,13 @@ io.on('connection', (socket) => {
     console.log('User disconnected:', socket.id);
   });
 });
-
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal server error'
+  });
+});
 // DB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
