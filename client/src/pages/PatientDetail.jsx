@@ -214,6 +214,18 @@ function PatientDetail() {
                                 </div>
                             </div>
                         )}
+                        {summary.recommendations?.length > 0 && (
+                            <div className="mt-4">
+                                <p className="text-sm font-semibold text-gray-600 mb-2">💡 Recommended Follow-up Questions</p>
+                                <div className="flex flex-col gap-2">
+                                    {summary.recommendations.map((rec, i) => (
+                                        <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                                            <p className="text-sm text-blue-700">{i + 1}. {rec}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {summary.rawSummary && (
                             <div className="bg-gray-50 rounded-xl p-4">

@@ -23,6 +23,10 @@ const chatbotSummarySchema = new mongoose.Schema({
   rawSummary: {
     type: String,
     default: ''
+  },
+  recommendations: {
+    type: [String],
+    default: []
   }
 }, { timestamps: true });
 

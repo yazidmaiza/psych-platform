@@ -32,8 +32,21 @@ exports.sendMessage = async (req, res) => {
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ message: 'Session not found' });
     const history = await ChatbotMessage.find({ sessionId }).sort({ createdAt: 1 }).limit(20);
+    // Fetch previous session summaries for context
+    const previousSummaries = await ChatbotSummary.find({ patientId: session.patientId })
+      .sort({ createdAt: -1 })
+      .limit(3);
+
+    let contextNote = '';
+    if (previousSummaries.length > 0) {
+      contextNote = '\n\nPREVIOUS SESSION CONTEXT (for your reference only, do not mention directly):\n' +
+        previousSummaries.map((s, i) =>
+          `Session ${i + 1}: Dominant emotion: ${s.emotionalIndicators.dominantEmotion}, Urgency: ${s.emotionalIndicators.urgencyScore}/5, Themes: ${s.keyThemes.join(', ')}. Summary: ${s.rawSummary}`
+        ).join('\n');
+    }
+
     const messages = [
-      { role: 'system', content: getSystemPrompt(session.sessionType) },
+      { role: 'system', content: getSystemPrompt(session.sessionType) + contextNote },
       ...history.map(msg => ({ role: msg.role, content: msg.content })),
       { role: 'user', content: message }
     ];
@@ -85,6 +98,43 @@ exports.endSession = async (req, res) => {
       rawSummary: parsed.rawSummary
     });
     await Session.findByIdAndUpdate(sessionId, { status: 'completed' });
+    // Generate follow-up recommendations for psychologist
+    const recommendationResponse = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a clinical assistant. Based on the patient summary provided, generate exactly 5 specific follow-up questions the psychologist should ask in the real consultation. Return ONLY a JSON array of 5 strings. No other text.'
+          },
+          {
+            role: 'user',
+            content: 'Patient summary: ' + parsed.rawSummary + '\nDominant emotion: ' + parsed.dominantEmotion + '\nKey themes: ' + parsed.keyThemes.join(', ')
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      },
+      {
+        headers: {
+          Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    let recommendations = [];
+    try {
+      const rawRec = recommendationResponse.data.choices[0].message.content;
+      const cleanRec = rawRec.replace(/```json|```/g, '').trim();
+      recommendations = JSON.parse(cleanRec);
+    } catch {
+      recommendations = [];
+    }
+
+    // Update summary with recommendations
+    await ChatbotSummary.findByIdAndUpdate(summary._id, { recommendations });
     res.status(200).json({ summary });
   } catch (err) {
     console.log('endSession error:', err.message);
