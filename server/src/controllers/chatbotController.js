@@ -5,19 +5,22 @@ const Session = require('../models/Session');
 
 const getSystemPrompt = (sessionType) => {
   const prompts = {
-    preparation: `You are a compassionate assistant helping a patient prepare for their first psychology consultation. 
-Ask one focused question at a time about their main concern, emotional state, sleep, daily functioning, and what they hope to achieve. 
-Be warm and non-judgmental. Never provide medical diagnoses or suggest medications. 
-Your goal is to help the patient articulate their difficulties clearly before meeting their psychologist.`,
+    preparation: `You are a compassionate assistant helping a patient prepare for their first psychology consultation.
+Ask one focused question at a time about their main concern, emotional state, sleep, daily functioning, and what they hope to achieve.
+Be warm and non-judgmental. Never provide medical diagnoses or suggest medications.
+Your goal is to help the patient articulate their difficulties clearly before meeting their psychologist.
+IMPORTANT: Always detect the language the patient is writing in and respond in the SAME language. If the patient writes in Arabic, respond in Arabic. If in French, respond in French. If in English, respond in English. Never switch languages unless the patient does.`,
 
-    followup: `You are a supportive assistant checking in with a patient between psychology sessions. 
-Ask about their emotional progress since the last session, any changes in their situation, what strategies have been helpful, and any new challenges. 
-Ask one question at a time. Be encouraging and empathetic. Never provide medical diagnoses or suggest medications.`,
+    followup: `You are a supportive assistant checking in with a patient between psychology sessions.
+Ask about their emotional progress since the last session, any changes in their situation, what strategies have been helpful, and any new challenges.
+Ask one question at a time. Be encouraging and empathetic. Never provide medical diagnoses or suggest medications.
+IMPORTANT: Always detect the language the patient is writing in and respond in the SAME language. If the patient writes in Arabic, respond in Arabic. If in French, respond in French. If in English, respond in English. Never switch languages unless the patient does.`,
 
-    free: `You are a compassionate listening assistant. The patient wants to express themselves freely. 
-Let them lead the conversation. Ask gentle follow-up questions to help them explore their feelings more deeply. 
-Be fully present and non-judgmental. Never provide medical diagnoses or suggest medications. 
-Never rush the patient or redirect them unless they ask for guidance.`
+    free: `You are a compassionate listening assistant. The patient wants to express themselves freely.
+Let them lead the conversation. Ask gentle follow-up questions to help them explore their feelings more deeply.
+Be fully present and non-judgmental. Never provide medical diagnoses or suggest medications.
+Never rush the patient or redirect them unless they ask for guidance.
+IMPORTANT: Always detect the language the patient is writing in and respond in the SAME language. If the patient writes in Arabic, respond in Arabic. If in French, respond in French. If in English, respond in English. Never switch languages unless the patient does.`
   };
   return prompts[sessionType] || prompts.free;
 };
@@ -29,14 +32,27 @@ exports.sendMessage = async (req, res) => {
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ message: 'Session not found' });
     const history = await ChatbotMessage.find({ sessionId }).sort({ createdAt: 1 }).limit(20);
+    // Fetch previous session summaries for context
+    const previousSummaries = await ChatbotSummary.find({ patientId: session.patientId })
+      .sort({ createdAt: -1 })
+      .limit(3);
+
+    let contextNote = '';
+    if (previousSummaries.length > 0) {
+      contextNote = '\n\nPREVIOUS SESSION CONTEXT (for your reference only, do not mention directly):\n' +
+        previousSummaries.map((s, i) =>
+          `Session ${i + 1}: Dominant emotion: ${s.emotionalIndicators.dominantEmotion}, Urgency: ${s.emotionalIndicators.urgencyScore}/5, Themes: ${s.keyThemes.join(', ')}. Summary: ${s.rawSummary}`
+        ).join('\n');
+    }
+
     const messages = [
-      { role: 'system', content: getSystemPrompt(session.sessionType) },
+      { role: 'system', content: getSystemPrompt(session.sessionType) + contextNote },
       ...history.map(msg => ({ role: msg.role, content: msg.content })),
       { role: 'user', content: message }
     ];
     const groqResponse = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
-      { model: 'llama-3.1-8b-instant', messages, temperature: 0.7, max_tokens: 300 },
+      { model: 'llama-3.3-70b-versatile', messages, temperature: 0.7, max_tokens: 300 },
       { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' } }
     );
     const reply = groqResponse.data.choices[0].message.content;
@@ -82,6 +98,43 @@ exports.endSession = async (req, res) => {
       rawSummary: parsed.rawSummary
     });
     await Session.findByIdAndUpdate(sessionId, { status: 'completed' });
+    // Generate follow-up recommendations for psychologist
+    const recommendationResponse = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a clinical assistant. Based on the patient summary provided, generate exactly 5 specific follow-up questions the psychologist should ask in the real consultation. Return ONLY a JSON array of 5 strings. No other text.'
+          },
+          {
+            role: 'user',
+            content: 'Patient summary: ' + parsed.rawSummary + '\nDominant emotion: ' + parsed.dominantEmotion + '\nKey themes: ' + parsed.keyThemes.join(', ')
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      },
+      {
+        headers: {
+          Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    let recommendations = [];
+    try {
+      const rawRec = recommendationResponse.data.choices[0].message.content;
+      const cleanRec = rawRec.replace(/```json|```/g, '').trim();
+      recommendations = JSON.parse(cleanRec);
+    } catch {
+      recommendations = [];
+    }
+
+    // Update summary with recommendations
+    await ChatbotSummary.findByIdAndUpdate(summary._id, { recommendations });
     res.status(200).json({ summary });
   } catch (err) {
     console.log('endSession error:', err.message);

@@ -11,6 +11,14 @@ function PatientDetail() {
     const [sessionId, setSessionId] = useState(null);
     const [summary, setSummary] = useState(null);
     const navigate = useNavigate();
+    const [documents, setDocuments] = useState([]);
+    const [docFile, setDocFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [selectedDoc, setSelectedDoc] = useState(null);
+    const [question, setQuestion] = useState('');
+    const [answer, setAnswer] = useState('');
+    const [querying, setQuerying] = useState(false);
+
 
     const fetchData = async () => {
         try {
@@ -43,6 +51,7 @@ function PatientDetail() {
 
     useEffect(() => {
         fetchData();
+        fetchDocuments();
     }, [patientId]);
 
     const addNote = async () => {
@@ -73,6 +82,60 @@ function PatientDetail() {
         a.click();
         window.URL.revokeObjectURL(url);
     };
+    const fetchDocuments = async () => {
+        try {
+            const docs = await api.get('/api/documents/patient/' + patientId);
+            setDocuments(Array.isArray(docs) ? docs : []);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+    const uploadDocument = async () => {
+        console.log('docFile:', docFile);
+        console.log('docFile type:', docFile?.type);
+        console.log('docFile size:', docFile?.size);
+
+        if (!docFile) return;
+        setUploading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('document', docFile);
+            formData.append('patientId', patientId);
+            console.log('formData entries:');
+            for (let pair of formData.entries()) {
+                console.log(pair[0], pair[1]);
+            }
+            const res = await fetch('http://localhost:5000/api/documents/upload/' + patientId, {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + token },
+                body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            setDocFile(null);
+            fetchDocuments();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const queryDocument = async () => {
+        if (!selectedDoc || !question.trim()) return;
+        setQuerying(true);
+        setAnswer('');
+        try {
+            const data = await api.post('/api/documents/query/' + selectedDoc, { question });
+            setAnswer(data.answer);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setQuerying(false);
+        }
+    };
+
 
     const getSentimentColor = (trend) => {
         if (trend === 'improving') return 'text-green-600 bg-green-50';
@@ -151,6 +214,18 @@ function PatientDetail() {
                                 </div>
                             </div>
                         )}
+                        {summary.recommendations?.length > 0 && (
+                            <div className="mt-4">
+                                <p className="text-sm font-semibold text-gray-600 mb-2">💡 Recommended Follow-up Questions</p>
+                                <div className="flex flex-col gap-2">
+                                    {summary.recommendations.map((rec, i) => (
+                                        <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                                            <p className="text-sm text-blue-700">{i + 1}. {rec}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {summary.rawSummary && (
                             <div className="bg-gray-50 rounded-xl p-4">
@@ -174,8 +249,8 @@ function PatientDetail() {
                                 className={`flex ${msg.senderId === patientId ? 'justify-start' : 'justify-end'}`}
                             >
                                 <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === patientId
-                                        ? 'bg-gray-100 text-gray-800'
-                                        : 'bg-blue-600 text-white'
+                                    ? 'bg-gray-100 text-gray-800'
+                                    : 'bg-blue-600 text-white'
                                     }`}>
                                     <p className="text-sm">{msg.content}</p>
                                     <p className={`text-xs mt-1 ${msg.senderId === patientId ? 'text-gray-400' : 'text-blue-200'}`}>
@@ -267,6 +342,82 @@ function PatientDetail() {
                 </div>
 
             </div>
+            {/* Patient Documents + RAG */}
+            <div className="bg-white rounded-2xl shadow p-6">
+                <h2 className="text-lg font-bold text-gray-700 mb-4">📁 Patient Documents</h2>
+
+                {/* Upload */}
+                <div className="flex gap-3 mb-6">
+                    <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={e => setDocFile(e.target.files[0])}
+                        className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm"
+                    />
+                    <button
+                        onClick={uploadDocument}
+                        disabled={uploading || !docFile}
+                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                        {uploading ? 'Uploading...' : '📤 Upload'}
+                    </button>
+                </div>
+
+                {/* Document List */}
+                {documents.length === 0 && (
+                    <p className="text-center text-gray-400 text-sm mb-4">No documents yet.</p>
+                )}
+                <div className="flex flex-col gap-2 mb-6">
+                    {documents.map(doc => (
+                        <div
+                            key={doc._id}
+                            onClick={() => { setSelectedDoc(doc._id); setAnswer(''); }}
+                            className={`flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition ${selectedDoc === doc._id
+                                ? 'border-blue-600 bg-blue-50'
+                                : 'border-gray-200 hover:border-blue-300'
+                                }`}
+                        >
+                            <div>
+                                <p className="text-sm font-semibold text-gray-700">📄 {doc.originalName}</p>
+                                <p className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString()}</p>
+                            </div>
+                            {selectedDoc === doc._id && (
+                                <span className="text-xs text-blue-600 font-semibold">Selected</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* RAG Query */}
+                {selectedDoc && (
+                    <div className="border-t border-gray-100 pt-4">
+                        <h3 className="text-sm font-bold text-gray-700 mb-3">🤖 Ask a question about this document</h3>
+                        <div className="flex gap-3 mb-4">
+                            <input
+                                className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                placeholder="e.g. What are the main symptoms mentioned?"
+                                value={question}
+                                onChange={e => setQuestion(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && queryDocument()}
+                            />
+                            <button
+                                onClick={queryDocument}
+                                disabled={querying || !question.trim()}
+                                className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+                            >
+                                {querying ? 'Thinking...' : 'Ask'}
+                            </button>
+                        </div>
+                        {answer && (
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Answer</p>
+                                <p className="text-sm text-gray-700 leading-relaxed">{answer}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
         </div>
     );
 }
