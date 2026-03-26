@@ -18,6 +18,7 @@ import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
 import Statistics from './pages/Statistics';
 import RateConsultation from './pages/RateConsultation';
+import CalendarPage from './pages/Calendar';
 
 function App() {
   return (
@@ -102,6 +103,22 @@ function App() {
         <Route path="/history/:patientId" element={
           <ProtectedRoute role="psychologist">
             <PatientHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/calendar" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/calendar/:psychologistId" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/rate/:psychologistId" element={
+          <ProtectedRoute role="patient">
+            <RateConsultation />
           </ProtectedRoute>
         } />
 

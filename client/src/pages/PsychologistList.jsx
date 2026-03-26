@@ -3,6 +3,25 @@ import { logout } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
+const StarRating = ({ rating, total }) => {
+    const stars = [1, 2, 3, 4, 5];
+    return (
+        <div className="flex items-center gap-1 mt-1">
+            {stars.map(star => (
+                <span
+                    key={star}
+                    className={`text-sm ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+                >
+                    ★
+                </span>
+            ))}
+            <span className="text-xs text-gray-500 ml-1">
+                {rating > 0 ? `${rating.toFixed(1)} (${total} reviews)` : 'No ratings yet'}
+            </span>
+        </div>
+    );
+};
+
 function PsychologistList() {
     const [psychologists, setPsychologists] = useState([]);
     const [filters, setFilters] = useState({ city: '', language: '', specialization: '' });
@@ -39,6 +58,12 @@ function PsychologistList() {
                             className="text-blue-600 text-sm font-semibold hover:underline"
                         >
                             📋 My Sessions
+                        </button>
+                        <button
+                            onClick={() => navigate('/calendar')}
+                            className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                            📅 My Calendar
                         </button>
                         <button
                             onClick={logout}
@@ -90,10 +115,7 @@ function PsychologistList() {
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h2>
                                 <p className="text-gray-500 text-sm mt-1">📍 {psy.city}</p>
-                                <p className="text-gray-500 text-sm">
-                                    ⭐ {psy.averageRating > 0 ? psy.averageRating.toFixed(1) + ' / 5' : 'No ratings yet'}
-                                    {psy.totalRatings > 0 && ` (${psy.totalRatings} reviews)`}
-                                </p>
+                                <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
                                 <p className="text-gray-500 text-sm">🗣 {psy.languages.join(', ')}</p>
                                 <p className="text-gray-500 text-sm">🧠 {psy.specializations.join(', ')}</p>
                                 <div className="mt-2">

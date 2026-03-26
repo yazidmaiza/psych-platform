@@ -2,6 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
+const StarRating = ({ rating, total }) => {
+    const stars = [1, 2, 3, 4, 5];
+    return (
+        <div className="flex items-center gap-1 mt-1">
+            {stars.map(star => (
+                <span
+                    key={star}
+                    className={`text-sm ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+                >
+                    ★
+                </span>
+            ))}
+            <span className="text-xs text-gray-500 ml-1">
+                {rating > 0 ? `${rating.toFixed(1)} (${total} reviews)` : 'No ratings yet'}
+            </span>
+        </div>
+    );
+};
+
 function PsychologistProfile() {
     const [psy, setPsy] = useState(null);
     const { id } = useParams();
@@ -51,10 +70,7 @@ function PsychologistProfile() {
                         <div>
                             <h1 className="text-2xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h1>
                             <p className="text-gray-500 text-sm mt-1">📍 {psy.city || 'N/A'}</p>
-                            <p className="text-gray-500 text-sm mt-1">
-                                ⭐ {psy.averageRating > 0 ? psy.averageRating.toFixed(1) + ' / 5' : 'No ratings yet'}
-                                {psy.totalRatings > 0 && ` (${psy.totalRatings} reviews)`}
-                            </p>
+                            <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
                         </div>
                     </div>
 
@@ -100,6 +116,18 @@ function PsychologistProfile() {
                         onClick={() => navigate(`/conversation/${psy.userId?._id || psy.userId}`)}
                     >
                         💬 Send a Message
+                    </button>
+                    <button
+                        className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition"
+                        onClick={() => navigate(`/calendar/${psy.userId?._id || psy.userId}`)}
+                    >
+                        📅 View Availability
+                    </button>
+                    <button
+                        className="flex-1 bg-yellow-400 text-white py-3 rounded-xl font-semibold hover:bg-yellow-500 transition"
+                        onClick={() => navigate(`/rate/${psy._id}`)}
+                    >
+                        ⭐ Rate Psychologist
                     </button>
                 </div>
             </div>
