@@ -13,22 +13,27 @@ import AdminPanel from './pages/AdminPanel';
 import CreateSession from './pages/CreateSession';
 import PaymentConfirm from './pages/PaymentConfirm';
 import Chatbot from './pages/Chatbot';
+import SessionPage from './pages/SessionPage';
 import VerifyCode from './pages/VerifyCode';
 import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
 import Statistics from './pages/Statistics';
 import RateConsultation from './pages/RateConsultation';
-
+import MySessionHistory from './pages/MySessionHistory';
+import HomePage from './pages/HomePage';
+import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/psychologist/:id" element={<PublicPsychologistProfile />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Patient routes */}
-        <Route path="/" element={
+        <Route path="/patient/dashboard" element={
           <ProtectedRoute role="patient">
             <PsychologistList />
           </ProtectedRoute>
@@ -38,7 +43,7 @@ function App() {
             <RateConsultation />
           </ProtectedRoute>
         } />
-        <Route path="/psychologist/:id" element={
+        <Route path="/psychologist/profile/:id" element={
           <ProtectedRoute role="patient">
             <PsychologistProfile />
           </ProtectedRoute>
@@ -62,6 +67,16 @@ function App() {
         <Route path="/chatbot/:sessionId" element={
           <ProtectedRoute role="patient">
             <Chatbot />
+          </ProtectedRoute>
+        } />
+        <Route path="/session/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <SessionPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/my-sessions" element={
+          <ProtectedRoute role="patient">
+            <MySessionHistory />
           </ProtectedRoute>
         } />
 
@@ -89,7 +104,7 @@ function App() {
             <EditProfile />
           </ProtectedRoute>
         } />
-        <Route path="/dashboard" element={
+        <Route path="/psychologist/dashboard" element={
           <ProtectedRoute role="psychologist">
             <Dashboard />
           </ProtectedRoute>

@@ -13,7 +13,7 @@ const sessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'active', 'completed'],
+    enum: ['pending', 'paid', 'verified', 'active', 'completed'],
     default: 'pending'
   },
   sessionType: {
@@ -22,6 +22,10 @@ const sessionSchema = new mongoose.Schema({
     required: true
   },
   paymentConfirmed: {
+    type: Boolean,
+    default: false
+  },
+  isRated: {
     type: Boolean,
     default: false
   }

@@ -36,7 +36,7 @@ export default function AdminPanel() {
       const usersData = await usersRes.json();
       const verifyData = await verifyRes.json();
       setStats(statsData);
-      setUsers(usersData);
+      setUsers(Array.isArray(usersData) ? usersData : []);
       setPendingVerifications(Array.isArray(verifyData) ? verifyData : []);
     } catch (err) {
       setError('Failed to load data');

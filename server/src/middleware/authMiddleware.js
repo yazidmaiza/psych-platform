@@ -21,7 +21,11 @@ const protect = (req, res, next) => {
 const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+      console.log(`[authMiddleware] Access denied. User role: ${req.user.role}, required: ${roles}`);
+      return res.status(403).json({ 
+        message: 'Access denied - Role mismatch',
+        debug: { userRole: req.user.role, required: roles }
+      });
     }
     next();
   };

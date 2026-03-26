@@ -30,24 +30,30 @@ function PsychologistList() {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white shadow-sm">
-                <div className="max-w-4xl mx-auto px-6 py-5">
-                    <h1 className="text-3xl font-bold text-blue-700">🧠 Find a Psychologist</h1>
-                    <p className="text-gray-500 mt-1">Browse and connect with certified professionals</p>
-                    <div className="flex gap-4 mt-2">
-                        <button
-                            onClick={() => navigate('/history')}
-                            className="text-blue-600 text-sm font-semibold hover:underline"
-                        >
-                            📋 My Sessions
-                        </button>
-                        <button
-                            onClick={logout}
-                            className="text-red-500 text-sm font-semibold hover:underline"
-                        >
-                            Logout
-                        </button>
-                    </div>
+            <div className="max-w-4xl mx-auto px-6 py-5">
+                <h1 className="text-3xl font-bold text-blue-700">📋 Patient Dashboard</h1>
+                <p className="text-gray-500 mt-1">Manage your sessions and find psychologists</p>
+                <div className="flex gap-4 mt-2">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="text-blue-600 text-sm font-semibold hover:underline"
+                    >
+                        ← Back to Home
+                    </button>
+                <button
+                    onClick={() => navigate('/my-sessions')}
+                    className="text-blue-600 text-sm font-semibold hover:underline"
+                >
+                    📋 My Sessions
+                </button>
+                <button
+                    onClick={logout}
+                    className="text-red-500 text-sm font-semibold hover:underline"
+                >
+                    Logout
+                </button>
                 </div>
+            </div>
             </div>
 
             <div className="max-w-4xl mx-auto px-6 py-8">
