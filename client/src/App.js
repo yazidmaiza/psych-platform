@@ -19,17 +19,20 @@ import PsychologistSetup from './pages/PsychologistSetup';
 import Statistics from './pages/Statistics';
 import RateConsultation from './pages/RateConsultation';
 import CalendarPage from './pages/Calendar';
-
+import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
+import HomePage from './pages/HomePage';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/psychologist/:id" element={<PublicPsychologistProfile />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Patient routes */}
-        <Route path="/" element={
+        <Route path="/patient/dashboard" element={
           <ProtectedRoute role="patient">
             <PsychologistList />
           </ProtectedRoute>
@@ -90,7 +93,7 @@ function App() {
             <EditProfile />
           </ProtectedRoute>
         } />
-        <Route path="/dashboard" element={
+        <Route path="/psychologist/dashboard" element={
           <ProtectedRoute role="psychologist">
             <Dashboard />
           </ProtectedRoute>

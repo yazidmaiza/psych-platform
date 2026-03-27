@@ -21,8 +21,10 @@ function Login() {
             if (user.role === 'admin') {
                 navigate('/admin');
             } else if (user.role === 'psychologist') {
-                navigate('/dashboard');
-            } else {
+                navigate('/psychologist/dashboard');
+            } else if (user.role === 'patient') {
+                navigate('/patient/dashboard');
+            }else{
                 navigate('/');
             }
         } catch (err) {
