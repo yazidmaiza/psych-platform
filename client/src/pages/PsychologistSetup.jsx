@@ -86,7 +86,7 @@ export default function PsychologistSetup() {
           <h2 className="text-xl font-bold text-gray-800 mb-2">Awaiting Admin Approval</h2>
           <p className="text-gray-500 text-sm">Your documents have been submitted and analyzed by our AI. An admin will review and approve your account shortly.</p>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/psychologist/dashboard')}
             className="mt-6 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
           >
             Go to Dashboard

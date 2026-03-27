@@ -21,9 +21,12 @@ function Login() {
             if (user.role === 'admin') {
                 navigate('/admin');
             } else if (user.role === 'psychologist') {
-                navigate('/dashboard');
-            } else {
-                navigate('/');
+                navigate('/psychologist/dashboard');
+            } else if (user.role === 'patient') {
+                navigate('/patient/dashboard');
+            }
+            else{
+                setError('Invalid role');
             }
         } catch (err) {
             setError('Invalid email or password');
