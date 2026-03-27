@@ -22,6 +22,8 @@ import RateConsultation from './pages/RateConsultation';
 import MySessionHistory from './pages/MySessionHistory';
 import HomePage from './pages/HomePage';
 import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
+import CalendarPage from './pages/Calendar';
+
 function App() {
   return (
     <BrowserRouter>
@@ -117,6 +119,22 @@ function App() {
         <Route path="/history/:patientId" element={
           <ProtectedRoute role="psychologist">
             <PatientHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/calendar" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/calendar/:psychologistId" element={
+          <ProtectedRoute>
+            <CalendarPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/rate/:psychologistId" element={
+          <ProtectedRoute role="patient">
+            <RateConsultation />
           </ProtectedRoute>
         } />
 

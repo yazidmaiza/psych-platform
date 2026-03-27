@@ -54,7 +54,7 @@ export default function RateConsultation() {
                 answers,
                 comment
             });
-            navigate('/history');
+            navigate('/');
         } catch (err) {
             setError(err.message || 'Failed to submit rating.');
         } finally {
