@@ -8,7 +8,12 @@ const emotionalIndicatorSchema = new mongoose.Schema({
     },
     psychologistId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Psychologist',
+        ref: 'User', // Changed from 'Psychologist' to 'User'
+        required: true
+    },
+    sessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session',
         required: true
     },
     scores: {

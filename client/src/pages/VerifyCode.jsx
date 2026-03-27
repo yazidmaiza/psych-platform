@@ -31,7 +31,7 @@ export default function VerifyCode() {
         setError('');
         try {
             await api.post('/api/sessions/' + sessionId + '/verify-code', { code: fullCode });
-            navigate('/chatbot/' + sessionId);
+            navigate('/session/' + sessionId);
         } catch (err) {
             setError('Invalid or expired code. Please check your email.');
         } finally {

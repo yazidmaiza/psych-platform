@@ -18,6 +18,8 @@ function PatientDetail() {
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState('');
     const [querying, setQuerying] = useState(false);
+    const [activeSessionId, setActiveSessionId] = useState(null);
+    const [endingSession, setEndingSession] = useState(false);
 
 
     const fetchData = async () => {
@@ -33,6 +35,9 @@ function PatientDetail() {
 
             const sessionRes = await api.get(`/api/sessions/patient/${patientId}`);
             if (Array.isArray(sessionRes) && sessionRes.length > 0) {
+                const active = sessionRes.find(s => s.status === 'active');
+                setActiveSessionId(active ? active._id : null);
+
                 const completed = sessionRes.find(s => s.status === 'completed');
                 if (completed) {
                     setSessionId(completed._id);
@@ -166,6 +171,27 @@ function PatientDetail() {
                     >
                         💬 Open Chat
                     </button>
+                    {activeSessionId && (
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm('End this session? The patient will be prompted to rate you.')) return;
+                                setEndingSession(true);
+                                try {
+                                    await api.put(`/api/sessions/${activeSessionId}/end`, {});
+                                    setActiveSessionId(null);
+                                    fetchData();
+                                } catch (err) {
+                                    alert('Failed to end session. Please try again.');
+                                } finally {
+                                    setEndingSession(false);
+                                }
+                            }}
+                            disabled={endingSession}
+                            className="bg-red-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50"
+                        >
+                            {endingSession ? 'Ending...' : '⏹ End Session'}
+                        </button>
+                    )}
                     {sessionId && (
                         <button
                             onClick={downloadPDF}
