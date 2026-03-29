@@ -15,7 +15,6 @@ router.get('/stats', protect, async (req, res) => {
         const psychologistId = req.user.id;
         const Session = require('../models/Session');
         const Psychologist = require('../models/Psychologist');
-        const mongoose = require('mongoose');
 
         const [totalSessions, activeSessions, completedSessions] = await Promise.all([
             Session.countDocuments({ psychologistId }),
@@ -37,12 +36,7 @@ router.get('/stats', protect, async (req, res) => {
         start.setDate(start.getDate() - 13);
 
         const daily = await Session.aggregate([
-            {
-                $match: {
-                    psychologistId: mongoose.Types.ObjectId.createFromHexString(psychologistId),
-                    createdAt: { $gte: start }
-                }
-            },
+            { $match: { psychologistId: require('mongoose').Types.ObjectId.createFromHexString(psychologistId), createdAt: { $gte: start } } },
             {
                 $group: {
                     _id: {

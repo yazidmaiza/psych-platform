@@ -1,113 +1,328 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 import { logout } from '../services/auth';
+import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
+import DashboardSidebar from '../components/dashboard/DashboardSidebar';
+import GlassPanel from '../components/dashboard/GlassPanel';
+import PsychologistProfileDrawer from '../components/profile/PsychologistProfileDrawer';
+import AreaLineChart from '../components/charts/AreaLineChart';
+import StackedBar from '../components/charts/StackedBar';
+
+const StatCard = ({ label, value, hint }) => (
+  <GlassPanel className="p-5">
+    <div className="text-xs font-semibold text-white/60">{label}</div>
+    <div className="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</div>
+    {hint && <div className="mt-1 text-xs text-white/50">{hint}</div>}
+  </GlassPanel>
+);
 
 function Dashboard() {
-  const [patients, setPatients] = useState([]);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const data = await api.get('/api/dashboard/patients');
-        setPatients(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchPatients();
+  const [section, setSection] = useState('patients');
+
+  const [patients, setPatients] = useState([]);
+  const [patientsLoading, setPatientsLoading] = useState(true);
+  const [patientsError, setPatientsError] = useState('');
+
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState('');
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const fetchPatients = useCallback(async () => {
+    setPatientsLoading(true);
+    setPatientsError('');
+    try {
+      const data = await api.get('/api/dashboard/patients');
+      setPatients(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setPatients([]);
+      setPatientsError(e.message || 'Failed to load patients');
+    } finally {
+      setPatientsLoading(false);
+    }
   }, []);
 
-  const getStatusColor = (status) => {
-    if (status === 'accepted') return 'bg-green-100 text-green-700';
-    if (status === 'rejected') return 'bg-red-100 text-red-700';
-    return 'bg-yellow-100 text-yellow-700';
-  };
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError('');
+    try {
+      const data = await api.get('/api/dashboard/stats');
+      setStats(data || null);
+    } catch (e) {
+      setStats(null);
+      setStatsError(e.message || 'Failed to load statistics');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const refreshUnreadNotifications = useCallback(async () => {
+    try {
+      const data = await api.get('/api/notifications');
+      const list = Array.isArray(data) ? data : [];
+      setUnreadNotifications(list.filter((n) => !n.isRead).length);
+    } catch {
+      setUnreadNotifications(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPatients();
+    refreshUnreadNotifications();
+  }, [fetchPatients, refreshUnreadNotifications]);
+
+  useEffect(() => {
+    if (section !== 'statistics') return;
+    if (stats || statsLoading) return;
+    fetchStats();
+  }, [fetchStats, section, stats, statsLoading]);
+
+  const statusBadge = useCallback((status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'accepted' || s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-50';
+    if (s === 'rejected' || s === 'canceled') return 'border-rose-500/20 bg-rose-500/10 text-rose-50';
+    return 'border-amber-500/20 bg-amber-500/10 text-amber-50';
+  }, []);
+
+  const breakdownSegments = useMemo(() => {
+    return [
+      { label: 'Active', value: Number(stats?.activeSessions || 0), className: 'bg-sky-500/80' },
+      { label: 'Pending', value: Number(stats?.pendingSessions || 0), className: 'bg-amber-400/80' },
+      { label: 'Completed', value: Number(stats?.completedSessions || 0), className: 'bg-emerald-500/80' }
+    ];
+  }, [stats?.activeSessions, stats?.completedSessions, stats?.pendingSessions]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-6 py-5">
-          <h1 className="text-3xl font-bold text-blue-700">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Manage your patients and sessions</p>
-          <div className="flex gap-4 mt-2 flex-wrap">
-            <button
-              onClick={() => navigate('/profile/edit')}
-              className="text-blue-600 text-sm font-semibold hover:underline"
-            >
-              Edit Profile
-            </button>
-            <button
-              onClick={() => navigate('/notifications')}
-              className="text-blue-600 text-sm font-semibold hover:underline"
-            >
-              Notifications
-            </button>
-            <button
-              onClick={() => navigate('/statistics')}
-              className="text-blue-600 text-sm font-semibold hover:underline"
-            >
-              Statistics
-            </button>
-            <button
-              onClick={() => navigate('/calendar')}
-              className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition"
-            >
-              Calendar
-            </button>
-            <button
-              onClick={logout}
-              className="text-red-500 text-sm font-semibold hover:underline"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Background (match Session page look) */}
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <h2 className="text-xl font-bold text-gray-700 mb-4">Your Patients</h2>
-
-        {patients.length === 0 && (
-          <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-            No patients yet.
-          </div>
-        )}
-
-        <div className="grid gap-4">
-          {patients.map(request => (
-            <div
-              key={request._id}
-              className="bg-white rounded-2xl shadow p-6 flex justify-between items-center hover:shadow-md transition"
-            >
-              <div>
-                <p className="text-gray-800 font-semibold">{request.email}</p>
-                <p className="text-gray-500 text-sm mt-1">Sessions: {request.sessionCount}</p>
-                <p className="text-gray-500 text-sm mt-1">
-                  Requested: {new Date(request.createdAt).toLocaleDateString()}
-                </p>
-                <span className={`text-xs font-semibold px-3 py-1 rounded-full mt-2 inline-block ${getStatusColor(request.status)}`}>
-                  {request.status}
-                </span>
+      <div className="relative">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">Dashboard</h1>
+                <div className="mt-1 text-xs text-white/60">
+                  {section === 'patients' ? 'Manage patients and consultations' : 'Your performance at a glance'}
+                </div>
               </div>
-              <div className="flex flex-col gap-2">
+
+              <div className="flex items-center gap-2">
                 <button
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                  onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
+                  type="button"
+                  onClick={() => setNotificationsOpen(true)}
+                  className="relative rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
                 >
-                  Session & Notes
+                  Notifications
+                  {unreadNotifications > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-indigo-500/90 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      {unreadNotifications}
+                    </span>
+                  )}
                 </button>
                 <button
-                  className="bg-purple-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition"
-                  onClick={() => navigate(`/history/${request.patientId}`)}
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  className="rounded-2xl bg-indigo-500/90 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
                 >
-                  Patient History
+                  Edit profile
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+          <div className="grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start">
+            <DashboardSidebar
+              section={section}
+              onSectionChange={setSection}
+              onOpenProfile={() => setProfileOpen(true)}
+              onOpenNotifications={() => setNotificationsOpen(true)}
+              unreadNotifications={unreadNotifications}
+              onGoCalendar={() => navigate('/calendar')}
+              onLogout={logout}
+            />
+
+            <div className="grid gap-4">
+              {section === 'patients' && (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-white">Your patients</div>
+                    <button
+                      type="button"
+                      onClick={fetchPatients}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {patientsError && (
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                      {patientsError}
+                    </div>
+                  )}
+
+                  {(!patientsLoading && patients.length === 0) && (
+                    <GlassPanel className="p-10 text-center">
+                      <div className="text-sm font-semibold">No patients yet</div>
+                      <div className="mt-2 text-sm text-white/60">
+                        When a patient books a consultation, they will appear here.
+                      </div>
+                    </GlassPanel>
+                  )}
+
+                  <div className="grid gap-3">
+                    {patients.map((request) => (
+                      <GlassPanel key={request._id} className="p-5 transition hover:bg-white/10">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="truncate text-base font-semibold text-white">{request.email}</div>
+                            <div className="mt-1 grid gap-1 text-sm text-white/60 sm:grid-cols-2">
+                              <div>Sessions: <span className="text-white/80">{request.sessionCount}</span></div>
+                              <div>
+                                Last activity:{' '}
+                                <span className="text-white/80">
+                                  {request.lastSession ? new Date(request.lastSession).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              className={[
+                                'mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold',
+                                statusBadge(request.status)
+                              ].join(' ')}
+                            >
+                              {request.status || 'pending'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-2 sm:w-[240px]">
+                            <button
+                              type="button"
+                              className="h-11 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                              onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
+                            >
+                              Session and notes
+                            </button>
+                            <button
+                              type="button"
+                              className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                              onClick={() => navigate(`/history/${request.patientId}`)}
+                            >
+                              Patient history
+                            </button>
+                          </div>
+                        </div>
+                      </GlassPanel>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {section === 'statistics' && (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-white">Statistics</div>
+                    <button
+                      type="button"
+                      onClick={fetchStats}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      disabled={statsLoading}
+                    >
+                      {statsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  {statsError && (
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                      {statsError}
+                    </div>
+                  )}
+
+                  {!stats && statsLoading && (
+                    <GlassPanel className="p-6">
+                      <div className="text-sm text-white/60">Loading statistics...</div>
+                    </GlassPanel>
+                  )}
+
+                  {stats && (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <StatCard label="Total sessions" value={stats.totalSessions || 0} />
+                        <StatCard label="Active sessions" value={stats.activeSessions || 0} />
+                        <StatCard label="Patients" value={stats.totalPatients || 0} />
+                        <StatCard label="Completion rate" value={`${stats.completionRate || 0}%`} hint="Completed / total" />
+                        <StatCard label="Completed" value={stats.completedSessions || 0} />
+                        <StatCard label="Pending" value={stats.pendingSessions || 0} hint="Awaiting confirmation or payment" />
+                        <StatCard
+                          label="Average rating"
+                          value={Number(stats.averageRating || 0).toFixed(1)}
+                          hint={`${stats.totalRatings || 0} ratings`}
+                        />
+                      </div>
+
+                      <GlassPanel className="p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white">Sessions (last 14 days)</div>
+                            <div className="mt-1 text-xs text-white/60">New sessions created per day</div>
+                          </div>
+                          <div className="text-xs text-white/60">
+                            Max:{' '}
+                            <span className="text-white/80">
+                              {Math.max(0, ...(Array.isArray(stats.sessionsByDay) ? stats.sessionsByDay.map((d) => Number(d.count || 0)) : [0]))}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <AreaLineChart data={stats.sessionsByDay || []} />
+                        </div>
+                      </GlassPanel>
+
+                      <GlassPanel className="p-5">
+                        <div className="text-sm font-semibold text-white">Session breakdown</div>
+                        <div className="mt-1 text-xs text-white/60">Active vs pending vs completed</div>
+                        <div className="mt-4">
+                          <StackedBar segments={breakdownSegments} />
+                        </div>
+                      </GlassPanel>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </main>
+
+        <NotificationsDrawer
+          open={notificationsOpen}
+          onClose={() => {
+            setNotificationsOpen(false);
+            refreshUnreadNotifications();
+          }}
+        />
+
+        <PsychologistProfileDrawer
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          onSaved={() => {
+            // Keep drawer open so the user can see the success state; they can close manually.
+          }}
+        />
       </div>
     </div>
   );
