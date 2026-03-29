@@ -15,6 +15,7 @@ router.get('/stats', protect, async (req, res) => {
         const psychologistId = req.user.id;
         const Session = require('../models/Session');
         const Psychologist = require('../models/Psychologist');
+        const mongoose = require('mongoose');
 
         const [totalSessions, activeSessions, completedSessions] = await Promise.all([
             Session.countDocuments({ psychologistId }),
@@ -36,7 +37,12 @@ router.get('/stats', protect, async (req, res) => {
         start.setDate(start.getDate() - 13);
 
         const daily = await Session.aggregate([
-            { $match: { psychologistId: require('mongoose').Types.ObjectId.createFromHexString(psychologistId), createdAt: { $gte: start } } },
+            {
+                $match: {
+                    psychologistId: mongoose.Types.ObjectId.createFromHexString(psychologistId),
+                    createdAt: { $gte: start }
+                }
+            },
             {
                 $group: {
                     _id: {
@@ -66,7 +72,6 @@ router.get('/stats', protect, async (req, res) => {
         }
 
         const completionRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
-
         const psychologist = await Psychologist.findOne({ userId: psychologistId }).select('averageRating totalRatings');
 
         res.status(200).json({
@@ -176,10 +181,40 @@ router.get('/notes/:patientId', protect, async (req, res) => {
 // US-33 - Add emotional indicators
 router.post('/emotions', protect, async (req, res) => {
     try {
-        const { patientId, scores } = req.body;
+        const { patientId, sessionId, scores } = req.body;
+
+        // Validate required fields
+        if (!patientId || !sessionId || !scores) {
+            return res.status(400).json({ 
+                message: 'Missing required fields: patientId, sessionId, and scores are required' 
+            });
+        }
+
+        // Validate user role (only psychologists can add emotional indicators)
+        if (req.user.role !== 'psychologist') {
+            return res.status(403).json({ message: 'Access denied. Only psychologists can add emotional indicators.' });
+        }
+
+        // Validate scores structure
+        const validScores = ['anxiety', 'sadness', 'anger', 'positivity'];
+        const scoreKeys = Object.keys(scores);
+        
+        if (scoreKeys.length === 0) {
+            return res.status(400).json({ message: 'Scores object cannot be empty' });
+        }
+
+        // Validate score values are within range (0-100)
+        for (const key of scoreKeys) {
+            if (typeof scores[key] !== 'number' || scores[key] < 0 || scores[key] > 100) {
+                return res.status(400).json({ 
+                    message: `Invalid score value for ${key}. Must be a number between 0 and 100.` 
+                });
+            }
+        }
 
         const indicator = new EmotionalIndicator({
             patientId,
+            sessionId,
             psychologistId: req.user.id,
             scores
         });
@@ -187,7 +222,14 @@ router.post('/emotions', protect, async (req, res) => {
         await indicator.save();
         res.status(201).json(indicator);
     } catch (err) {
-        res.status(400).json({ message: err.message });
+        console.error('Error creating emotional indicator:', err);
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ message: err.message });
+        }
+        if (err.name === 'CastError') {
+            return res.status(400).json({ message: 'Invalid ID format provided' });
+        }
+        res.status(500).json({ message: 'Server error while creating emotional indicator' });
     }
 });
 

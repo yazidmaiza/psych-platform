@@ -1,4 +1,3 @@
-
 const Session = require('../models/Session');
 const SessionCode = require('../models/SessionCode');
 const User = require('../models/User');
@@ -8,10 +7,7 @@ const CalendarSlot = require('../models/CalendarSlot');
 const Notification = require('../models/Notification');
 
 const getDefaultSessionTypeForPatient = async (patientId) => {
-  const hasCompleted = await Session.exists({
-    patientId,
-    status: 'completed'
-  });
+  const hasCompleted = await Session.exists({ patientId, status: 'completed' });
   return hasCompleted ? 'followup' : 'preparation';
 };
 
@@ -61,6 +57,8 @@ const expireOverduePaymentsForPatient = async (patientId) => {
 exports.createSession = async (req, res) => {
   try {
     const { psychologistId } = req.body;
+    if (!psychologistId) return res.status(400).json({ message: 'psychologistId is required' });
+
     const sessionType = await getDefaultSessionTypeForPatient(req.user.id);
     const session = new Session({
       patientId: req.user.id,
@@ -68,6 +66,7 @@ exports.createSession = async (req, res) => {
       sessionType,
       status: 'pending'
     });
+
     await session.save();
     res.status(201).json({ sessionId: session._id, status: session.status });
   } catch (err) {
@@ -81,7 +80,12 @@ exports.confirmPayment = async (req, res) => {
     if (!session) return res.status(404).json({ message: 'Session not found' });
     if (session.patientId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
 
-    if (session.status === 'pending_payment' && session.paymentDueAt && session.paymentDueAt < new Date() && !session.paymentConfirmed) {
+    if (
+      session.status === 'pending_payment' &&
+      session.paymentDueAt &&
+      session.paymentDueAt < new Date() &&
+      !session.paymentConfirmed
+    ) {
       await cancelSessionAndFreeSlot(session, 'Booking canceled because payment was not completed within 24 hours.');
       return res.status(400).json({ message: 'Booking expired (payment window exceeded).' });
     }
@@ -89,13 +93,13 @@ exports.confirmPayment = async (req, res) => {
     session.paymentConfirmed = true;
     session.status = 'paid';
     await session.save();
+
     const code = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const sessionCode = new SessionCode({ sessionId: session._id, code, expiresAt });
     await sessionCode.save();
+
     const patient = await User.findById(req.user.id);
-
-
     await sendEmail({
       to: patient.email,
       subject: 'Session Code',
@@ -130,6 +134,7 @@ exports.verifyCode = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
 // @GET /api/sessions/patient/:patientId
 exports.getPatientSessions = async (req, res) => {
   try {
@@ -139,8 +144,7 @@ exports.getPatientSessions = async (req, res) => {
 
     await expireOverduePaymentsForPatient(req.params.patientId);
 
-    const sessions = await Session.find({ patientId: req.params.patientId })
-      .sort({ createdAt: -1 });
+    const sessions = await Session.find({ patientId: req.params.patientId }).sort({ createdAt: -1 });
     res.status(200).json(sessions);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -162,7 +166,9 @@ exports.cancelSession = async (req, res) => {
     }
 
     if (session.status === 'active') {
-      return res.status(400).json({ message: 'You cannot cancel an active session. Please end the session instead.' });
+      return res
+        .status(400)
+        .json({ message: 'You cannot cancel an active session. Please end the session instead.' });
     }
 
     await cancelSessionAndFreeSlot(session, 'Canceled by patient.');
@@ -174,39 +180,6 @@ exports.cancelSession = async (req, res) => {
         message: 'A patient canceled their booking.',
         link: '/calendar',
         type: 'booking_canceled'
-      });
-    } catch {}
-
-    res.status(200).json({ success: true });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-// @PUT /api/sessions/:id/end (psychologist only)
-exports.endSession = async (req, res) => {
-  try {
-    const session = await Session.findById(req.params.id);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
-
-    if (req.user.role !== 'psychologist' || session.psychologistId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    if (session.status !== 'active') {
-      return res.status(400).json({ message: 'Only active sessions can be ended.' });
-    }
-
-    session.status = 'completed';
-    await session.save();
-
-    try {
-      await Notification.create({
-        userId: session.patientId,
-        title: 'Session completed',
-        message: 'Your session has ended. You can rate your psychologist in My Sessions.',
-        link: '/history',
-        type: 'session_completed'
       });
     } catch {}
 
@@ -235,3 +208,42 @@ exports.getSessionById = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// @PUT /api/sessions/:id/end (psychologist)
+exports.endSession = async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+
+    if (session.psychologistId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    session.status = 'completed';
+    await session.save();
+
+    try {
+      await Notification.create({
+        userId: session.patientId,
+        title: 'Session completed',
+        message: 'Your session has ended. Please rate your consultation.',
+        link: `/rate/${session.psychologistId}`,
+        type: 'session_completed'
+      });
+    } catch {}
+
+    try {
+      const patient = await User.findById(session.patientId);
+      await sendEmail({
+        to: patient.email,
+        subject: 'Session completed',
+        html: `<p>Your session has ended. Please rate your consultation in your dashboard.</p>`
+      });
+    } catch {}
+
+    res.status(200).json({ message: 'Session ended', sessionId: session._id });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+

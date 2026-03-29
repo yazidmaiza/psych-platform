@@ -1,208 +1,138 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../services/api';
 
 export default function Chatbot() {
-    const { sessionId } = useParams();
-    const navigate = useNavigate();
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [ending, setEnding] = useState(false);
-    const [sessionEnded, setSessionEnded] = useState(false);
-    const [summary, setSummary] = useState(null);
-    const bottomRef = useRef(null);
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
 
-    useEffect(() => {
-        const loadHistory = async () => {
-            try {
-                const data = await api.get('/api/chatbot/' + sessionId + '/messages');
-                if (Array.isArray(data) && data.length > 0) {
-                    setMessages(data.map(m => ({ role: m.role, content: m.content })));
-                    return;
-                }
-            } catch (err) {
-                // ignore; fall back to local welcome message
-            }
-
-            setMessages([{
-                role: 'assistant',
-                        content: "Hi - tell me what's on your mind today."
-            }]);
-        };
-
-        loadHistory();
-    }, [sessionId]);
-
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-
-    const sendMessage = async (text) => {
-        const messageText = text || input.trim();
-        if (!messageText || loading) return;
-        setInput('');
-        setLoading(true);
-
-        const userMessage = { role: 'user', content: messageText };
-        setMessages(prev => [...prev, userMessage]);
-
-        try {
-            const data = await api.post('/api/chatbot/' + sessionId + '/chatbot', {
-                message: messageText
-            });
-            setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-        } catch (err) {
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: 'Sorry, something went wrong. Please try again.'
-            }]);
-        } finally {
-            setLoading(false);
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const data = await api.get('/api/chatbot/' + sessionId + '/messages');
+        if (Array.isArray(data) && data.length > 0) {
+          setMessages(data.map((m) => ({ role: m.role, content: m.content })));
+          return;
         }
+      } catch {
+        // ignore; fall back to local welcome message
+      }
+
+      setMessages([
+        {
+          role: 'assistant',
+          content: "Hi. Tell me what's on your mind today."
+        }
+      ]);
     };
 
-    const endSession = async () => {
-        if (!window.confirm('Are you sure you want to end the session? A summary will be generated.')) return;
-        setEnding(true);
-        try {
-            const data = await api.post('/api/chatbot/' + sessionId + '/chatbot/end', {});
-            setSummary(data.summary);
-            setSessionEnded(true);
-        } catch (err) {
-            alert('Failed to end session. Please try again.');
-        } finally {
-            setEnding(false);
-        }
-    };
+    if (sessionId) loadHistory();
+  }, [sessionId]);
 
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    };
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    if (sessionEnded && summary) {
-        return (
-            <div className="min-h-screen bg-gray-50">
-                <div className="bg-white shadow-sm">
-                    <div className="max-w-4xl mx-auto px-6 py-5">
-                        <h1 className="text-xl font-bold text-blue-700">Session Complete</h1>
-                    </div>
-                </div>
+  const sendMessage = async (text) => {
+    const messageText = (text || input).trim();
+    if (!messageText || loading) return;
 
-                <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
+    setInput('');
+    setLoading(true);
+    setMessages((prev) => [...prev, { role: 'user', content: messageText }]);
 
-                    <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-                        <div className="text-4xl mb-2">OK</div>
-                        <h2 className="text-lg font-bold text-green-700">Your session has been completed</h2>
-                        <p className="text-green-600 text-sm mt-1">A summary has been sent to your psychologist.</p>
-                    </div>
-
-                    <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="text-lg font-bold text-gray-700 mb-4">Session Summary</h2>
-
-                        <div className="grid grid-cols-3 gap-4 mb-6">
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Dominant Emotion</p>
-                                <p className="text-gray-800 font-bold capitalize">{summary.emotionalIndicators?.dominantEmotion}</p>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Urgency Score</p>
-                                <p className="text-gray-800 font-bold">{summary.emotionalIndicators?.urgencyScore} / 5</p>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Sentiment</p>
-                                <p className="text-gray-800 font-bold capitalize">{summary.emotionalIndicators?.sentimentTrend}</p>
-                            </div>
-                        </div>
-
-                        <div className="mb-4">
-                            <p className="text-sm font-semibold text-gray-600 mb-2">Key Themes</p>
-                            <div className="flex flex-wrap gap-2">
-                                {summary.keyThemes?.map((theme, i) => (
-                                    <span key={i} className="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold">
-                                        {theme}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <p className="text-sm font-semibold text-gray-600 mb-2">Clinical Summary</p>
-                            <p className="text-gray-700 text-sm leading-relaxed">{summary.rawSummary}</p>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => navigate('/')}
-                        className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
-                    >
-                        Back to Home
-                    </button>
-                </div>
-            </div>
-        );
+    try {
+      const data = await api.post('/api/chatbot/' + sessionId + '/chatbot', { message: messageText });
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: e.message || 'Sorry, something went wrong. Please try again.' }
+      ]);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-            <div className="bg-white shadow-sm">
-                <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
-                    <h1 className="text-xl font-bold text-blue-700">AI Assistant</h1>
-                    <button
-                        onClick={endSession}
-                        disabled={ending}
-                        className="bg-red-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50"
-                    >
-                        {ending ? 'Ending...' : 'End Session'}
-                    </button>
-                </div>
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+      </div>
+
+      <div className="relative flex min-h-screen flex-col">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="truncate text-lg font-semibold tracking-tight">Chatbot</div>
+                <div className="mt-1 text-xs text-white/60">AI assistant for your consultation</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/history')}
+                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+              >
+                Back
+              </button>
             </div>
+          </div>
+        </header>
 
-            <div className="flex-1 max-w-4xl w-full mx-auto px-6 py-6 flex flex-col">
-                <div className="flex-1 bg-white rounded-2xl shadow p-6 mb-4 overflow-y-auto" style={{ maxHeight: '60vh' }}>
-                    <div className="flex flex-col gap-4">
-                        {messages.map((msg, i) => (
-                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`px-4 py-3 rounded-2xl max-w-[75%] ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                                </div>
-                            </div>
-                        ))}
-                        {loading && (
-                            <div className="flex justify-start">
-                                <div className="bg-gray-100 text-gray-500 px-4 py-3 rounded-2xl text-sm">
-                                    Thinking...
-                                </div>
-                            </div>
-                        )}
-                        <div ref={bottomRef} />
-                    </div>
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:px-6">
+          <div className="flex-1 overflow-y-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
+            <div className="flex flex-col gap-3">
+              {messages.map((m, idx) => (
+                <div
+                  key={idx}
+                  className={[
+                    'max-w-[80%] rounded-3xl px-4 py-3 text-sm leading-relaxed',
+                    m.role === 'user'
+                      ? 'ml-auto bg-indigo-500/90 text-white'
+                      : 'mr-auto border border-white/10 bg-slate-950/50 text-white/90'
+                  ].join(' ')}
+                >
+                  {m.content}
                 </div>
-
-                <div className="bg-white rounded-2xl shadow p-4 flex gap-3 items-end">
-                    <textarea
-                        className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                        placeholder="Type your message..."
-                        rows={2}
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                    />
-                    <button
-                        onClick={() => sendMessage()}
-                        disabled={loading || !input.trim()}
-                        className="bg-blue-600 text-white px-5 py-3 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-                    >
-                        Send
-                    </button>
-                </div>
+              ))}
+              <div ref={bottomRef} />
             </div>
-        </div>
-    );
+          </div>
+
+          <div className="mt-4 flex items-end gap-2">
+            <textarea
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Message the assistant..."
+              className="min-h-[48px] w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+            />
+            <button
+              type="button"
+              onClick={() => sendMessage()}
+              disabled={loading || !input.trim()}
+              className="h-[48px] shrink-0 rounded-2xl bg-indigo-500/90 px-5 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition disabled:opacity-50"
+            >
+              {loading ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }
+
