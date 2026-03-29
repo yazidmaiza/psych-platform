@@ -81,6 +81,11 @@ function App() {
             <MySessionHistory />
           </ProtectedRoute>
         } />
+        <Route path="/my-sessions" element={
+          <ProtectedRoute role="patient">
+            <MySessionHistory />
+          </ProtectedRoute>
+        } />
         <Route path="/notifications" element={
           <ProtectedRoute>
             <Notifications />

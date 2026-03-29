@@ -77,7 +77,6 @@ exports.createSession = async (req, res) => {
 
 exports.confirmPayment = async (req, res) => {
   try {
-    console.log('confirmPayment called');
     const session = await Session.findById(req.params.id);
     if (!session) return res.status(404).json({ message: 'Session not found' });
     if (session.patientId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
@@ -175,6 +174,39 @@ exports.cancelSession = async (req, res) => {
         message: 'A patient canceled their booking.',
         link: '/calendar',
         type: 'booking_canceled'
+      });
+    } catch {}
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// @PUT /api/sessions/:id/end (psychologist only)
+exports.endSession = async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+
+    if (req.user.role !== 'psychologist' || session.psychologistId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (session.status !== 'active') {
+      return res.status(400).json({ message: 'Only active sessions can be ended.' });
+    }
+
+    session.status = 'completed';
+    await session.save();
+
+    try {
+      await Notification.create({
+        userId: session.patientId,
+        title: 'Session completed',
+        message: 'Your session has ended. You can rate your psychologist in My Sessions.',
+        link: '/history',
+        type: 'session_completed'
       });
     } catch {}
 

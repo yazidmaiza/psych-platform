@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const privateNoteSchema = new mongoose.Schema({
   psychologistId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -11,10 +10,14 @@ const privateNoteSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  sessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session',
+    required: true
+  },
   content: {
     type: String,
     required: true
   }
 }, { timestamps: true });
-
 module.exports = mongoose.model('PrivateNote', privateNoteSchema);

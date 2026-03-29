@@ -13,7 +13,8 @@ const sessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['requested', 'pending', 'pending_payment', 'paid', 'active', 'completed', 'canceled'],
+    // Keep legacy status values (e.g. "verified") for backward compatibility
+    enum: ['requested', 'pending', 'pending_payment', 'paid', 'verified', 'active', 'completed', 'canceled'],
     default: 'pending'
   },
   sessionType: {
@@ -35,6 +36,11 @@ const sessionSchema = new mongoose.Schema({
     default: null
   },
   paymentConfirmed: {
+    type: Boolean,
+    default: false
+  },
+  // Legacy convenience flag (UI can still derive this from Rating collection)
+  isRated: {
     type: Boolean,
     default: false
   },
