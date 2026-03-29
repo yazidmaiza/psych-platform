@@ -7,6 +7,84 @@ const EmotionalIndicator = require('../models/EmotionalIndicator');
 const PatientHistory = require('../models/PatientHistory');
 const { protect } = require('../middleware/authMiddleware');
 
+// Psychologist dashboard stats (for charts)
+router.get('/stats', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+
+        const psychologistId = req.user.id;
+        const Session = require('../models/Session');
+        const Psychologist = require('../models/Psychologist');
+
+        const [totalSessions, activeSessions, completedSessions] = await Promise.all([
+            Session.countDocuments({ psychologistId }),
+            Session.countDocuments({ psychologistId, status: 'active' }),
+            Session.countDocuments({ psychologistId, status: 'completed' })
+        ]);
+
+        const pendingSessions = await Session.countDocuments({
+            psychologistId,
+            status: { $in: ['requested', 'pending', 'pending_payment', 'paid', 'verified'] }
+        });
+
+        const uniquePatientIds = await Session.distinct('patientId', { psychologistId });
+        const totalPatients = uniquePatientIds.length;
+
+        // Sessions per day (last 14 days)
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - 13);
+
+        const daily = await Session.aggregate([
+            { $match: { psychologistId: require('mongoose').Types.ObjectId.createFromHexString(psychologistId), createdAt: { $gte: start } } },
+            {
+                $group: {
+                    _id: {
+                        y: { $year: '$createdAt' },
+                        m: { $month: '$createdAt' },
+                        d: { $dayOfMonth: '$createdAt' }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { '_id.y': 1, '_id.m': 1, '_id.d': 1 } }
+        ]);
+
+        const toKey = (date) => date.toISOString().slice(0, 10);
+        const dayMap = new Map();
+        for (const row of daily) {
+            const d = new Date(row._id.y, row._id.m - 1, row._id.d);
+            dayMap.set(toKey(d), row.count);
+        }
+
+        const sessionsByDay = [];
+        for (let i = 0; i < 14; i++) {
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            const key = toKey(d);
+            sessionsByDay.push({ date: key, count: dayMap.get(key) || 0 });
+        }
+
+        const completionRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+
+        const psychologist = await Psychologist.findOne({ userId: psychologistId }).select('averageRating totalRatings');
+
+        res.status(200).json({
+            totalSessions,
+            activeSessions,
+            completedSessions,
+            pendingSessions,
+            totalPatients,
+            completionRate,
+            sessionsByDay,
+            averageRating: psychologist?.averageRating || 0,
+            totalRatings: psychologist?.totalRatings || 0
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+});
+
 // US-31 - Get chronological list of patients for a psychologist
 router.get('/patients', protect, async (req, res) => {
     try {

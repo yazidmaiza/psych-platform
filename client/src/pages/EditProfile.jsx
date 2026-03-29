@@ -1,192 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
-
-const SPECIALIZATIONS = [
-  'Anxiety', 'Depression', 'Stress', 'Trauma', 'PTSD',
-  'Relationships', 'Family', 'Addiction', 'Sleep', 'Self-esteem'
-];
-
-const LANGUAGES = ['Arabic', 'French', 'English', 'Darija'];
+import PsychologistProfileForm from '../components/profile/PsychologistProfileForm';
+import GlassPanel from '../components/dashboard/GlassPanel';
 
 export default function EditProfile() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    bio: '',
-    city: '',
-    availability: '',
-    specializations: [],
-    languages: []
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        const data = await api.get('/api/psychologists?userId=' + userId);
-        if (data && data.length > 0) {
-          const p = data[0];
-          setForm({
-            firstName: p.firstName || '',
-            lastName: p.lastName || '',
-            bio: p.bio || '',
-            city: p.city || '',
-            availability: p.availability || '',
-            specializations: p.specializations || [],
-            languages: p.languages || []
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
-
-  const toggleItem = (field, value) => {
-    setForm(prev => ({
-      ...prev,
-      [field]: prev[field].includes(value)
-        ? prev[field].filter(i => i !== value)
-        : [...prev[field], value]
-    }));
-  };
-
-  const handleSave = async () => {
-    if (!form.firstName || !form.lastName || !form.city) {
-      return setError('First name, last name and city are required.');
-    }
-    setSaving(true);
-    setError('');
-    setSuccess('');
-    try {
-      await api.put('/api/psychologists/me', form);
-      setSuccess('Profile updated successfully.');
-      setTimeout(() => navigate('/psychologist/dashboard'), 1500);
-    } catch (err) {
-      setError('Failed to save profile. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>
-  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
-          <button onClick={() => navigate('/psychologist/dashboard')} className="text-blue-600 text-sm font-semibold hover:underline">
-            {'<- Back to Dashboard'}
-          </button>
-          <h1 className="text-xl font-bold text-blue-700">Edit Profile</h1>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        {success && <p className="text-green-600 text-sm">{success}</p>}
-
-        <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-bold text-gray-700 mb-4">Basic Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">First Name</label>
-              <input
-                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                value={form.firstName}
-                onChange={e => setForm({ ...form, firstName: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Last Name</label>
-              <input
-                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                value={form.lastName}
-                onChange={e => setForm({ ...form, lastName: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">City</label>
-              <input
-                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                value={form.city}
-                onChange={e => setForm({ ...form, city: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Availability</label>
-              <input
-                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                value={form.availability}
-                onChange={e => setForm({ ...form, availability: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Bio</label>
-            <textarea
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-              rows={3}
-              value={form.bio}
-              onChange={e => setForm({ ...form, bio: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-bold text-gray-700 mb-4">Specializations</h2>
-          <div className="flex flex-wrap gap-2">
-            {SPECIALIZATIONS.map(s => (
+      <div className="relative">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">Edit profile</h1>
+                <div className="mt-1 text-xs text-white/60">Update your public information and availability.</div>
+              </div>
               <button
-                key={s}
-                onClick={() => toggleItem('specializations', s)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.specializations.includes(s)
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                  }`}
+                type="button"
+                onClick={() => navigate('/psychologist/dashboard')}
+                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
               >
-                {s}
+                Back to dashboard
               </button>
-            ))}
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-bold text-gray-700 mb-4">Languages</h2>
-          <div className="flex flex-wrap gap-2">
-            {LANGUAGES.map(l => (
-              <button
-                key={l}
-                onClick={() => toggleItem('languages', l)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.languages.includes(l)
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                  }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+          <GlassPanel className="p-4 sm:p-6">
+            <PsychologistProfileForm />
+          </GlassPanel>
+        </main>
       </div>
     </div>
   );
