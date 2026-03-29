@@ -8,6 +8,6 @@ AI-Assisted Psychological Intake Platform
 - AI: Groq API (Llama 3.1)
 
 ## Structure
-- /client — React frontend
-- /server — Node/Express backend
-- /docs — Schema, API contracts, conventions
+- /client - React frontend
+- /server - Node/Express backend
+- /docs - Schema, API contracts, conventions

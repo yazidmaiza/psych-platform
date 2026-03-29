@@ -4,107 +4,113 @@ import { useNavigate } from 'react-router-dom';
 import { logout } from '../services/auth';
 
 function Dashboard() {
-    const [patients, setPatients] = useState([]);
-    const navigate = useNavigate();
+  const [patients, setPatients] = useState([]);
+  const navigate = useNavigate();
 
-    useEffect(() => {
-        const fetchPatients = async () => {
-            try {
-                const data = await api.get('/api/dashboard/patients');
-                setPatients(data);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        fetchPatients();
-    }, []);
-
-    const getStatusColor = (status) => {
-        if (status === 'accepted') return 'bg-green-100 text-green-700';
-        if (status === 'rejected') return 'bg-red-100 text-red-700';
-        return 'bg-yellow-100 text-yellow-700';
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const data = await api.get('/api/dashboard/patients');
+        setPatients(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+      }
     };
+    fetchPatients();
+  }, []);
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow-sm">
-                <div className="max-w-4xl mx-auto px-6 py-5">
-                    <h1 className="text-3xl font-bold text-blue-700">🏥 Dashboard</h1>
-                    <p className="text-gray-500 mt-1">Manage your patients and sessions</p>
-                    <div className="flex gap-4 mt-2">
-                        <button
-                            onClick={() => navigate('/profile/edit')}
-                            className="text-blue-600 text-sm font-semibold hover:underline"
-                        >
-                            ✏️ Edit Profile
-                        </button>
-                        <button
-                            onClick={logout}
-                            className="text-red-500 text-sm font-semibold hover:underline"
-                        >
-                            Logout
-                        </button>
-                        <button
-                            onClick={() => navigate('/statistics')}
-                            className="text-blue-600 text-sm font-semibold hover:underline"
-                        >
-                            📊 Statistics
-                        </button>
-                        <button
-                            onClick={() => navigate('/calendar')}
-                            className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition"
-                        >
-                            📅 Calendar
-                        </button>
-                    </div>
-                </div>
-            </div>
+  const getStatusColor = (status) => {
+    if (status === 'accepted') return 'bg-green-100 text-green-700';
+    if (status === 'rejected') return 'bg-red-100 text-red-700';
+    return 'bg-yellow-100 text-yellow-700';
+  };
 
-            <div className="max-w-4xl mx-auto px-6 py-8">
-                <h2 className="text-xl font-bold text-gray-700 mb-4">Your Patients</h2>
-
-                {patients.length === 0 && (
-                    <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-                        No patients yet.
-                    </div>
-                )}
-
-                <div className="grid gap-4">
-                    {patients.map(request => (
-                        <div
-                            key={request._id}
-                            className="bg-white rounded-2xl shadow p-6 flex justify-between items-center hover:shadow-md transition"
-                        >
-                            <div>
-                                <p className="text-gray-800 font-semibold">📧 {request.email}</p>
-                                <p className="text-gray-500 text-sm mt-1">Sessions: {request.sessionCount}</p>
-                                <p className="text-gray-500 text-sm mt-1">
-                                    📅 Requested: {new Date(request.createdAt).toLocaleDateString()}
-                                </p>
-                                <span className={`text-xs font-semibold px-3 py-1 rounded-full mt-2 inline-block ${getStatusColor(request.status)}`}>
-                                    {request.status}
-                                </span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <button
-                                    className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                                    onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
-                                >
-                                    💬 Session & Notes
-                                </button>
-                                <button
-                                    className="bg-purple-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition"
-                                    onClick={() => navigate(`/history/${request.patientId}`)}
-                                >
-                                    📋 Patient History
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white shadow-sm">
+        <div className="max-w-4xl mx-auto px-6 py-5">
+          <h1 className="text-3xl font-bold text-blue-700">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Manage your patients and sessions</p>
+          <div className="flex gap-4 mt-2 flex-wrap">
+            <button
+              onClick={() => navigate('/profile/edit')}
+              className="text-blue-600 text-sm font-semibold hover:underline"
+            >
+              Edit Profile
+            </button>
+            <button
+              onClick={() => navigate('/notifications')}
+              className="text-blue-600 text-sm font-semibold hover:underline"
+            >
+              Notifications
+            </button>
+            <button
+              onClick={() => navigate('/statistics')}
+              className="text-blue-600 text-sm font-semibold hover:underline"
+            >
+              Statistics
+            </button>
+            <button
+              onClick={() => navigate('/calendar')}
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition"
+            >
+              Calendar
+            </button>
+            <button
+              onClick={logout}
+              className="text-red-500 text-sm font-semibold hover:underline"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-    );
+      </div>
+
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <h2 className="text-xl font-bold text-gray-700 mb-4">Your Patients</h2>
+
+        {patients.length === 0 && (
+          <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+            No patients yet.
+          </div>
+        )}
+
+        <div className="grid gap-4">
+          {patients.map(request => (
+            <div
+              key={request._id}
+              className="bg-white rounded-2xl shadow p-6 flex justify-between items-center hover:shadow-md transition"
+            >
+              <div>
+                <p className="text-gray-800 font-semibold">{request.email}</p>
+                <p className="text-gray-500 text-sm mt-1">Sessions: {request.sessionCount}</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Requested: {new Date(request.createdAt).toLocaleDateString()}
+                </p>
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full mt-2 inline-block ${getStatusColor(request.status)}`}>
+                  {request.status}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
+                  onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
+                >
+                  Session & Notes
+                </button>
+                <button
+                  className="bg-purple-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition"
+                  onClick={() => navigate(`/history/${request.patientId}`)}
+                >
+                  Patient History
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default Dashboard;

@@ -1,3 +1,83 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* Dark theme overrides for react-big-calendar (scoped to .rbc-dark wrapper) */
+  .rbc-dark .rbc-toolbar {
+    @apply mb-4 flex flex-wrap items-center gap-2;
+  }
+
+  .rbc-dark .rbc-toolbar button {
+    @apply rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10;
+  }
+
+  .rbc-dark .rbc-toolbar button.rbc-active {
+    @apply border-indigo-400/30 bg-indigo-500/20 text-indigo-100;
+  }
+
+  .rbc-dark .rbc-toolbar-label {
+    @apply text-sm font-semibold text-white;
+  }
+
+  .rbc-dark .rbc-month-view,
+  .rbc-dark .rbc-time-view,
+  .rbc-dark .rbc-agenda-view {
+    @apply rounded-3xl border border-white/10 bg-white/5 shadow-inner backdrop-blur-xl overflow-hidden;
+  }
+
+  .rbc-dark .rbc-header,
+  .rbc-dark .rbc-time-header-content {
+    @apply border-white/10;
+  }
+
+  .rbc-dark .rbc-header {
+    @apply py-2 text-xs font-semibold text-white/70;
+  }
+
+  .rbc-dark .rbc-day-bg + .rbc-day-bg,
+  .rbc-dark .rbc-time-slot-group,
+  .rbc-dark .rbc-timeslot-group,
+  .rbc-dark .rbc-time-content > * + * > * {
+    @apply border-white/10;
+  }
+
+  .rbc-dark .rbc-time-gutter,
+  .rbc-dark .rbc-time-column {
+    @apply border-white/10;
+  }
+
+  .rbc-dark .rbc-label,
+  .rbc-dark .rbc-time-gutter .rbc-timeslot-group,
+  .rbc-dark .rbc-time-gutter .rbc-label {
+    @apply text-[11px] text-white/50;
+  }
+
+  .rbc-dark .rbc-off-range-bg {
+    @apply bg-white/5;
+  }
+
+  .rbc-dark .rbc-today {
+    @apply bg-indigo-500/10;
+  }
+
+  .rbc-dark .rbc-event {
+    @apply rounded-xl border border-white/10 shadow-sm;
+  }
+
+  .rbc-dark .rbc-event-content {
+    @apply text-xs font-semibold;
+  }
+
+  .rbc-dark .rbc-show-more {
+    @apply text-xs font-semibold text-indigo-200;
+  }
+
+  .rbc-dark .rbc-overlay {
+    @apply rounded-2xl border border-white/10 bg-slate-950/90 text-white shadow-2xl backdrop-blur-xl;
+  }
+
+  .rbc-dark .rbc-overlay-header {
+    @apply border-b border-white/10 text-sm font-semibold text-white;
+  }
+}

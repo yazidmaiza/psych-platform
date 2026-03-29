@@ -27,8 +27,14 @@ export default function RateConsultation() {
     useEffect(() => {
         const fetchPsy = async () => {
             try {
-                const data = await api.get('/api/psychologists/' + psychologistId);
-                setPsy(data);
+                try {
+                    const data = await api.get('/api/psychologists/' + psychologistId);
+                    setPsy(data);
+                    return;
+                } catch {}
+
+                const byUser = await api.get('/api/psychologists/by-user/' + psychologistId);
+                setPsy(byUser);
             } catch (err) {
                 console.error(err);
             }
@@ -49,12 +55,13 @@ export default function RateConsultation() {
         setLoading(true);
         setError('');
         try {
-            await api.post('/api/ratings', {
+            const res = await api.post('/api/ratings', {
                 psychologistId,
                 answers,
                 comment
             });
-            navigate('/');
+            const targetPsychologistProfileId = res?.psychologistId || psychologistId;
+            navigate('/psychologist/' + targetPsychologistProfileId);
         } catch (err) {
             setError(err.message || 'Failed to submit rating.');
         } finally {
@@ -67,9 +74,9 @@ export default function RateConsultation() {
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
                     <button onClick={() => navigate('/history')} className="text-blue-600 text-sm font-semibold hover:underline">
-                        ← Back
+                        Back
                     </button>
-                    <h1 className="text-xl font-bold text-blue-700">⭐ Rate Your Consultation</h1>
+                    <h1 className="text-xl font-bold text-blue-700">Rate Your Consultation</h1>
                 </div>
             </div>
 
@@ -82,7 +89,7 @@ export default function RateConsultation() {
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-gray-800">{psy.firstName} {psy.lastName}</h2>
-                            <p className="text-gray-500 text-sm">📍 {psy.city}</p>
+                            <p className="text-gray-500 text-sm">{psy.city}</p>
                         </div>
                     </div>
                 )}
@@ -118,7 +125,7 @@ export default function RateConsultation() {
                 </div>
 
                 <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-3">💬 Additional Comments (optional)</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-3">Additional Comments (optional)</h2>
                     <textarea
                         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
                         rows={3}
@@ -133,7 +140,7 @@ export default function RateConsultation() {
                     disabled={loading || answers.some(a => a === 0)}
                     className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                    {loading ? 'Submitting...' : 'Submit Rating →'}
+                    {loading ? 'Submitting...' : 'Submit rating'}
                 </button>
             </div>
         </div>

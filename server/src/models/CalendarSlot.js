@@ -22,6 +22,20 @@ const calendarSlotSchema = new mongoose.Schema({
     isBooked: {
         type: Boolean,
         default: false
+    },
+    pendingPatientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    pendingSessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session',
+        default: null
+    },
+    pendingAt: {
+        type: Date,
+        default: null
     }
 }, { timestamps: true });
 

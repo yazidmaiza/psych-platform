@@ -9,7 +9,32 @@ export const getUser = () => ({
 export const isLoggedIn = () => !!localStorage.getItem('token');
 
 // Logout
-export const logout = () => {
+export const logout = async () => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+
+    if (token && role === 'patient') {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3500);
+
+            await fetch('http://localhost:5000/api/chatbot/logout-summary', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({}),
+                keepalive: true,
+                signal: controller.signal
+            });
+
+            clearTimeout(timeout);
+        } catch (err) {
+            // ignore logout summary errors
+        }
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');

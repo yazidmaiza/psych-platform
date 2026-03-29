@@ -7,7 +7,7 @@ const EmotionalIndicator = require('../models/EmotionalIndicator');
 const PatientHistory = require('../models/PatientHistory');
 const { protect } = require('../middleware/authMiddleware');
 
-// US-31 — Get chronological list of patients for a psychologist
+// US-31 - Get chronological list of patients for a psychologist
 router.get('/patients', protect, async (req, res) => {
     try {
         const sessions = await SessionRequest.find({
@@ -39,7 +39,7 @@ router.get('/patients', protect, async (req, res) => {
     }
 });
 
-// US-32 — Get detailed patient view
+// US-32 - Get detailed patient view
 router.get('/patient/:patientId', protect, async (req, res) => {
     try {
         const psychologistId = req.user.id;
@@ -63,7 +63,7 @@ router.get('/patient/:patientId', protect, async (req, res) => {
     }
 });
 
-// US-27 — Add a private note
+// US-27 - Add a private note
 router.post('/notes', protect, async (req, res) => {
     try {
         const { patientId, content } = req.body;
@@ -81,7 +81,7 @@ router.post('/notes', protect, async (req, res) => {
     }
 });
 
-// US-27 — Get all private notes for a patient
+// US-27 - Get all private notes for a patient
 router.get('/notes/:patientId', protect, async (req, res) => {
     try {
         const notes = await PrivateNote.find({
@@ -95,7 +95,7 @@ router.get('/notes/:patientId', protect, async (req, res) => {
     }
 });
 
-// US-33 — Add emotional indicators
+// US-33 - Add emotional indicators
 router.post('/emotions', protect, async (req, res) => {
     try {
         const { patientId, scores } = req.body;
@@ -113,7 +113,7 @@ router.post('/emotions', protect, async (req, res) => {
     }
 });
 
-// US-33 — Get emotional indicators for a patient
+// US-33 - Get emotional indicators for a patient
 router.get('/emotions/:patientId', protect, async (req, res) => {
     try {
         const indicators = await EmotionalIndicator.find({
@@ -127,7 +127,7 @@ router.get('/emotions/:patientId', protect, async (req, res) => {
     }
 });
 
-// US-34 — Add a session to patient history
+// US-34 - Add a session to patient history
 router.post('/history', protect, async (req, res) => {
     try {
         const { patientId, sessionType, summary, emotionalScores } = req.body;
@@ -147,7 +147,7 @@ router.post('/history', protect, async (req, res) => {
     }
 });
 
-// US-34 — Get patient history
+// US-34 - Get patient history
 router.get('/history/:patientId', protect, async (req, res) => {
     try {
         const history = await PatientHistory.find({

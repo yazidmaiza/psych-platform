@@ -13,7 +13,7 @@ const sessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'active', 'completed'],
+    enum: ['requested', 'pending', 'pending_payment', 'paid', 'active', 'completed', 'canceled'],
     default: 'pending'
   },
   sessionType: {
@@ -21,9 +21,34 @@ const sessionSchema = new mongoose.Schema({
     enum: ['preparation', 'followup', 'free'],
     required: true
   },
+  calendarSlotId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CalendarSlot',
+    default: null
+  },
+  scheduledStart: {
+    type: Date,
+    default: null
+  },
+  scheduledEnd: {
+    type: Date,
+    default: null
+  },
   paymentConfirmed: {
     type: Boolean,
     default: false
+  },
+  paymentDueAt: {
+    type: Date,
+    default: null
+  },
+  confirmedAt: {
+    type: Date,
+    default: null
+  },
+  canceledAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

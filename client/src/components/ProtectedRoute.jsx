@@ -15,7 +15,4 @@ function ProtectedRoute({ children, role }) {
     return children;
 
 }
-console.log(localStorage.getItem('role'))
-console.log(localStorage.getItem('token'))
-console.log(localStorage.getItem('userId'))
 export default ProtectedRoute;

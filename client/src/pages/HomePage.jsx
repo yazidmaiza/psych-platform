@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -7,7 +7,7 @@ function HomePage() {
   const [filters, setFilters] = useState({ city: '', language: '', specialization: '' });
   const navigate = useNavigate();
 
-  const fetchPsychologists = async () => {
+  const fetchPsychologists = useCallback(async () => {
     try {
       let url = '/api/psychologists?';
       if (filters.city) url += `city=${filters.city}&`;
@@ -19,11 +19,11 @@ function HomePage() {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [filters.city, filters.language, filters.specialization]);
 
   useEffect(() => {
     fetchPsychologists();
-  }, [filters]);
+  }, [fetchPsychologists]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -32,7 +32,7 @@ function HomePage() {
         <div className="max-w-6xl mx-auto px-6 py-16">
           <div className="text-center">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              🧠 Psych Platform
+              Psych Platform
             </h1>
             <p className="text-xl md:text-2xl mb-8 opacity-90">
               Professional psychological support when you need it most
@@ -62,17 +62,14 @@ function HomePage() {
         </h2>
         <div className="grid md:grid-cols-3 gap-8">
           <div className="text-center">
-            <div className="text-4xl mb-4">🔒</div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">Confidential & Secure</h3>
             <p className="text-gray-600">Your privacy is our priority. All sessions are encrypted and confidential.</p>
           </div>
           <div className="text-center">
-            <div className="text-4xl mb-4">🤖</div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">AI-Powered Intake</h3>
             <p className="text-gray-600">Start with our intelligent chatbot to prepare for your consultation.</p>
           </div>
           <div className="text-center">
-            <div className="text-4xl mb-4">👥</div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">Certified Professionals</h3>
             <p className="text-gray-600">Work with experienced, licensed psychologists specialized in your needs.</p>
           </div>
@@ -129,32 +126,32 @@ function HomePage() {
                       <h3 className="text-lg font-bold text-gray-800">
                         {psy.firstName} {psy.lastName}
                       </h3>
-                      <p className="text-gray-500 text-sm">📍 {psy.city || 'Location not specified'}</p>
+                      <p className="text-gray-500 text-sm">{psy.city || 'Location not specified'}</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
-                      <span className="mr-2">⭐</span>
+                      <span className="mr-2">*</span>
                       {psy.averageRating > 0 ? `${psy.averageRating.toFixed(1)} / 5` : 'No ratings yet'}
                       {psy.totalRatings > 0 && ` (${psy.totalRatings} reviews)`}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
-                      <span className="mr-2">🗣</span>
+                      <span className="mr-2">Languages:</span>
                       {Array.isArray(psy.languages) ? psy.languages.join(', ') : psy.languages || 'Not specified'}
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
-                      <span className="mr-2">🧠</span>
+                      <span className="mr-2">Specializations:</span>
                       {Array.isArray(psy.specializations) ? psy.specializations.slice(0, 3).join(', ') : psy.specializations || 'Not specified'}
                       {Array.isArray(psy.specializations) && psy.specializations.length > 3 && '...'}
                     </div>
                   </div>
 
                   <button
-                    onClick={() => navigate(`/psychologist/${psy._id}`)}
+                    onClick={() => navigate(`/p/psychologist/${psy._id}`)}
                     className="w-full bg-blue-600 text-white py-2 rounded-xl font-semibold hover:bg-blue-700 transition"
                   >
-                    View Profile →
+                    View Profile
                   </button>
                 </div>
               ))}

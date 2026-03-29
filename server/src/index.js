@@ -68,6 +68,7 @@ app.use('/api/ratings', apiLimiter, require('./routes/ratingRoutes'));
 app.use('/api/verification', apiLimiter, require('./routes/verificationRoutes'));
 app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
 app.use('/api/calendar', apiLimiter, calendarRoutes);
+app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
 
 // Health check
 app.get('/', (req, res) => {

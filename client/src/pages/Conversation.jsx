@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getUser } from '../services/auth';
 import { api } from '../services/api';
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:5000');
+import { socket } from '../services/socket';
 
 function Conversation() {
   const [messages, setMessages] = useState([]);
@@ -30,7 +28,6 @@ function Conversation() {
     if (!text || isMuted) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    //utterance.lang = 'fr-FR';
     utterance.rate = 0.9;
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
@@ -76,6 +73,7 @@ function Conversation() {
       socket.off('receive_message');
       window.speechSynthesis.cancel();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otherUserId]);
 
   useEffect(() => {
@@ -100,7 +98,6 @@ function Conversation() {
       });
 
       socket.emit('send_message', { roomId, message: savedMessage });
-
     } catch (err) {
       console.error(err);
       if (!content) setNewMessage(text);
@@ -144,10 +141,9 @@ function Conversation() {
           recorderRef.current.stop();
         }
       }, 5000);
-
     } catch (err) {
       console.error('Microphone access denied:', err);
-      alert('Microphone access denied ❌');
+      alert('Microphone access denied');
     }
   };
 
@@ -165,10 +161,10 @@ function Conversation() {
             onClick={() => navigate(-1)}
             className="text-blue-600 text-sm font-semibold hover:underline"
           >
-            ←
+            Back
           </button>
-          <h1 className="text-xl font-bold text-gray-800">💬 Conversation</h1>
-          <span className="text-xs text-green-500 font-semibold">● Live</span>
+          <h1 className="text-xl font-bold text-gray-800">Conversation</h1>
+          <span className="text-xs text-green-500 font-semibold">Live</span>
           <button
             onClick={() => {
               setIsMuted(!isMuted);
@@ -176,7 +172,7 @@ function Conversation() {
             }}
             className="ml-auto text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
           >
-            {isMuted ? '🔇 Muted' : '🔊 Sound On'}
+            {isMuted ? 'Muted' : 'Sound on'}
           </button>
         </div>
       </div>
@@ -190,7 +186,7 @@ function Conversation() {
           className="flex-1 bg-white rounded-2xl shadow p-5 overflow-y-auto mb-4"
         >
           {messages.length === 0 && (
-            <p className="text-center text-gray-400 mt-20">No messages yet. Say hello! 👋</p>
+            <p className="text-center text-gray-400 mt-20">No messages yet. Say hello!</p>
           )}
           {messages.map((msg, index) => (
             <div
@@ -226,14 +222,14 @@ function Conversation() {
                 }`}
               onClick={isRecording ? stopRecording : startRecording}
             >
-              {isRecording ? '⏹ Stop' : '🎤'}
+              {isRecording ? 'Stop' : 'Record'}
             </button>
           )}
           <button
             className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
             onClick={() => sendMessage()}
           >
-            Send →
+            Send
           </button>
         </div>
       </div>

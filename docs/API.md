@@ -1,5 +1,5 @@
 # API Contract
-Psych Platform — Internal API Documentation
+Psych Platform - Internal API Documentation
 Last updated: March 2026
 
 ## Base URL

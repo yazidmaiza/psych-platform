@@ -20,7 +20,8 @@ const sessionCodeSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// TTL index — MongoDB auto-deletes expired codes
+// TTL index - MongoDB auto-deletes expired codes
 sessionCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('SessionCode', sessionCodeSchema);
+

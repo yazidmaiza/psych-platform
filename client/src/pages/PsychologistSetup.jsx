@@ -82,11 +82,13 @@ export default function PsychologistSetup() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow p-10 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">⏳</div>
+          <div className="text-2xl mb-4">Submitting...</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Awaiting Admin Approval</h2>
-          <p className="text-gray-500 text-sm">Your documents have been submitted and analyzed by our AI. An admin will review and approve your account shortly.</p>
+          <p className="text-gray-500 text-sm">
+            Your documents have been submitted and analyzed. An admin will review and approve your account shortly.
+          </p>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/psychologist/dashboard')}
             className="mt-6 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
           >
             Go to Dashboard
@@ -101,20 +103,19 @@ export default function PsychologistSetup() {
       <div className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
           <h1 className="text-xl font-bold text-blue-700">
-            {step === 1 ? 'Complete Your Profile' : '📄 Upload Your Documents'}
+            {step === 1 ? 'Complete Your Profile' : 'Upload Your Documents'}
           </h1>
           <span className="text-sm text-gray-400">Step {step} of 2</span>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
-
         {error && <p className="text-red-500 text-sm">{error}</p>}
 
         {step === 1 && (
           <>
             <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">👤 Basic Information</h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Basic Information</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">First Name</label>
@@ -138,7 +139,7 @@ export default function PsychologistSetup() {
                   <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">City</label>
                   <input
                     className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="e.g. Tunis"
+                    placeholder="City"
                     value={form.city}
                     onChange={e => setForm({ ...form, city: e.target.value })}
                   />
@@ -166,17 +167,16 @@ export default function PsychologistSetup() {
             </div>
 
             <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">🧠 Specializations</h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Specializations</h2>
               <div className="flex flex-wrap gap-2">
                 {SPECIALIZATIONS.map(s => (
                   <button
                     key={s}
                     onClick={() => toggleItem('specializations', s)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                      form.specializations.includes(s)
+                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.specializations.includes(s)
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                    }`}
+                      }`}
                   >
                     {s}
                   </button>
@@ -185,17 +185,16 @@ export default function PsychologistSetup() {
             </div>
 
             <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">🌍 Languages</h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Languages</h2>
               <div className="flex flex-wrap gap-2">
                 {LANGUAGES.map(l => (
                   <button
                     key={l}
                     onClick={() => toggleItem('languages', l)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                      form.languages.includes(l)
+                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.languages.includes(l)
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                    }`}
+                      }`}
                   >
                     {l}
                   </button>
@@ -208,7 +207,7 @@ export default function PsychologistSetup() {
               disabled={loading}
               className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {loading ? 'Saving...' : 'Continue to Document Upload →'}
+              {loading ? 'Saving...' : 'Continue to Document Upload ->'}
             </button>
           </>
         )}
@@ -216,11 +215,11 @@ export default function PsychologistSetup() {
         {step === 2 && (
           <>
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700">
-              📋 Please upload your CV and diploma in PDF format. Our AI will analyze them and an admin will approve your account.
+              Please upload your CV and diploma in PDF format. Our AI will analyze them and an admin will approve your account.
             </div>
 
             <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-6">📄 Upload Documents</h2>
+              <h2 className="text-lg font-bold text-gray-700 mb-6">Upload Documents</h2>
 
               <div className="flex flex-col gap-6">
                 <div>
@@ -231,7 +230,7 @@ export default function PsychologistSetup() {
                     onChange={e => setCv(e.target.files[0])}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                   />
-                  {cv && <p className="text-green-600 text-xs mt-1">✅ {cv.name}</p>}
+                  {cv && <p className="text-green-600 text-xs mt-1">Selected: {cv.name}</p>}
                 </div>
 
                 <div>
@@ -242,7 +241,7 @@ export default function PsychologistSetup() {
                     onChange={e => setDiploma(e.target.files[0])}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                   />
-                  {diploma && <p className="text-green-600 text-xs mt-1">✅ {diploma.name}</p>}
+                  {diploma && <p className="text-green-600 text-xs mt-1">Selected: {diploma.name}</p>}
                 </div>
               </div>
             </div>
@@ -252,7 +251,7 @@ export default function PsychologistSetup() {
               disabled={loading || !cv || !diploma}
               className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {loading ? 'Uploading & Analyzing...' : '🔍 Submit for Verification →'}
+              {loading ? 'Uploading & Analyzing...' : 'Submit for Verification ->'}
             </button>
           </>
         )}
@@ -260,3 +259,4 @@ export default function PsychologistSetup() {
     </div>
   );
 }
+

@@ -28,7 +28,7 @@ function Register() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="bg-white rounded-2xl shadow p-8 w-full max-w-md">
 
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">Create an account 🧠</h1>
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">Create an account</h1>
                 <p className="text-gray-500 text-sm mb-6">Join the platform today</p>
 
                 {error && (
@@ -53,7 +53,7 @@ function Register() {
                         <input
                             type="password"
                             className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                            placeholder="••••••••"
+                            placeholder="********"
                             value={form.password}
                             onChange={e => setForm({ ...form, password: e.target.value })}
                         />
@@ -69,7 +69,7 @@ function Register() {
                                     }`}
                                 onClick={() => setForm({ ...form, role: 'patient' })}
                             >
-                                🙋 Patient
+                                Patient
                             </button>
                             <button
                                 className={`py-3 rounded-xl text-sm font-semibold border-2 transition ${form.role === 'psychologist'
@@ -78,7 +78,7 @@ function Register() {
                                     }`}
                                 onClick={() => setForm({ ...form, role: 'psychologist' })}
                             >
-                                🧑‍⚕️ Psychologist
+                                Psychologist
                             </button>
                         </div>
                     </div>

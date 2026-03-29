@@ -10,7 +10,9 @@ exports.getAllPsychologists = async (req, res) => {
     const psychologists = await Psychologist.find(filter)
       .populate('userId', 'email')
       .sort({ averageRating: -1, createdAt: -1 });
-    res.status(200).json(psychologists);
+
+    // If an admin deleted the underlying User, userId will not populate; filter those out
+    res.status(200).json((psychologists || []).filter(p => p.userId));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -19,6 +21,19 @@ exports.getAllPsychologists = async (req, res) => {
 exports.getPsychologist = async (req, res) => {
   try {
     const psychologist = await Psychologist.findById(req.params.id)
+      .populate('userId', 'email');
+    if (!psychologist) {
+      return res.status(404).json({ message: 'Psychologist not found' });
+    }
+    res.status(200).json(psychologist);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.getPsychologistByUserId = async (req, res) => {
+  try {
+    const psychologist = await Psychologist.findOne({ userId: req.params.userId })
       .populate('userId', 'email');
     if (!psychologist) {
       return res.status(404).json({ message: 'Psychologist not found' });

@@ -31,7 +31,7 @@ export default function VerifyCode() {
         setError('');
         try {
             await api.post('/api/sessions/' + sessionId + '/verify-code', { code: fullCode });
-            navigate('/chatbot/' + sessionId);
+            navigate('/session/' + sessionId);
         } catch (err) {
             setError('Invalid or expired code. Please check your email.');
         } finally {
@@ -44,7 +44,7 @@ export default function VerifyCode() {
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5">
                     <button onClick={() => navigate(-1)} className="text-blue-600 text-sm font-semibold hover:underline">
-                        ← Back
+                        Back
                     </button>
                 </div>
             </div>
@@ -56,7 +56,7 @@ export default function VerifyCode() {
                 {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
                 <div className="bg-white rounded-2xl shadow p-8 mb-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-6 text-center">🔐 Enter your code</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-6 text-center">Enter your code</h2>
 
                     <div className="flex justify-center gap-3 mb-6">
                         {code.map((digit, index) => (
@@ -82,7 +82,7 @@ export default function VerifyCode() {
                     disabled={loading || code.join('').length < 6}
                     className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                    {loading ? 'Verifying...' : 'Verify & Enter Session →'}
+                    {loading ? 'Verifying...' : 'Verify and enter session'}
                 </button>
             </div>
         </div>

@@ -21,13 +21,16 @@ import RateConsultation from './pages/RateConsultation';
 import CalendarPage from './pages/Calendar';
 import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
 import HomePage from './pages/HomePage';
+import MySessionHistory from './pages/MySessionHistory';
+import Notifications from './pages/Notifications';
+import SessionPage from './pages/SessionPage';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
-        <Route path="/psychologist/:id" element={<PublicPsychologistProfile />} />
+        <Route path="/p/psychologist/:id" element={<PublicPsychologistProfile />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
@@ -66,6 +69,21 @@ function App() {
         <Route path="/chatbot/:sessionId" element={
           <ProtectedRoute role="patient">
             <Chatbot />
+          </ProtectedRoute>
+        } />
+        <Route path="/session/:sessionId" element={
+          <ProtectedRoute role="patient">
+            <SessionPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/history" element={
+          <ProtectedRoute role="patient">
+            <MySessionHistory />
+          </ProtectedRoute>
+        } />
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <Notifications />
           </ProtectedRoute>
         } />
 
@@ -116,12 +134,6 @@ function App() {
         <Route path="/calendar/:psychologistId" element={
           <ProtectedRoute>
             <CalendarPage />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/rate/:psychologistId" element={
-          <ProtectedRoute role="patient">
-            <RateConsultation />
           </ProtectedRoute>
         } />
 

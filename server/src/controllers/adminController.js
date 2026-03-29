@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Psychologist = require('../models/Psychologist');
 const Session = require('../models/Session');
+const CalendarSlot = require('../models/CalendarSlot');
 
 // @GET /api/admin/users
 exports.getAllUsers = async (req, res) => {
@@ -18,6 +19,22 @@ exports.deleteUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.role === 'admin') return res.status(403).json({ message: 'Cannot delete admin' });
+
+    // Clean up related documents so deleted profiles do not keep showing up in lists
+    if (user.role === 'psychologist') {
+      await Psychologist.deleteMany({ userId: user._id });
+      await CalendarSlot.deleteMany({ psychologistId: user._id });
+      await Session.deleteMany({ psychologistId: user._id });
+    }
+
+    if (user.role === 'patient') {
+      await Session.deleteMany({ patientId: user._id });
+      await CalendarSlot.updateMany(
+        { patientId: user._id },
+        { $set: { patientId: null, isBooked: false, pendingPatientId: null, pendingSessionId: null, pendingAt: null } }
+      );
+    }
+
     await User.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: 'User deleted' });
   } catch (err) {

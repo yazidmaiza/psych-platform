@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 const API = 'http://localhost:5000';
 
 const getHeaders = () => ({
-  'Authorization': 'Bearer ' + localStorage.getItem('token'),
+  Authorization: 'Bearer ' + localStorage.getItem('token'),
   'Content-Type': 'application/json'
 });
 
@@ -23,20 +23,26 @@ export default function AdminPanel() {
       return;
     }
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+    setError('');
+    setMessage('');
     try {
       const [statsRes, usersRes, verifyRes] = await Promise.all([
         fetch(API + '/api/admin/stats', { headers: getHeaders() }),
         fetch(API + '/api/admin/users', { headers: getHeaders() }),
         fetch(API + '/api/verification/pending', { headers: getHeaders() })
       ]);
+
       const statsData = await statsRes.json();
       const usersData = await usersRes.json();
       const verifyData = await verifyRes.json();
+
       setStats(statsData);
-      setUsers(usersData);
+      setUsers(Array.isArray(usersData) ? usersData : []);
       setPendingVerifications(Array.isArray(verifyData) ? verifyData : []);
     } catch (err) {
       setError('Failed to load data');
@@ -53,7 +59,7 @@ export default function AdminPanel() {
         headers: getHeaders()
       });
       const data = await res.json();
-      if (!res.ok) return setError(data.message);
+      if (!res.ok) return setError(data.message || 'Failed to delete user');
       setMessage('User deleted');
       setUsers(users.filter(u => u._id !== id));
     } catch (err) {
@@ -69,7 +75,7 @@ export default function AdminPanel() {
         body: JSON.stringify({ role })
       });
       const data = await res.json();
-      if (!res.ok) return setError(data.message);
+      if (!res.ok) return setError(data.message || 'Failed to update role');
       setMessage('Role updated');
       setUsers(users.map(u => u._id === id ? { ...u, role: data.role } : u));
     } catch (err) {
@@ -84,7 +90,7 @@ export default function AdminPanel() {
         headers: getHeaders()
       });
       const data = await res.json();
-      if (!res.ok) return setError(data.message);
+      if (!res.ok) return setError(data.message || 'Failed to approve');
       setMessage('Psychologist approved');
       setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
     } catch (err) {
@@ -99,7 +105,7 @@ export default function AdminPanel() {
         headers: getHeaders()
       });
       const data = await res.json();
-      if (!res.ok) return setError(data.message);
+      if (!res.ok) return setError(data.message || 'Failed to reject');
       setMessage('Psychologist rejected');
       setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
     } catch (err) {
@@ -107,22 +113,41 @@ export default function AdminPanel() {
     }
   };
 
+  const logout = () => {
+    localStorage.clear();
+    navigate('/login');
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 30, fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>Admin Panel</h1>
-      <button onClick={() => { localStorage.clear(); navigate('/login'); }}
-        style={{ float: 'right', padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-        Logout
-      </button>
+    <div style={{ maxWidth: 980, margin: '0 auto', padding: 30, fontFamily: 'sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 4 }}>Admin Panel</h1>
+          <p style={{ color: '#718096', marginTop: 0 }}>Manage users and verification requests</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={fetchData}
+            style={{ padding: '6px 14px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+          >
+            Refresh
+          </button>
+          <button
+            onClick={logout}
+            style={{ padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
 
       {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
       {message && <p style={{ color: 'green', marginBottom: 12 }}>{message}</p>}
 
-      {/* Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, margin: '18px 0 28px' }}>
           {[
             { label: 'Total Users', value: stats.totalUsers },
             { label: 'Patients', value: stats.totalPatients },
@@ -131,19 +156,18 @@ export default function AdminPanel() {
             { label: 'Active Sessions', value: stats.activeSessions },
             { label: 'Completed Sessions', value: stats.completedSessions }
           ].map(s => (
-            <div key={s.label} style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 'bold', color: '#2D6A9F' }}>{s.value}</div>
-              <div style={{ fontSize: 13, color: '#718096', marginTop: 4 }}>{s.label}</div>
+            <div key={s.label} style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, textAlign: 'center' }}>
+              <div style={{ color: '#718096', fontSize: 13 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 'bold', marginTop: 6 }}>{s.value}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Users Table */}
       <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>Users</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-        <thead>
-          <tr style={{ background: '#f7fafc', textAlign: 'left' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+        <thead style={{ background: '#f7fafc', textAlign: 'left' }}>
+          <tr>
             <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Email</th>
             <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Role</th>
             <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Created</th>
@@ -184,9 +208,8 @@ export default function AdminPanel() {
         </tbody>
       </table>
 
-      {/* Pending Verifications */}
       <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, marginTop: 32 }}>
-        🔍 Pending Verifications
+        Pending Verifications
       </h2>
 
       {pendingVerifications.length === 0 && (
@@ -199,7 +222,7 @@ export default function AdminPanel() {
             <div>
               <p style={{ fontWeight: 'bold', fontSize: 15 }}>{psy.firstName} {psy.lastName}</p>
               <p style={{ color: '#718096', fontSize: 13 }}>{psy.userId?.email}</p>
-              <p style={{ color: '#718096', fontSize: 13 }}>📍 {psy.city}</p>
+              <p style={{ color: '#718096', fontSize: 13 }}>{psy.city}</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 {psy.cvUrl && (
                   <a
@@ -208,7 +231,7 @@ export default function AdminPanel() {
                     rel="noreferrer"
                     style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
                   >
-                    📄 View CV
+                    View CV
                   </a>
                 )}
                 {psy.diplomaUrl && (
@@ -218,7 +241,7 @@ export default function AdminPanel() {
                     rel="noreferrer"
                     style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
                   >
-                    🎓 View Diploma
+                    View Diploma
                   </a>
                 )}
               </div>
@@ -228,20 +251,20 @@ export default function AdminPanel() {
                 onClick={() => approvePsy(psy._id)}
                 style={{ padding: '6px 14px', background: '#38a169', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
               >
-                ✅ Approve
+                Approve
               </button>
               <button
                 onClick={() => rejectPsy(psy._id)}
                 style={{ padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
               >
-                ❌ Reject
+                Reject
               </button>
             </div>
           </div>
 
           {psy.aiVerificationSummary && (
             <div style={{ marginTop: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 12 }}>
-              <p style={{ fontSize: 12, fontWeight: 'bold', color: '#4a5568', marginBottom: 6 }}>🤖 AI Analysis</p>
+              <p style={{ fontSize: 12, fontWeight: 'bold', color: '#4a5568', marginBottom: 6 }}>AI Analysis</p>
               <p style={{ fontSize: 13, color: '#4a5568', whiteSpace: 'pre-wrap' }}>{psy.aiVerificationSummary}</p>
             </div>
           )}
@@ -250,3 +273,4 @@ export default function AdminPanel() {
     </div>
   );
 }
+

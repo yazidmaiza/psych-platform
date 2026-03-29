@@ -35,8 +35,6 @@ const validateSession = [
     body('psychologistId')
         .notEmpty().withMessage('Psychologist ID is required')
         .isMongoId().withMessage('Invalid psychologist ID'),
-    body('sessionType')
-        .isIn(['preparation', 'followup', 'free']).withMessage('Invalid session type'),
     handleValidationErrors
 ];
 

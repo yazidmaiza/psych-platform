@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -7,7 +7,6 @@ function PatientDetail() {
     const [emotions, setEmotions] = useState([]);
     const [newNote, setNewNote] = useState('');
     const { patientId } = useParams();
-    const [history, setHistory] = useState([]);
     const [sessionId, setSessionId] = useState(null);
     const [summary, setSummary] = useState(null);
     const navigate = useNavigate();
@@ -20,16 +19,22 @@ function PatientDetail() {
     const [querying, setQuerying] = useState(false);
 
 
-    const fetchData = async () => {
+    const fetchDocuments = useCallback(async () => {
+        try {
+            const docs = await api.get('/api/documents/patient/' + patientId);
+            setDocuments(Array.isArray(docs) ? docs : []);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [patientId]);
+
+    const fetchData = useCallback(async () => {
         try {
             const res = await api.get(`/api/dashboard/patient/${patientId}`);
             setData(res);
 
             const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
             setEmotions(Array.isArray(emotionRes) ? emotionRes : []);
-
-            const historyRes = await api.get(`/api/dashboard/history/${patientId}`);
-            setHistory(Array.isArray(historyRes) ? historyRes : []);
 
             const sessionRes = await api.get(`/api/sessions/patient/${patientId}`);
             if (Array.isArray(sessionRes) && sessionRes.length > 0) {
@@ -47,12 +52,12 @@ function PatientDetail() {
         } catch (err) {
             console.error(err);
         }
-    };
+    }, [patientId]);
 
     useEffect(() => {
         fetchData();
         fetchDocuments();
-    }, [patientId]);
+    }, [fetchData, fetchDocuments]);
 
     const addNote = async () => {
         if (!newNote.trim()) return;
@@ -82,19 +87,7 @@ function PatientDetail() {
         a.click();
         window.URL.revokeObjectURL(url);
     };
-    const fetchDocuments = async () => {
-        try {
-            const docs = await api.get('/api/documents/patient/' + patientId);
-            setDocuments(Array.isArray(docs) ? docs : []);
-        } catch (err) {
-            console.error(err);
-        }
-    };
     const uploadDocument = async () => {
-        console.log('docFile:', docFile);
-        console.log('docFile type:', docFile?.type);
-        console.log('docFile size:', docFile?.size);
-
         if (!docFile) return;
         setUploading(true);
         try {
@@ -102,10 +95,6 @@ function PatientDetail() {
             const formData = new FormData();
             formData.append('document', docFile);
             formData.append('patientId', patientId);
-            console.log('formData entries:');
-            for (let pair of formData.entries()) {
-                console.log(pair[0], pair[1]);
-            }
             const res = await fetch('http://localhost:5000/api/documents/upload/' + patientId, {
                 method: 'POST',
                 headers: { Authorization: 'Bearer ' + token },
@@ -157,21 +146,21 @@ function PatientDetail() {
                         onClick={() => navigate('/dashboard')}
                         className="text-blue-600 text-sm font-semibold hover:underline"
                     >
-                        ← Back to Dashboard
+                        {'<- Back to Dashboard'}
                     </button>
                     <h1 className="text-xl font-bold text-gray-800">Patient Detail</h1>
                     <button
                         onClick={() => navigate(`/conversation/${patientId}`)}
                         className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
                     >
-                        💬 Open Chat
+                        Open Chat
                     </button>
                     {sessionId && (
                         <button
                             onClick={downloadPDF}
                             className="bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-green-700 transition"
                         >
-                            📄 Download Report
+                            Download Report
                         </button>
                     )}
                 </div>
@@ -182,7 +171,7 @@ function PatientDetail() {
                 {/* AI Chatbot Summary */}
                 {summary && (
                     <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="text-lg font-bold text-gray-700 mb-4">🤖 AI Session Summary</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">AI Session Summary</h2>
                         <div className="grid grid-cols-3 gap-4 mb-4">
                             <div className="bg-gray-50 rounded-xl p-4 text-center">
                                 <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Dominant Emotion</p>
@@ -216,7 +205,7 @@ function PatientDetail() {
                         )}
                         {summary.recommendations?.length > 0 && (
                             <div className="mt-4">
-                                <p className="text-sm font-semibold text-gray-600 mb-2">💡 Recommended Follow-up Questions</p>
+                                <p className="text-sm font-semibold text-gray-600 mb-2">Recommended Follow-up Questions</p>
                                 <div className="flex flex-col gap-2">
                                     {summary.recommendations.map((rec, i) => (
                                         <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
@@ -238,7 +227,7 @@ function PatientDetail() {
 
                 {/* Conversation */}
                 <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">💬 Conversation</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">Conversation</h2>
                     <div className="h-64 overflow-y-auto flex flex-col gap-3">
                         {data.messages.length === 0 && (
                             <p className="text-center text-gray-400 mt-10">No messages yet.</p>
@@ -264,7 +253,7 @@ function PatientDetail() {
 
                 {/* Emotional Indicators */}
                 <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">📊 Emotional Indicators</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">Emotional Indicators</h2>
                     {emotions.length === 0 && (
                         <p className="text-center text-gray-400">No emotional data yet.</p>
                     )}
@@ -272,7 +261,7 @@ function PatientDetail() {
                         <div key={indicator._id} className="flex flex-col gap-4">
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">😰 Anxiety</span>
+                                    <span className="font-semibold text-gray-700">Anxiety</span>
                                     <span className="text-gray-500">{indicator.scores.anxiety}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
@@ -281,7 +270,7 @@ function PatientDetail() {
                             </div>
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">😔 Sadness</span>
+                                    <span className="font-semibold text-gray-700">Sadness</span>
                                     <span className="text-gray-500">{indicator.scores.sadness}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
@@ -290,7 +279,7 @@ function PatientDetail() {
                             </div>
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">😤 Anger</span>
+                                    <span className="font-semibold text-gray-700">Anger</span>
                                     <span className="text-gray-500">{indicator.scores.anger}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
@@ -299,7 +288,7 @@ function PatientDetail() {
                             </div>
                             <div>
                                 <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">😊 Positivity</span>
+                                    <span className="font-semibold text-gray-700">Positivity</span>
                                     <span className="text-gray-500">{indicator.scores.positivity}%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3">
@@ -312,7 +301,7 @@ function PatientDetail() {
 
                 {/* Private Notes */}
                 <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">🔒 Private Notes</h2>
+                    <h2 className="text-lg font-bold text-gray-700 mb-4">Private Notes</h2>
                     <div className="flex gap-3 mb-4">
                         <input
                             className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300"
@@ -344,7 +333,7 @@ function PatientDetail() {
             </div>
             {/* Patient Documents + RAG */}
             <div className="bg-white rounded-2xl shadow p-6">
-                <h2 className="text-lg font-bold text-gray-700 mb-4">📁 Patient Documents</h2>
+                <h2 className="text-lg font-bold text-gray-700 mb-4">Patient Documents</h2>
 
                 {/* Upload */}
                 <div className="flex gap-3 mb-6">
@@ -359,7 +348,7 @@ function PatientDetail() {
                         disabled={uploading || !docFile}
                         className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
                     >
-                        {uploading ? 'Uploading...' : '📤 Upload'}
+                        {uploading ? 'Uploading...' : 'Upload'}
                     </button>
                 </div>
 
@@ -378,7 +367,7 @@ function PatientDetail() {
                                 }`}
                         >
                             <div>
-                                <p className="text-sm font-semibold text-gray-700">📄 {doc.originalName}</p>
+                                <p className="text-sm font-semibold text-gray-700">{doc.originalName}</p>
                                 <p className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString()}</p>
                             </div>
                             {selectedDoc === doc._id && (
@@ -391,7 +380,7 @@ function PatientDetail() {
                 {/* RAG Query */}
                 {selectedDoc && (
                     <div className="border-t border-gray-100 pt-4">
-                        <h3 className="text-sm font-bold text-gray-700 mb-3">🤖 Ask a question about this document</h3>
+                        <h3 className="text-sm font-bold text-gray-700 mb-3">Ask a question about this document</h3>
                         <div className="flex gap-3 mb-4">
                             <input
                                 className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"

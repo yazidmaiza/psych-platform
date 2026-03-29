@@ -14,12 +14,25 @@ export default function Chatbot() {
     const bottomRef = useRef(null);
 
     useEffect(() => {
-        // Welcome message
-        setMessages([{
-            role: 'assistant',
-            content: 'Hello! I am your AI assistant. I am here to help you prepare for your session. How are you feeling today? / مرحباً! أنا مساعدك الذكي. أنا هنا لمساعدتك في التحضير لجلستك. كيف حالك اليوم؟ / Bonjour! Je suis votre assistant IA. Je suis ici pour vous aider à préparer votre séance. Comment vous sentez-vous aujourd\'hui?'
-        }]);
-    }, []);
+        const loadHistory = async () => {
+            try {
+                const data = await api.get('/api/chatbot/' + sessionId + '/messages');
+                if (Array.isArray(data) && data.length > 0) {
+                    setMessages(data.map(m => ({ role: m.role, content: m.content })));
+                    return;
+                }
+            } catch (err) {
+                // ignore; fall back to local welcome message
+            }
+
+            setMessages([{
+                role: 'assistant',
+                        content: "Hi - tell me what's on your mind today."
+            }]);
+        };
+
+        loadHistory();
+    }, [sessionId]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -82,13 +95,13 @@ export default function Chatbot() {
                 <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
 
                     <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-                        <div className="text-4xl mb-2">✅</div>
+                        <div className="text-4xl mb-2">OK</div>
                         <h2 className="text-lg font-bold text-green-700">Your session has been completed</h2>
                         <p className="text-green-600 text-sm mt-1">A summary has been sent to your psychologist.</p>
                     </div>
 
                     <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="text-lg font-bold text-gray-700 mb-4">📊 Session Summary</h2>
+                        <h2 className="text-lg font-bold text-gray-700 mb-4">Session Summary</h2>
 
                         <div className="grid grid-cols-3 gap-4 mb-6">
                             <div className="bg-gray-50 rounded-xl p-4 text-center">
@@ -137,7 +150,7 @@ export default function Chatbot() {
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
-                    <h1 className="text-xl font-bold text-blue-700">🧠 AI Assistant</h1>
+                    <h1 className="text-xl font-bold text-blue-700">AI Assistant</h1>
                     <button
                         onClick={endSession}
                         disabled={ending}
