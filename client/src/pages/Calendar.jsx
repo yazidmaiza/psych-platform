@@ -18,6 +18,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [loading, setLoading] = useState(false);
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [error, setError] = useState('');
@@ -25,6 +26,10 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const { role, userId } = getUser();
   const { psychologistId } = useParams();
+
+  const isPatientOwnCalendar = role === 'patient' && !psychologistId;
+  const isPatientViewingPsychologist = role === 'patient' && !!psychologistId;
+  const isPsychologistOwnCalendar = role === 'psychologist' && !psychologistId;
 
   const targetId = psychologistId || userId || '';
   const storageKey = `calendar:lastDate:${role || 'unknown'}:${targetId || 'unknown'}`;
@@ -73,9 +78,50 @@ export default function CalendarPage() {
     }
   }, [role, storageKey, targetId, userId]);
 
+  const fetchMyBookings = useCallback(async () => {
+    setError('');
+    try {
+      const data = await api.get('/api/sessions/patient/' + userId);
+      const list = Array.isArray(data) ? data : [];
+
+      const mapped = list
+        .filter((s) => s.scheduledStart && s.scheduledEnd)
+        .map((s) => {
+          const status = String(s.status || '');
+          const title =
+            status === 'requested' ? 'Pending confirmation' :
+              status === 'pending_payment' ? 'Pending payment' :
+                status === 'paid' || status === 'verified' || status === 'active' ? 'Booked' :
+                  status === 'completed' ? 'Completed' :
+                    status === 'canceled' ? 'Canceled' :
+                      'Session';
+
+          return {
+            id: s._id,
+            title,
+            start: new Date(s.scheduledStart),
+            end: new Date(s.scheduledEnd),
+            status,
+            resource: s
+          };
+        })
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+      setEvents(mapped);
+
+      if (!localStorage.getItem(storageKey) && mapped.length > 0) {
+        setCalendarDate(new Date(mapped[0].start));
+      }
+    } catch (e) {
+      setEvents([]);
+      setError(e.message || 'Failed to load bookings');
+    }
+  }, [storageKey, userId]);
+
   useEffect(() => {
-    fetchSlots();
-  }, [fetchSlots]);
+    if (isPatientOwnCalendar) fetchMyBookings();
+    else fetchSlots();
+  }, [fetchMyBookings, fetchSlots, isPatientOwnCalendar]);
 
   const handleNavigate = (date) => {
     setCalendarDate(date);
@@ -91,7 +137,13 @@ export default function CalendarPage() {
   };
 
   const handleSelectEvent = (event) => {
-    if (role === 'patient' && psychologistId) {
+    if (isPatientOwnCalendar) {
+      setSelectedBooking(event.resource);
+      setShowModal(true);
+      return;
+    }
+
+    if (isPatientViewingPsychologist) {
       if (event.isBooked) return;
       if (event.isPending && !event.isMyPending) return;
       setSelectedSlot(event.resource);
@@ -99,7 +151,7 @@ export default function CalendarPage() {
       return;
     }
 
-    if (role === 'psychologist' && !psychologistId) {
+    if (isPsychologistOwnCalendar) {
       if (!event.resource?.pendingSessionId) return;
       setSelectedSlot(event.resource);
       setShowModal(true);
@@ -109,6 +161,7 @@ export default function CalendarPage() {
   const closeModal = () => {
     setShowModal(false);
     setSelectedSlot(null);
+    setSelectedBooking(null);
   };
 
   const addAvailability = async () => {
@@ -138,6 +191,22 @@ export default function CalendarPage() {
       alert('A booking request was sent to the psychologist. You will be notified once it is confirmed.');
     } catch (e) {
       alert(e.message || 'Failed to request slot.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelBooking = async (sessionId) => {
+    if (!sessionId) return;
+    if (!window.confirm('Cancel this booking?')) return;
+    setLoading(true);
+    try {
+      await api.post('/api/sessions/' + sessionId + '/cancel', {});
+      closeModal();
+      fetchMyBookings();
+      alert('Booking canceled.');
+    } catch (e) {
+      alert(e.message || 'Failed to cancel booking.');
     } finally {
       setLoading(false);
     }
@@ -192,8 +261,18 @@ export default function CalendarPage() {
 
   const eventStyleGetter = (event) => {
     let backgroundColor = '#3B82F6'; // blue
-    if (event.isBooked) backgroundColor = '#F43F5E'; // rose
-    else if (event.isPending) backgroundColor = '#F59E0B'; // amber
+
+    if (isPatientOwnCalendar) {
+      const status = String(event.status || '');
+      if (status === 'requested') backgroundColor = '#F59E0B'; // amber
+      else if (status === 'pending_payment') backgroundColor = '#6366F1'; // indigo
+      else if (['paid', 'verified', 'active'].includes(status)) backgroundColor = '#10B981'; // emerald
+      else if (status === 'completed') backgroundColor = '#334155'; // slate
+      else if (status === 'canceled') backgroundColor = '#F43F5E'; // rose
+    } else {
+      if (event.isBooked) backgroundColor = '#F43F5E'; // rose
+      else if (event.isPending) backgroundColor = '#F59E0B'; // amber
+    }
 
     return {
       style: {
@@ -208,14 +287,14 @@ export default function CalendarPage() {
   };
 
   const headerHint = useMemo(() => {
-    if (role === 'psychologist' && !psychologistId) {
+    if (isPatientOwnCalendar) {
+      return 'Your bookings are shown here. Open an item to see details, pay (if required), or cancel.';
+    }
+    if (isPsychologistOwnCalendar) {
       return 'Select a time range to add availability. Click pending slots to confirm or reject.';
     }
     return 'Click an available slot to request a booking. Click your pending slot to cancel it.';
-  }, [psychologistId, role]);
-
-  const isPatientViewingPsychologist = role === 'patient' && !!psychologistId;
-  const isPsychologistOwnCalendar = role === 'psychologist' && !psychologistId;
+  }, [isPatientOwnCalendar, isPsychologistOwnCalendar]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -250,24 +329,53 @@ export default function CalendarPage() {
               <div>
                 <div className="text-sm font-semibold text-white">Legend</div>
                 <div className="mt-1 text-xs text-white/60">
-                  {isPsychologistOwnCalendar
-                    ? 'Your availability is shown in blue. Pending requests appear in amber.'
-                    : 'Available times are shown in blue. Your pending request is amber.'}
+                  {isPatientOwnCalendar
+                    ? 'This calendar shows your booked dates and their current status.'
+                    : isPsychologistOwnCalendar
+                      ? 'Your availability is shown in blue. Pending requests appear in amber.'
+                      : 'Available times are shown in blue. Your pending request is amber.'}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-xs text-white/70">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                  <span>Available</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                  <span>Pending</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                  <span>Booked</span>
-                </div>
+                {isPatientOwnCalendar ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                      <span>Pending confirmation</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" />
+                      <span>Pending payment</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                      <span>Booked</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+                      <span>Completed</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      <span>Canceled</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                      <span>Available</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                      <span>Pending</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      <span>Booked</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -276,7 +384,7 @@ export default function CalendarPage() {
                 {error}
                 <button
                   type="button"
-                  onClick={fetchSlots}
+                  onClick={isPatientOwnCalendar ? fetchMyBookings : fetchSlots}
                   className="ml-3 rounded-xl bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/15 transition"
                 >
                   Retry
@@ -315,7 +423,69 @@ export default function CalendarPage() {
           />
 
           <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl backdrop-blur-xl">
-            {isPsychologistOwnCalendar ? (
+            {isPatientOwnCalendar ? (
+              <>
+                <h2 className="text-lg font-semibold text-white">Your booking</h2>
+                <p className="mt-1 text-sm text-white/60">
+                  {selectedBooking?.status === 'requested'
+                    ? 'Pending confirmation from the psychologist.'
+                    : selectedBooking?.status === 'pending_payment'
+                      ? 'Confirmed. Complete payment within 24 hours to keep this booking.'
+                      : selectedBooking?.status === 'canceled'
+                        ? 'This booking was canceled.'
+                        : selectedBooking?.status === 'completed'
+                          ? 'This session is completed.'
+                          : 'Booking details.'}
+                </p>
+
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-white/80">
+                    <span className="font-semibold text-white">From:</span>{' '}
+                    {moment(selectedBooking?.scheduledStart).format('MMMM Do YYYY, h:mm a')}
+                  </div>
+                  <div className="mt-1 text-sm text-white/80">
+                    <span className="font-semibold text-white">To:</span>{' '}
+                    {moment(selectedBooking?.scheduledEnd).format('MMMM Do YYYY, h:mm a')}
+                  </div>
+                  <div className="mt-3 text-xs text-white/60">
+                    Status: <span className="text-white/80">{selectedBooking?.status}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                  >
+                    Close
+                  </button>
+
+                  {selectedBooking?.status === 'pending_payment' && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/payment/' + selectedBooking._id)}
+                      className="flex-1 rounded-2xl bg-indigo-500/90 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+                    >
+                      Go to payment
+                    </button>
+                  )}
+
+                  {selectedBooking?.status !== 'completed' &&
+                    selectedBooking?.status !== 'canceled' &&
+                    selectedBooking?.status !== 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => cancelBooking(selectedBooking?._id)}
+                        disabled={loading}
+                        className="flex-1 rounded-2xl bg-rose-500/90 py-3 text-sm font-semibold text-white hover:bg-rose-500 transition disabled:opacity-50"
+                      >
+                        {loading ? 'Canceling...' : 'Cancel booking'}
+                      </button>
+                    )}
+                </div>
+              </>
+            ) : isPsychologistOwnCalendar ? (
               selectedSlot?.pendingSessionId ? (
                 <>
                   <h2 className="text-lg font-semibold text-white">Pending booking request</h2>
