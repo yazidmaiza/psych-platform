@@ -46,10 +46,10 @@ exports.getPsychologistByUserId = async (req, res) => {
 
 exports.updatePsychologist = async (req, res) => {
   try {
-    const { photo, bio, specializations, languages, availability, city, firstName, lastName } = req.body;
+    const { photo, bio, specializations, languages, availability, city, firstName, lastName, sessionPrice } = req.body;
     const psychologist = await Psychologist.findOneAndUpdate(
       { userId: req.user.id },
-      { photo, bio, specializations, languages, availability, city, firstName, lastName },
+      { photo, bio, specializations, languages, availability, city, firstName, lastName, sessionPrice },
       { returnDocument: 'after' }
     );
     if (!psychologist) {
@@ -66,7 +66,7 @@ exports.createProfile = async (req, res) => {
     const existing = await Psychologist.findOne({ userId: req.user.id });
     if (existing) return res.status(400).json({ message: 'Profile already exists' });
 
-    const { firstName, lastName, bio, specializations, languages, city, availability } = req.body;
+    const { firstName, lastName, bio, specializations, languages, city, availability, sessionPrice } = req.body;
 
     const profile = new Psychologist({
       userId: req.user.id,
@@ -76,7 +76,8 @@ exports.createProfile = async (req, res) => {
       specializations,
       languages,
       city,
-      availability
+      availability,
+      sessionPrice: sessionPrice || 0
     });
 
     await profile.save();

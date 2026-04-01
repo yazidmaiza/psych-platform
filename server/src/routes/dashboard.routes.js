@@ -274,4 +274,15 @@ router.get('/history/:patientId', protect, async (req, res) => {
     }
 });
 
+// Patient: get all private notes written about me (read-only, grouped for summary display)
+router.get('/notes/patient/me', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'patient') return res.status(403).json({ message: 'Access denied' });
+        const notes = await PrivateNote.find({ patientId: req.user.id }).sort({ createdAt: -1 });
+        res.json(notes);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;

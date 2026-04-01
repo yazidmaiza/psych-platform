@@ -70,6 +70,11 @@ const psychologistSchema = new mongoose.Schema({
   aiVerificationSummary: {
     type: String,
     default: ''
+  },
+  sessionPrice: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, { timestamps: true });
 
