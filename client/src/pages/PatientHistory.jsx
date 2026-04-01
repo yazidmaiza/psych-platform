@@ -36,7 +36,7 @@ export default function PatientHistory() {
             .filter(s => s.status === 'completed')
             .map(async s => {
               try {
-                const summary = await api.get('/api/chatbot/' + s._id + '/summary');
+                const summary = await api.get('/api/chatbot/summary?patientId=' + patientId);
                 summaryMap[s._id] = summary;
               } catch {}
             })

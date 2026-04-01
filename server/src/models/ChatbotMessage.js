@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const chatbotMessageSchema = new mongoose.Schema({
-  sessionId: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Session',
+    ref: 'User',
     required: true
   },
   role: {

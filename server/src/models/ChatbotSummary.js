@@ -1,15 +1,11 @@
 const mongoose = require('mongoose');
 
 const chatbotSummarySchema = new mongoose.Schema({
-  sessionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Session',
-    required: true
-  },
   patientId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    unique: true
   },
   emotionalIndicators: {
     dominantEmotion: { type: String, default: '' },

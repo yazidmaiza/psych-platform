@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import SessionTopBar from '../components/session/SessionTopBar';
 import SessionTabs from '../components/session/SessionTabs';
@@ -31,6 +31,11 @@ export default function SessionPage() {
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [ending, setEnding] = useState(false);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const recorderRef = useRef(null);
+  const previousMessagesCountRef = useRef(0);
+
   const loadSession = useCallback(async () => {
     if (!sessionId) return;
     setLoadingSession(true);
@@ -54,7 +59,7 @@ export default function SessionPage() {
   const sessionStatus = session?.status;
   const psychologistDisabled = sessionStatus !== 'active';
 
-  const bot = useChatbotThread({ sessionId });
+  const bot = useChatbotThread();
   const psychologist = usePsychologistThread({
     otherUserId: psychologistUserId || null,
     enabled: !psychologistDisabled
@@ -63,6 +68,92 @@ export default function SessionPage() {
   useEffect(() => {
     if (activeTab === 'psychologist' && psychologistDisabled) setActiveTab('bot');
   }, [activeTab, psychologistDisabled]);
+
+  const speakMessage = useCallback((text) => {
+    if (!text || isMuted) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }, [isMuted]);
+
+  useEffect(() => {
+    const messages = psychologist.messages || [];
+    if (messages.length > previousMessagesCountRef.current) {
+      const newMessages = messages.slice(previousMessagesCountRef.current);
+      newMessages.forEach(msg => {
+        if (String(msg.senderId) !== String(psychologist.userId)) {
+          speakMessage(msg.content);
+        }
+      });
+    }
+    previousMessagesCountRef.current = messages.length;
+  }, [psychologist.messages, psychologist.userId, speakMessage]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', blob, 'voice.webm');
+        const token = localStorage.getItem('token');
+
+        try {
+          const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/voice`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData
+          });
+          const data = await res.json();
+          if (data.text) {
+            try {
+              await psychologist.send(data.text);
+            } catch (e) {
+              alert(e.message || 'Failed to send transcribed message');
+            }
+          }
+        } catch (err) {
+          console.error('Voice transcription failed:', err);
+        }
+
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+      };
+
+      recorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setTimeout(() => {
+        if (recorderRef.current?.state === 'recording') {
+          recorderRef.current.stop();
+        }
+      }, 5000);
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Microphone access denied');
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+      if (recorderRef.current?.state === 'recording') {
+        recorderRef.current.stop();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!botOpen && activeTab === 'bot') setActiveTab(psychologistOpen ? 'psychologist' : 'bot');
@@ -89,7 +180,7 @@ export default function SessionPage() {
   const endSession = useCallback(async () => {
     setEnding(true);
     try {
-      await api.post('/api/chatbot/' + sessionId + '/chatbot/end', {});
+      await api.post('/api/chatbot/chatbot/end', {});
       navigate('/history');
     } catch (e) {
       alert(e.message || 'Failed to end session');
@@ -97,7 +188,7 @@ export default function SessionPage() {
       setEnding(false);
       setConfirmEndOpen(false);
     }
-  }, [navigate, sessionId]);
+  }, [navigate]);
 
   const closeView = useCallback(() => {
     navigate('/history');
@@ -188,6 +279,14 @@ export default function SessionPage() {
                     placeholder={psychologistDisabled ? 'Psychologist is offline' : 'Message your psychologist...'}
                     sendLabel="Send"
                     onRequestEnable={() => navigate('/patient/dashboard')}
+                    isRecording={isRecording}
+                    onRecordToggle={isRecording ? stopRecording : startRecording}
+                    isMuted={isMuted}
+                    onMuteToggle={() => {
+                      setIsMuted(!isMuted);
+                      window.speechSynthesis.cancel();
+                    }}
+                    showVoiceOptions={true}
                   />
                 )}
 

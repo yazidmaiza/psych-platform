@@ -47,7 +47,7 @@ function PatientDetail() {
                 if (completed) {
                     setSessionId(completed._id);
                     try {
-                        const summaryRes = await api.get(`/api/chatbot/${completed._id}/summary`);
+                        const summaryRes = await api.get(`/api/chatbot/summary?patientId=${patientId}`);
                         setSummary(summaryRes);
                     } catch (err) {
                         setSummary(null);

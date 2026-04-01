@@ -32,7 +32,12 @@ export default function ChatBox({
   typing,
   typingLabel,
   onSend,
-  onRequestEnable
+  onRequestEnable,
+  showVoiceOptions,
+  isRecording,
+  onRecordToggle,
+  isMuted,
+  onMuteToggle
 }) {
   const [draft, setDraft] = useState('');
   const scrollerRef = useRef(null);
@@ -123,6 +128,34 @@ export default function ChatBox({
             disabled={disabled}
             className="min-h-[44px] flex-1 resize-none rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
           />
+          {showVoiceOptions && !disabled && (
+            <>
+              <button
+                type="button"
+                onClick={onRecordToggle}
+                className={`flex h-[44px] items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
+                  isRecording 
+                    ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-500/20' 
+                    : 'bg-white/5 text-white/80 hover:bg-white/10'
+                }`}
+                title={isRecording ? "Stop recording (max 5s)" : "Record voice message"}
+              >
+                {isRecording ? 'Stop' : 'Record'}
+              </button>
+              <button
+                type="button"
+                onClick={onMuteToggle}
+                className={`flex h-[44px] items-center justify-center rounded-2xl px-4 text-sm font-semibold transition ${
+                  isMuted 
+                    ? 'bg-white/5 text-white/50 hover:bg-white/10' 
+                    : 'bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30'
+                }`}
+                title={isMuted ? "Unmute text-to-speech" : "Mute text-to-speech"}
+              >
+                {isMuted ? 'Muted' : 'Sound'}
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={submit}

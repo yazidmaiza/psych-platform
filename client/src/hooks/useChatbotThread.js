@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 
-export const useChatbotThread = ({ sessionId }) => {
+export const useChatbotThread = () => {
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState(false);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
-    if (!sessionId) return;
     setError(null);
     try {
-      const data = await api.get('/api/chatbot/' + sessionId + '/messages');
+      const data = await api.get('/api/chatbot/messages');
       if (Array.isArray(data) && data.length > 0) {
         setMessages(data.map((m) => ({ ...m, role: m.role })));
         return;
@@ -24,7 +23,7 @@ export const useChatbotThread = ({ sessionId }) => {
         { id: 'welcome', role: 'assistant', content: "Hi. Tell me what's on your mind today.", createdAt: Date.now() }
       ]);
     }
-  }, [sessionId]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -32,7 +31,7 @@ export const useChatbotThread = ({ sessionId }) => {
 
   const send = useCallback(async (text) => {
     const messageText = (text || '').trim();
-    if (!messageText || !sessionId) return;
+    if (!messageText) return;
 
     const optimistic = { id: 'u-' + Date.now(), role: 'user', content: messageText, createdAt: Date.now() };
     setMessages((prev) => [...prev, optimistic]);
@@ -40,7 +39,7 @@ export const useChatbotThread = ({ sessionId }) => {
     setError(null);
 
     try {
-      const data = await api.post('/api/chatbot/' + sessionId + '/chatbot', { message: messageText });
+      const data = await api.post('/api/chatbot/chatbot', { message: messageText });
       setMessages((prev) => [
         ...prev,
         { id: 'a-' + Date.now(), role: 'assistant', content: data.reply, createdAt: Date.now() }
@@ -54,7 +53,7 @@ export const useChatbotThread = ({ sessionId }) => {
     } finally {
       setTyping(false);
     }
-  }, [sessionId]);
+  }, []);
 
   const uiMessages = useMemo(() => messages.map((m) => ({
     id: m._id || m.id,
@@ -65,4 +64,3 @@ export const useChatbotThread = ({ sessionId }) => {
 
   return { messages: uiMessages, typing, error, reload: load, send };
 };
-

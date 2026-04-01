@@ -4,7 +4,7 @@ const messageSchema = new mongoose.Schema({
   sessionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Session',
-    required: true // Changed from default: null to required: true
+    required: false
   },
   senderId: {
     type: mongoose.Schema.Types.ObjectId,

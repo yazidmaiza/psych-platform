@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
 export default function Chatbot() {
-  const { sessionId } = useParams();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -13,7 +12,7 @@ export default function Chatbot() {
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const data = await api.get('/api/chatbot/' + sessionId + '/messages');
+        const data = await api.get('/api/chatbot/messages');
         if (Array.isArray(data) && data.length > 0) {
           setMessages(data.map((m) => ({ role: m.role, content: m.content })));
           return;
@@ -30,8 +29,8 @@ export default function Chatbot() {
       ]);
     };
 
-    if (sessionId) loadHistory();
-  }, [sessionId]);
+    loadHistory();
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,7 +45,7 @@ export default function Chatbot() {
     setMessages((prev) => [...prev, { role: 'user', content: messageText }]);
 
     try {
-      const data = await api.post('/api/chatbot/' + sessionId + '/chatbot', { message: messageText });
+      const data = await api.post('/api/chatbot/chatbot', { message: messageText });
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (e) {
       setMessages((prev) => [
