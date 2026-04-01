@@ -33,7 +33,8 @@ export default function PsychologistProfileForm({ onSaved }) {
     city: '',
     availability: '',
     specializations: [],
-    languages: []
+    languages: [],
+    sessionPrice: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,7 +54,8 @@ export default function PsychologistProfileForm({ onSaved }) {
         city: p.city || '',
         availability: p.availability || '',
         specializations: p.specializations || [],
-        languages: p.languages || []
+        languages: p.languages || [],
+        sessionPrice: p.sessionPrice != null ? String(p.sessionPrice) : ''
       });
     } catch (e) {
       setError(e.message || 'Failed to load profile');
@@ -88,7 +90,10 @@ export default function PsychologistProfileForm({ onSaved }) {
     setError('');
     setSuccess('');
     try {
-      await api.put('/api/psychologists/me', form);
+      await api.put('/api/psychologists/me', {
+        ...form,
+        sessionPrice: form.sessionPrice !== '' ? Number(form.sessionPrice) : 0
+      });
       setSuccess('Profile updated successfully.');
       onSaved?.();
     } catch (e) {
@@ -156,6 +161,18 @@ export default function PsychologistProfileForm({ onSaved }) {
               value={form.availability}
               onChange={(e) => setForm({ ...form, availability: e.target.value })}
               placeholder="Example: Mon-Fri 09:00-17:00"
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Session fee (TND)</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/30 focus:ring-2 focus:ring-indigo-500/20"
+              value={form.sessionPrice}
+              onChange={(e) => setForm({ ...form, sessionPrice: e.target.value })}
+              placeholder="e.g. 80"
             />
           </label>
         </div>

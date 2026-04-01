@@ -18,6 +18,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [sessionDetails, setSessionDetails] = useState(null); // patient's chosen window
   const [loading, setLoading] = useState(false);
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [error, setError] = useState('');
@@ -43,10 +44,12 @@ export default function CalendarPage() {
       const mapped = (Array.isArray(data) ? data : []).map((slot) => {
         const isPending = !!slot.pendingSessionId;
         const isMyPending = role === 'patient' && String(slot.pendingPatientId) === String(userId);
-        const title = slot.isBooked
+
+        // For psychologist's own calendar, show the patient's chosen time in the event title
+        let title = slot.isBooked
           ? 'Booked'
           : isPending
-            ? (isMyPending ? 'Pending confirmation' : 'Pending')
+            ? (isMyPending ? 'Pending confirmation' : 'Pending request')
             : 'Available';
 
         return {
@@ -86,7 +89,12 @@ export default function CalendarPage() {
 
   const handleSelectSlot = ({ start, end }) => {
     if (role !== 'psychologist' || psychologistId) return;
-    setSelectedSlot({ start, end });
+
+    // Enforce minimum 1-hour duration
+    const minEnd = new Date(start.getTime() + 60 * 60 * 1000);
+    const adjustedEnd = end < minEnd ? minEnd : end;
+
+    setSelectedSlot({ start, end: adjustedEnd });
     setShowModal(true);
   };
 
@@ -95,6 +103,7 @@ export default function CalendarPage() {
       if (event.isBooked) return;
       if (event.isPending && !event.isMyPending) return;
       setSelectedSlot(event.resource);
+      setSessionDetails(null);
       setShowModal(true);
       return;
     }
@@ -102,13 +111,19 @@ export default function CalendarPage() {
     if (role === 'psychologist' && !psychologistId) {
       if (!event.resource?.pendingSessionId) return;
       setSelectedSlot(event.resource);
+      setSessionDetails(null);
       setShowModal(true);
+      // Fetch the session to get the patient's chosen time window
+      api.get('/api/sessions/' + event.resource.pendingSessionId)
+        .then(s => setSessionDetails(s))
+        .catch(() => setSessionDetails(null));
     }
   };
 
   const closeModal = () => {
     setShowModal(false);
     setSelectedSlot(null);
+    setSessionDetails(null);
   };
 
   const addAvailability = async () => {
@@ -321,15 +336,33 @@ export default function CalendarPage() {
                   <h2 className="text-lg font-semibold text-white">Pending booking request</h2>
                   <p className="mt-1 text-sm text-white/60">Confirm or reject this request.</p>
 
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-sm text-white/80">
-                      <span className="font-semibold text-white">From:</span>{' '}
-                      {moment(selectedSlot?.start).format('MMMM Do YYYY, h:mm a')}
-                    </div>
-                    <div className="mt-1 text-sm text-white/80">
-                      <span className="font-semibold text-white">To:</span>{' '}
-                      {moment(selectedSlot?.end).format('MMMM Do YYYY, h:mm a')}
-                    </div>
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 space-y-2">
+                    {/* Patient's chosen session window */}
+                    {sessionDetails?.scheduledStart ? (
+                      <>
+                        <div className="text-xs font-semibold text-indigo-300 uppercase tracking-wide mb-1">Patient's requested time</div>
+                        <div className="text-sm text-white/80">
+                          <span className="font-semibold text-white">From:</span>{' '}
+                          {moment(sessionDetails.scheduledStart).format('MMMM Do YYYY, h:mm a')}
+                        </div>
+                        <div className="text-sm text-white/80">
+                          <span className="font-semibold text-white">To:</span>{' '}
+                          {moment(sessionDetails.scheduledEnd).format('MMMM Do YYYY, h:mm a')}
+                        </div>
+                        <div className="mt-2 border-t border-white/10 pt-2 text-xs text-white/40">
+                          Availability block: {moment(selectedSlot?.start).format('HH:mm')} – {moment(selectedSlot?.end).format('HH:mm')}
+                        </div>
+                      </>
+                    ) : (
+                      // Fallback: session not yet loaded or no chosen window
+                      <>
+                        <div className="text-xs text-white/40 mb-1">Loading session details...</div>
+                        <div className="text-sm text-white/80">
+                          <span className="font-semibold text-white">Slot:</span>{' '}
+                          {moment(selectedSlot?.start).format('MMMM Do YYYY, h:mm a')} – {moment(selectedSlot?.end).format('h:mm a')}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-6 flex gap-3">
@@ -361,7 +394,9 @@ export default function CalendarPage() {
               ) : (
                 <>
                   <h2 className="text-lg font-semibold text-white">Add availability</h2>
-                  <p className="mt-1 text-sm text-white/60">Add this time slot as available for patients.</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    Add this time block as available. Minimum 1 hour — patients will pick a specific 1h or 1h30 window within it.
+                  </p>
 
                   <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="text-sm text-white/80">

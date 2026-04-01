@@ -38,6 +38,7 @@ export default function MySessionHistory() {
   const [sessions, setSessions] = useState([]);
   const [summaries, setSummaries] = useState({});
   const [ratedMap, setRatedMap] = useState({});
+  const [myNotes, setMyNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelingId, setCancelingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -71,6 +72,14 @@ export default function MySessionHistory() {
       );
       setSummaries(summaryMap);
       setRatedMap(ratedByPsychologist);
+
+      // Fetch private notes the psychologist wrote about this patient
+      try {
+        const notes = await api.get('/api/dashboard/notes/patient/me');
+        setMyNotes(Array.isArray(notes) ? notes : []);
+      } catch {
+        setMyNotes([]);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -301,6 +310,29 @@ export default function MySessionHistory() {
                           <div className="mt-4 text-sm text-white/70 leading-relaxed whitespace-pre-wrap">
                             {summary.rawSummary}
                           </div>
+
+                          {/* Psychologist private notes for this session's psychologist */}
+                          {(() => {
+                            const sessionNotes = myNotes.filter(
+                              n => String(n.psychologistId) === String(session.psychologistId)
+                            );
+                            if (sessionNotes.length === 0) return null;
+                            return (
+                              <div className="mt-5 border-t border-white/10 pt-4">
+                                <div className="text-xs font-semibold text-white/60 mb-3">Psychologist's notes</div>
+                                <div className="flex flex-col gap-2">
+                                  {sessionNotes.map(note => (
+                                    <div key={note._id} className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3">
+                                      <p className="text-sm text-amber-100">{note.content}</p>
+                                      <p className="mt-1 text-[11px] text-white/40">
+                                        {new Date(note.createdAt).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">

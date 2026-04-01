@@ -88,14 +88,28 @@ router.get('/slots/:psychologistId', protect, async (req, res) => {
     }
 });
 
-// Psychologist adds a slot
+// Psychologist adds a slot (minimum 1 hour)
 router.post('/slots', protect, async (req, res) => {
     try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+
         const { start, end } = req.body;
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid start or end date.' });
+        }
+
+        const durationMinutes = (endDate - startDate) / 60000;
+        if (durationMinutes < 60) {
+            return res.status(400).json({ message: 'Availability slots must be at least 1 hour long.' });
+        }
+
         const slot = new CalendarSlot({
             psychologistId: req.user.id,
-            start,
-            end
+            start: startDate,
+            end: endDate
         });
         await slot.save();
         res.status(201).json(slot);
@@ -150,6 +164,7 @@ router.post('/slots/:id/book', protect, async (req, res) => {
 });
 
 // Patient requests a slot (preferred endpoint)
+// Accepts optional `chosenStart` ISO string to book a 1-hour window within the slot
 router.post('/slots/:id/request', protect, async (req, res) => {
     try {
         if (req.user.role !== 'patient') return res.status(403).json({ message: 'Access denied' });
@@ -164,14 +179,36 @@ router.post('/slots/:id/request', protect, async (req, res) => {
         const hasOpen = await patientHasOpenSessionWithPsychologist({ patientId: req.user.id, psychologistId: slot.psychologistId });
         if (hasOpen) return res.status(400).json({ message: 'You already have an open session with this psychologist.' });
 
+        // Determine the chosen session window within the slot
+        // chosenStart: ISO string, chosenDuration: 60 or 90 (minutes)
+        let scheduledStart = slot.start;
+        let scheduledEnd = slot.end;
+
+        if (req.body.chosenStart) {
+            const chosen = new Date(req.body.chosenStart);
+
+            // Duration must be 60 or 90 minutes (default 60)
+            const durationMinutes = req.body.chosenDuration === 90 ? 90 : 60;
+            const durationMs = durationMinutes * 60 * 1000;
+            const chosenEnd = new Date(chosen.getTime() + durationMs);
+
+            // Validate: chosen window must fit inside the availability slot
+            if (chosen < slot.start || chosenEnd > slot.end) {
+                return res.status(400).json({ message: 'Chosen time window falls outside the available slot.' });
+            }
+
+            scheduledStart = chosen;
+            scheduledEnd = chosenEnd;
+        }
+
         const session = await Session.create({
             patientId: req.user.id,
             psychologistId: slot.psychologistId,
             status: 'requested',
             sessionType,
             calendarSlotId: slot._id,
-            scheduledStart: slot.start,
-            scheduledEnd: slot.end
+            scheduledStart,
+            scheduledEnd
         });
 
         slot.pendingPatientId = req.user.id;
@@ -182,7 +219,7 @@ router.post('/slots/:id/request', protect, async (req, res) => {
         await Notification.create({
             userId: slot.psychologistId,
             title: 'New booking request',
-            message: 'A patient requested a session on ' + new Date(slot.start).toLocaleString(),
+            message: 'A patient requested a session on ' + new Date(scheduledStart).toLocaleString(),
             link: '/calendar',
             type: 'booking_request'
         });
@@ -193,7 +230,8 @@ router.post('/slots/:id/request', protect, async (req, res) => {
     }
 });
 
-// Psychologist confirms a requested slot
+
+// Psychologist confirms a requested slot — splits the availability block
 router.post('/slots/:id/confirm', protect, async (req, res) => {
     try {
         if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
@@ -206,17 +244,53 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
         const session = await Session.findById(slot.pendingSessionId);
         if (!session) return res.status(404).json({ message: 'Session not found' });
 
+        // Use the session's chosen window (scheduledStart/End),
+        // falling back to the full slot if the patient didn't pick a sub-window
+        const bookedStart = session.scheduledStart || slot.start;
+        const bookedEnd   = session.scheduledEnd   || slot.end;
+
+        const MIN_SLOT_MS = 60 * 60 * 1000; // 1 hour minimum for remaining sub-slots
+
+        // 1 — Create the booked sub-slot (patient's chosen window)
+        const bookedSlot = await CalendarSlot.create({
+            psychologistId: slot.psychologistId,
+            patientId: slot.pendingPatientId,
+            start: bookedStart,
+            end: bookedEnd,
+            isBooked: true
+        });
+
+        // 2 — Update the session to point to the new booked sub-slot
+        session.calendarSlotId = bookedSlot._id;
         session.status = 'pending_payment';
         session.paymentDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         session.confirmedAt = new Date();
         await session.save();
 
-        slot.isBooked = true;
-        slot.patientId = slot.pendingPatientId;
-        slot.pendingPatientId = null;
-        slot.pendingSessionId = null;
-        slot.pendingAt = null;
-        await slot.save();
+        // 3 — Create available sub-slots for remaining time (if >= 1 hour)
+        const beforeMs = new Date(bookedStart) - new Date(slot.start);
+        const afterMs  = new Date(slot.end) - new Date(bookedEnd);
+
+        if (beforeMs >= MIN_SLOT_MS) {
+            await CalendarSlot.create({
+                psychologistId: slot.psychologistId,
+                start: slot.start,
+                end: bookedStart,
+                isBooked: false
+            });
+        }
+
+        if (afterMs >= MIN_SLOT_MS) {
+            await CalendarSlot.create({
+                psychologistId: slot.psychologistId,
+                start: bookedEnd,
+                end: slot.end,
+                isBooked: false
+            });
+        }
+
+        // 4 — Delete the original parent slot
+        await CalendarSlot.findByIdAndDelete(slot._id);
 
         await Notification.create({
             userId: session.patientId,
@@ -226,7 +300,7 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
             type: 'booking_confirmed'
         });
 
-        res.status(200).json({ slot, sessionId: session._id });
+        res.status(200).json({ slot: bookedSlot, sessionId: session._id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
