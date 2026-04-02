@@ -37,6 +37,17 @@ const psychologistSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      required: false
+    },
+    coordinates: {
+      type: [Number],
+      required: false
+    }
+  },
   averageRating: {
     type: Number,
     default: 0,
@@ -77,5 +88,7 @@ const psychologistSchema = new mongoose.Schema({
     min: 0
   }
 }, { timestamps: true });
+
+psychologistSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Psychologist', psychologistSchema);
