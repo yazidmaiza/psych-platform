@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../services/api';
 import GlassPanel from '../dashboard/GlassPanel';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 
 const SPECIALIZATIONS = [
   'Anxiety', 'Depression', 'Stress', 'Trauma', 'PTSD',
@@ -34,7 +35,8 @@ export default function PsychologistProfileForm({ onSaved }) {
     availability: '',
     specializations: [],
     languages: [],
-    sessionPrice: ''
+    sessionPrice: '',
+    location: null // { lat, lng }
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,7 +57,8 @@ export default function PsychologistProfileForm({ onSaved }) {
         availability: p.availability || '',
         specializations: p.specializations || [],
         languages: p.languages || [],
-        sessionPrice: p.sessionPrice != null ? String(p.sessionPrice) : ''
+        sessionPrice: p.sessionPrice != null ? String(p.sessionPrice) : '',
+        location: p.location && p.location.coordinates ? { lat: p.location.coordinates[1], lng: p.location.coordinates[0] } : null
       });
     } catch (e) {
       setError(e.message || 'Failed to load profile');
@@ -189,6 +192,20 @@ export default function PsychologistProfileForm({ onSaved }) {
       </GlassPanel>
 
       <GlassPanel className="p-5">
+        <div className="text-sm font-semibold text-white">Office Location</div>
+        <div className="mt-1 text-xs text-white/60 mb-3">Click on the map to set your office location. This helps patients find you nearby.</div>
+        <div className="h-64 rounded-2xl overflow-hidden border border-white/10 relative z-0">
+          <MapContainer center={form.location ? [form.location.lat, form.location.lng] : [36.8065, 10.1815]} zoom={13} className="h-full w-full bg-slate-800">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <LocationMarker position={form.location} setPosition={(pos) => setForm({ ...form, location: pos })} />
+          </MapContainer>
+        </div>
+        {form.location && (
+          <div className="mt-2 text-xs text-emerald-400">Location selected: {form.location.lat.toFixed(4)}, {form.location.lng.toFixed(4)}</div>
+        )}
+      </GlassPanel>
+
+      <GlassPanel className="p-5">
         <div className="text-sm font-semibold text-white">Specializations</div>
         <div className="mt-3 flex flex-wrap gap-2">
           {SPECIALIZATIONS.map((s) => (
@@ -229,6 +246,18 @@ export default function PsychologistProfileForm({ onSaved }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function LocationMarker({ position, setPosition }) {
+  useMapEvents({
+    click(e) {
+      setPosition(e.latlng);
+    },
+  });
+
+  return position === null ? null : (
+    <Marker position={position}></Marker>
   );
 }
 

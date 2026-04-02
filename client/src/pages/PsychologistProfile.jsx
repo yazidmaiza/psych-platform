@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 
 const StarRating = ({ rating, total }) => {
   const stars = [1, 2, 3, 4, 5];
@@ -136,6 +137,18 @@ function PsychologistProfile() {
             </div>
           </div>
         </div>
+
+        {psy.location && psy.location.coordinates && (
+          <div className="bg-white rounded-2xl shadow p-6 mb-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Office Location</h2>
+            <div className="h-64 w-full rounded-xl overflow-hidden relative z-0 border border-gray-100">
+              <MapContainer center={[psy.location.coordinates[1], psy.location.coordinates[0]]} zoom={14} className="h-full w-full">
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <Marker position={[psy.location.coordinates[1], psy.location.coordinates[0]]}></Marker>
+              </MapContainer>
+            </div>
+          </div>
+        )}
 
         {!hasBooked && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700 mb-6">
