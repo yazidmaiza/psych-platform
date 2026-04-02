@@ -6,7 +6,7 @@ import HomePage from './pages/HomePage';
 import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
 import Login from './pages/Login';
 import Register from './pages/Register';
-
+import AssistantBot from './components/AssistantBot';
 // Patient pages
 import PsychologistList from './pages/PsychologistList';
 import PsychologistProfile from './pages/PsychologistProfile';
@@ -220,6 +220,7 @@ function App() {
           }
         />
       </Routes>
+      <AssistantBot />
     </BrowserRouter>
   );
 }
