@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { logout } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import { useTranslation } from 'react-i18next';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 import moment from 'moment';
 
 const StarRating = ({ rating, total }) => {
+  const { t } = useTranslation();
   const stars = [1, 2, 3, 4, 5];
   return (
     <div className="flex items-center gap-2">
@@ -20,7 +24,7 @@ const StarRating = ({ rating, total }) => {
         ))}
       </div>
       <span className="text-xs text-white/60">
-        {rating > 0 ? `${rating.toFixed(1)} (${total})` : 'No ratings yet'}
+        {rating > 0 ? `${rating.toFixed(1)} (${total})` : t('noRatingsYet')}
       </span>
     </div>
   );
@@ -32,7 +36,50 @@ const Glass = ({ children, className = '' }) => (
   </div>
 );
 
+const redIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+function MapEventHandler({ locationDenied, setFilters }) {
+  useMapEvents({
+    click(e) {
+      if (locationDenied) {
+        setFilters(f => ({ ...f, lat: e.latlng.lat, lng: e.latlng.lng }));
+      }
+    }
+  });
+  return null;
+}
+
+function MapCenterControl({ lat, lng, recenterTrigger }) {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lng && recenterTrigger > 0) {
+      map.flyTo([lat, lng], 14, { animate: true });
+    }
+  }, [lat, lng, recenterTrigger, map]);
+  return null;
+}
+
 /* ─── Helpers ───────────────────────────────────────────────────────── */
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c;
+}
 
 // Generate 30-min-step start times within [slotStart, slotEnd - minDuration]
 // Returns array of Date objects
@@ -50,6 +97,7 @@ function generateWindows(slotStart, slotEnd, durationMinutes) {
 
 /* ─── Slot Picker Modal ─────────────────────────────────────────────── */
 function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, onClose, onBooked }) {
+  const { t, i18n } = useTranslation();
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
@@ -141,9 +189,9 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
       <div className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl backdrop-blur-xl">
         {/* Header */}
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-white">Choose a session time</h2>
+          <h2 className="text-lg font-semibold text-white">{t('chooseSessionTime')}</h2>
           <p className="mt-1 text-sm text-white/60">
-            With <span className="font-semibold text-white">{psychologistName}</span>
+            {t('with')} <span className="font-semibold text-white">{psychologistName}</span>
             {sessionPrice > 0 && (
               <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/70">
                 {sessionPrice} TND
@@ -154,7 +202,7 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
 
         {/* Duration selector */}
         <div className="mb-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-white/50 mb-2">Session duration</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-white/50 mb-2 rtl:text-right" dir={i18n.dir()}>{t('sessionDuration')}</div>
           <div className="flex gap-2">
             {[60, 90].map(d => (
               <button
@@ -168,7 +216,7 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
                     : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
                 ].join(' ')}
               >
-                {d === 60 ? '1 hour' : '1h 30 min'}
+                {d === 60 ? t('1hour') : t('1h30min')}
               </button>
             ))}
           </div>
@@ -189,11 +237,11 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
         {/* Time slots grouped by day */}
         <div className="max-h-64 overflow-y-auto pr-1">
           {loading && (
-            <div className="py-8 text-center text-sm text-white/50">Loading available times...</div>
+            <div className="py-8 text-center text-sm text-white/50 rtl:text-right" dir={i18n.dir()}>{t('loadingTimes')}</div>
           )}
           {!loading && groupedByDay.length === 0 && !error && (
-            <div className="py-8 text-center text-sm text-white/50">
-              No available slots for this duration right now.
+            <div className="py-8 text-center text-sm text-white/50 rtl:text-right" dir={i18n.dir()}>
+              {t('noSlots')}
             </div>
           )}
 
@@ -232,10 +280,10 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
 
         {/* Selected summary */}
         {selectedWindow && (
-          <div className="mt-3 rounded-2xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100">
-            <span className="font-semibold">Selected:</span>{' '}
+          <div className="mt-3 rounded-2xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100 rtl:text-right" dir={i18n.dir()}>
+            <span className="font-semibold">{t('selected')}</span>{' '}
             {moment(selectedWindow.start).format('ddd D MMM, HH:mm')} – {endTime(selectedWindow.start)}
-            {' '}({duration === 60 ? '1 hour' : '1h 30 min'})
+            {' '}({duration === 60 ? t('1hour') : t('1h30min')})
           </div>
         )}
 
@@ -246,7 +294,7 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
             onClick={onClose}
             className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -254,7 +302,7 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
             disabled={!selectedWindow || booking || !!success}
             className="flex-1 rounded-2xl bg-emerald-500/90 py-3 text-sm font-semibold text-white hover:bg-emerald-500 transition disabled:opacity-50"
           >
-            {booking ? 'Sending...' : 'Confirm booking'}
+            {booking ? t('sending') : t('confirmBooking')}
           </button>
         </div>
       </div>
@@ -264,9 +312,15 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
 
 /* ─── Main Page ─────────────────────────────────────────────────────── */
 function PsychologistList() {
+  const { t, i18n } = useTranslation();
   const [psychologists, setPsychologists] = useState([]);
-  const [filters, setFilters] = useState({ city: '', language: '', specialization: '' });
+  const [filters, setFilters] = useState({ search: '', distance: 10, lat: null, lng: null, sort: 'rating' });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+  const [viewMode, setViewMode] = useState('map'); // 'list' or 'map'
   const [openPsychologistUserIds, setOpenPsychologistUserIds] = useState(new Set());
+  const [useLocation, setUseLocation] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [recenterTrigger, setRecenterTrigger] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -277,20 +331,26 @@ function PsychologistList() {
 
   const navigate = useNavigate();
   const myUserId = localStorage.getItem('userId');
-  const filtersRef = useRef(filters);
 
+  // Debounce logic for search
   useEffect(() => {
-    filtersRef.current = filters;
+    const handler = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 400); // 400ms debounce
+    return () => clearTimeout(handler);
   }, [filters]);
 
-  const fetchPsychologists = useCallback(async () => {
+  const fetchPsychologists = useCallback(async (currentFilters) => {
     try {
       setError('');
-      const currentFilters = filtersRef.current;
+      
       let url = '/api/psychologists?';
-      if (currentFilters.city) url += `city=${currentFilters.city}&`;
-      if (currentFilters.language) url += `language=${currentFilters.language}&`;
-      if (currentFilters.specialization) url += `specialization=${currentFilters.specialization}&`;
+      if (currentFilters.lat && currentFilters.lng) {
+        url = `/api/psychologists/nearby?lat=${currentFilters.lat}&lng=${currentFilters.lng}&distance=${currentFilters.distance}&`;
+      }
+      
+      if (currentFilters.search) url += `search=${encodeURIComponent(currentFilters.search)}&`;
+      if (currentFilters.sort) url += `sort=${encodeURIComponent(currentFilters.sort)}&`;
 
       const data = await api.get(url);
       setPsychologists(Array.isArray(data) ? data : []);
@@ -299,6 +359,42 @@ function PsychologistList() {
       setError(err.message || 'Failed to load psychologists');
     }
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    fetchPsychologists(debouncedFilters).then(() => {
+      if (mounted) setLoading(false);
+    });
+    return () => { mounted = false; };
+  }, [debouncedFilters, fetchPsychologists]);
+
+  useEffect(() => {
+    let watchId;
+    if (useLocation) {
+      if (!navigator.geolocation) {
+        setLocationDenied(true);
+        return;
+      }
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setLocationDenied(false);
+          setFilters(f => ({ ...f, lat: pos.coords.latitude, lng: pos.coords.longitude }));
+        },
+        (err) => {
+          console.warn('Geolocation error:', err);
+          setLocationDenied(true);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      setFilters(f => ({ ...f, lat: null, lng: null, sort: f.sort === 'distance' ? 'rating' : f.sort }));
+      setLocationDenied(false);
+    }
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [useLocation]);
 
   const fetchOpenSessions = useCallback(async () => {
     if (!myUserId) return;
@@ -314,15 +410,11 @@ function PsychologistList() {
   }, [myUserId]);
 
   useEffect(() => {
-    let mounted = true;
     const run = async () => {
-      setLoading(true);
-      await Promise.all([fetchPsychologists(), fetchOpenSessions()]);
-      if (mounted) setLoading(false);
+      await fetchOpenSessions();
     };
     run();
-    return () => { mounted = false; };
-  }, [fetchOpenSessions, fetchPsychologists]);
+  }, [fetchOpenSessions]);
 
   const refreshUnreadNotifications = useCallback(async () => {
     try {
@@ -359,19 +451,28 @@ function PsychologistList() {
         <div className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
           <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Patient dashboard</h1>
+              <div className="min-w-0" dir={i18n.dir()}>
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{t('patientDashboard')}</h1>
                 <p className="mt-1 text-sm text-white/60">
-                  Find a psychologist, book a session, and continue your care.
+                  {t('dashboardDesc')}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2" dir={i18n.dir()}>
+                 <select
+                    className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition outline-none cursor-pointer"
+                    value={i18n.language}
+                    onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  >
+                    <option value="en">EN</option>
+                    <option value="fr">FR</option>
+                    <option value="ar">AR</option>
+                  </select>
                 <button
                   onClick={() => navigate('/history')}
                   className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
                 >
-                  My Sessions
+                  {t('mySessions')}
                 </button>
                 <button
                   onClick={() => {
@@ -380,7 +481,7 @@ function PsychologistList() {
                   }}
                   className="relative rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
                 >
-                  Notifications
+                  {t('notifications')}
                   {unreadNotifications > 0 && (
                     <span className="absolute -right-1 -top-1 grid h-5 min-w-[20px] place-items-center rounded-full bg-indigo-500 px-1 text-[11px] font-bold text-white">
                       {unreadNotifications > 99 ? '99+' : unreadNotifications}
@@ -391,7 +492,7 @@ function PsychologistList() {
                   onClick={logout}
                   className="rounded-xl bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500 transition"
                 >
-                  Logout
+                  {t('logout')}
                 </button>
               </div>
             </div>
@@ -401,150 +502,247 @@ function PsychologistList() {
         <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
           {/* Filters */}
           <Glass className="p-4 sm:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" dir={i18n.dir()}>
               <div>
-                <h2 className="text-sm font-semibold text-white">Search filters</h2>
+                <h2 className="text-sm font-semibold text-white">{t('searchFilters')}</h2>
                 <p className="mt-1 text-xs text-white/60">
-                  Use one or more filters, then search.
+                  {t('useFiltersThenSearch')}
                 </p>
               </div>
 
-              <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+              <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end flex-wrap">
                 <input
-                  className="w-full lg:max-w-[220px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
-                  placeholder="City"
-                  value={filters.city}
-                  onChange={e => setFilters({ ...filters, city: e.target.value })}
+                  className="w-full lg:max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  placeholder={t('searchPlaceholder')}
+                  value={filters.search}
+                  onChange={e => setFilters({ ...filters, search: e.target.value })}
                 />
-                <input
-                  className="w-full lg:max-w-[220px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
-                  placeholder="Language"
-                  value={filters.language}
-                  onChange={e => setFilters({ ...filters, language: e.target.value })}
-                />
-                <input
-                  className="w-full lg:max-w-[240px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
-                  placeholder="Specialization"
-                  value={filters.specialization}
-                  onChange={e => setFilters({ ...filters, specialization: e.target.value })}
-                />
+                
+                <select
+                  className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  value={filters.sort}
+                  onChange={e => setFilters({ ...filters, sort: e.target.value })}
+                >
+                  {filters.lat && <option value="distance">{t('sortByDistance')}</option>}
+                  <option value="rating">{t('sortByRating')}</option>
+                </select>
 
-                <div className="flex gap-2">
-                  <button
-                    className="h-[46px] rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-                    onClick={() => setFilters({ city: '', language: '', specialization: '' })}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    className="h-[46px] rounded-2xl bg-indigo-500/90 px-5 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
-                    onClick={fetchPsychologists}
-                  >
-                    Search
-                  </button>
+                <div className="flex gap-2 items-center">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold rtl:ml-2 ltr:mr-2">
+                    <div className="relative inline-block w-10 h-6">
+                      <input 
+                        type="checkbox" 
+                        className="peer sr-only"
+                        checked={useLocation}
+                        onChange={(e) => setUseLocation(e.target.checked)}
+                      />
+                      <div className="absolute inset-0 rounded-full bg-white/10 peer-checked:bg-indigo-500 transition"></div>
+                      <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></div>
+                    </div>
+                    {t('useMyLocation')}
+                  </label>
+
+                  {useLocation && (
+                    <div className={`flex h-[46px] items-center rounded-2xl border px-4 text-sm font-semibold ${locationDenied ? 'border-amber-500/50 bg-amber-500/10 text-amber-200' : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'}`}>
+                      {locationDenied ? '📍 ' + t('denied') : '📍 ' + (filters.lat ? t('gps') : t('locating'))}
+                    </div>
+                  )}
+                  {useLocation && filters.lat && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/30 px-3 text-sm text-white/50 h-[46px] rtl:flex-row-reverse">
+                      <span>{t('within')}</span>
+                      <input
+                        type="number"
+                        className="w-16 h-9 rounded-xl border border-white/10 bg-transparent px-2 text-center text-white outline-none focus:border-indigo-400/40"
+                        min="1"
+                        value={filters.distance}
+                        onChange={e => setFilters(f => ({ ...f, distance: Number(e.target.value) || 1 }))}
+                      />
+                      <span>{t('km')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {error && (
-              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50">
+              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50 rtl:text-right" dir={i18n.dir()}>
                 {error}
               </div>
             )}
           </Glass>
 
-          {/* List */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between gap-3">
+          {/* View Toggle */}
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+            >
+              {t('listView')}
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+            >
+              {t('mapView')}
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-3 min-w-0" dir={i18n.dir()}>
               <h3 className="text-sm font-semibold text-white">
-                Available psychologists
+                {t('availablePsychologists')}
               </h3>
-              <div className="text-xs text-white/60">
-                {loading ? 'Loading...' : `${visiblePsychologists.length} shown`}
+              <div className="text-xs text-white/60 shrink-0">
+                {loading ? '...' : `${visiblePsychologists.length} `}
               </div>
             </div>
 
             {(!loading && visiblePsychologists.length === 0) && (
-              <Glass className="mt-4 p-10 text-center">
-                <div className="text-sm font-semibold">No psychologists available</div>
+              <Glass className="mt-4 p-10 text-center rtl:text-right" dir={i18n.dir()}>
+                <div className="text-sm font-semibold">{t('noPsychologists')}</div>
                 <p className="mt-2 text-sm text-white/60">
-                  Try changing your filters or check back later.
+                  {t('changeFilters')}
                 </p>
               </Glass>
             )}
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {visiblePsychologists.map((psy) => {
-                const initials = `${psy.firstName?.[0] || ''}${psy.lastName?.[0] || ''}`.toUpperCase();
-                const psychologistUserId = String(psy.userId?._id || psy.userId || '');
-
-                return (
-                  <Glass key={psy._id} className="p-5 transition hover:bg-white/10">
-                    <div className="flex items-start gap-4">
-                      <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-white">
-                        {initials || 'P'}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-base font-semibold">
-                              {psy.firstName} {psy.lastName}
-                            </div>
-                            <div className="mt-1 text-sm text-white/60">
-                              {psy.city || 'City not set'}
-                            </div>
-                          </div>
-
-                          <div className="shrink-0 text-right">
-                            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
-                              {psy.sessionPrice > 0 ? `${psy.sessionPrice} TND` : 'Price not set'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
-                        </div>
-
-                        <div className="mt-3 grid gap-2 text-sm text-white/70">
-                          <div className="truncate">
-                            <span className="text-white/50">Languages:</span>{' '}
-                            {Array.isArray(psy.languages) ? psy.languages.join(', ') : (psy.languages || 'Not set')}
-                          </div>
-                          <div className="truncate">
-                            <span className="text-white/50">Specializations:</span>{' '}
-                            {Array.isArray(psy.specializations) ? psy.specializations.join(', ') : (psy.specializations || 'Not set')}
-                          </div>
-                        </div>
-
-                        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                          <button
-                            className="h-[44px] flex-1 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
-                            onClick={() => {
-                              if (!psychologistUserId) return;
-                              setSlotPickerTarget({
-                                userId: psychologistUserId,
-                                name: `${psy.firstName} ${psy.lastName}`,
-                                sessionPrice: psy.sessionPrice || 0
-                              });
-                            }}
-                            disabled={!psychologistUserId}
-                          >
-                            Book a session
-                          </button>
-                          <button
-                            className="h-[44px] flex-1 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
-                            onClick={() => navigate(`/psychologist/${psy._id}`)}
-                          >
-                            View profile
-                          </button>
-                        </div>
-                      </div>
+            <div className="mt-4">
+              {viewMode === 'map' ? (
+                <div className="h-[600px] rounded-3xl overflow-hidden border border-white/10 relative z-0">
+                  {filters.lat && (
+                    <button
+                      onClick={() => setRecenterTrigger(t => t + 1)}
+                      className="absolute bottom-6 left-6 z-[400] rounded-xl bg-slate-900/90 backdrop-blur border border-white/20 px-4 py-3 text-sm font-bold text-white shadow-xl hover:bg-slate-800 transition rtl:right-6 rtl:left-auto"
+                    >
+                      {t('recenterLocation')}
+                    </button>
+                  )}
+                  {locationDenied && (
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-bold text-white shadow-xl text-center w-max max-w-xs">
+                      {t('deniedLocation')}
                     </div>
-                  </Glass>
-                );
-              })}
+                  )}
+
+                  <MapContainer center={filters.lat ? [filters.lat, filters.lng] : [36.8065, 10.1815]} zoom={13} className="h-full w-full bg-slate-800">
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    
+                    <MapEventHandler locationDenied={locationDenied} setFilters={setFilters} />
+                    <MapCenterControl lat={filters.lat} lng={filters.lng} recenterTrigger={recenterTrigger} />
+
+                    {filters.lat && (
+                      <Marker position={[filters.lat, filters.lng]} icon={redIcon}>
+                        <Popup><b className="text-slate-800">{t('youAreHere')}</b></Popup>
+                      </Marker>
+                    )}
+                    {visiblePsychologists.map(psy => (
+                      psy.location && psy.location.coordinates ? (
+                        <Marker key={psy._id} position={[psy.location.coordinates[1], psy.location.coordinates[0]]}>
+                          <Popup>
+                            <div className="font-semibold text-slate-800 rtl:text-right" dir={i18n.dir()}>{psy.firstName} {psy.lastName}</div>
+                            <div className="text-xs text-slate-600 mt-1 rtl:text-right" dir={i18n.dir()}>
+                              {psy.city || t('cityNotSet')}
+                              {useLocation && filters.lat && filters.lng && (
+                                <span className="block mt-1 font-semibold text-indigo-600">
+                                  {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs font-bold text-emerald-600 mt-1 rtl:text-right" dir={i18n.dir()}>
+                              {psy.sessionPrice ? `${psy.sessionPrice} TND` : ''}
+                            </div>
+                            <button
+                              onClick={() => navigate(`/p/psychologist/${psy._id}`)}
+                              className="mt-2 text-indigo-600 underline text-xs w-full rtl:text-right" dir={i18n.dir()}
+                            >
+                              {t('viewProfile')}
+                            </button>
+                          </Popup>
+                        </Marker>
+                      ) : null
+                    ))}
+                  </MapContainer>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {visiblePsychologists.map((psy) => {
+                    const initials = `${psy.firstName?.[0] || ''}${psy.lastName?.[0] || ''}`.toUpperCase();
+                    const psychologistUserId = String(psy.userId?._id || psy.userId || '');
+
+                    return (
+                      <Glass key={psy._id} className="p-5 transition hover:bg-white/10">
+                        <div className="flex items-start gap-4">
+                          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-white">
+                            {initials || 'P'}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0" dir={i18n.dir()}>
+                                <div className="truncate text-base font-semibold">
+                                  {psy.firstName} {psy.lastName}
+                                </div>
+                                <div className="mt-1 text-sm text-white/60 flex flex-wrap gap-1 items-center">
+                                  {psy.city || t('notSet')}
+                                  {useLocation && filters.lat && filters.lng && psy.location?.coordinates && (
+                                    <span className="font-semibold text-indigo-400">
+                                      | {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 text-right rtl:text-left">
+                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                                  {psy.sessionPrice > 0 ? `${psy.sessionPrice} TND` : t('priceNotSet')}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex" dir={i18n.dir()}>
+                              <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
+                            </div>
+
+                            <div className="mt-3 grid gap-2 text-sm text-white/70" dir={i18n.dir()}>
+                              <div className="truncate">
+                                <span className="text-white/50">{t('languages')}</span>{' '}
+                                {Array.isArray(psy.languages) ? psy.languages.join(', ') : (psy.languages || t('notSet'))}
+                              </div>
+                              <div className="truncate">
+                                <span className="text-white/50">{t('specializations')}</span>{' '}
+                                {Array.isArray(psy.specializations) ? psy.specializations.join(', ') : (psy.specializations || t('notSet'))}
+                              </div>
+                            </div>
+
+                            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                              <button
+                                className="h-[44px] flex-1 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
+                                onClick={() => {
+                                  if (!psychologistUserId) return;
+                                  setSlotPickerTarget({
+                                    userId: psychologistUserId,
+                                    name: `${psy.firstName} ${psy.lastName}`,
+                                    sessionPrice: psy.sessionPrice || 0
+                                  });
+                                }}
+                                disabled={!psychologistUserId}
+                              >
+                                {t('bookSession')}
+                              </button>
+                              <button
+                                className="h-[44px] flex-1 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                                onClick={() => navigate(`/p/psychologist/${psy._id}`)}
+                              >
+                                {t('viewProfile')}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </Glass>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </main>
