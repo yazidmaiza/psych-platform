@@ -6,7 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const rateLimit = require('express-rate-limit');
 const axios = require('axios');
-
+const helmet = require('helmet');
   // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
@@ -47,6 +47,12 @@ app.use(cors({
   credentials: true
 }));
 
+// Set security HTTP headers
+app.use(helmet({
+  crossOriginResourcePolicy: false, // For image/audio fetching if cross-domain needed, adjust as needed
+}));
+
+
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
@@ -55,10 +61,8 @@ app.use((req, res, next) => {
   ) {
     return next();
   }
-  express.json()(req, res, next);
+  express.json({ limit: '10kb' })(req, res, next);
 });
-
-app.use('/uploads', express.static('uploads'));
 
 //////////////////////////////////////////////////
 // 🔌 SOCKET.IO

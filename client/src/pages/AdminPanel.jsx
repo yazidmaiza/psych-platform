@@ -118,6 +118,20 @@ export default function AdminPanel() {
     navigate('/login');
   };
 
+  const viewFile = async (filename) => {
+    try {
+      const res = await fetch(API + '/api/verification/file/' + filename, {
+        headers: getHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to load file');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url);
+    } catch (err) {
+      setError('Could not open file');
+    }
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
 
   return (
@@ -225,24 +239,20 @@ export default function AdminPanel() {
               <p style={{ color: '#718096', fontSize: 13 }}>{psy.city}</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 {psy.cvUrl && (
-                  <a
-                    href={'http://localhost:5000/uploads/' + psy.cvUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
+                  <button
+                    onClick={() => viewFile(psy.cvUrl)}
+                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
                   >
                     View CV
-                  </a>
+                  </button>
                 )}
                 {psy.diplomaUrl && (
-                  <a
-                    href={'http://localhost:5000/uploads/' + psy.diplomaUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', borderRadius: 4, fontSize: 12, textDecoration: 'none' }}
+                  <button
+                    onClick={() => viewFile(psy.diplomaUrl)}
+                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
                   >
                     View Diploma
-                  </a>
+                  </button>
                 )}
               </div>
             </div>

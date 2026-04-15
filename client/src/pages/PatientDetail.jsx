@@ -148,7 +148,7 @@ function PatientDetail() {
             <div className="bg-white shadow-sm">
                 <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4 flex-wrap">
                     <button
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => navigate(-1)}
                         className="text-blue-600 text-sm font-semibold hover:underline"
                     >
                         {'<- Back to Dashboard'}
@@ -197,7 +197,7 @@ function PatientDetail() {
                 {/* AI Chatbot Summary */}
                 {summary && (
                     <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">AI Session Summary</h2>
+                        <h2 className="text-lg font-bold text-gray-700 mb-4">AI Session Summary</h2>
                         <div className="grid grid-cols-3 gap-4 mb-4">
                             <div className="bg-gray-50 rounded-xl p-4 text-center">
                                 <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Dominant Emotion</p>

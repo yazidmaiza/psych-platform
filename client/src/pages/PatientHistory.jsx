@@ -38,7 +38,7 @@ export default function PatientHistory() {
               try {
                 const summary = await api.get('/api/chatbot/summary?patientId=' + patientId);
                 summaryMap[s._id] = summary;
-              } catch {}
+              } catch { }
             })
         );
         setSummaries(summaryMap);
@@ -62,7 +62,7 @@ export default function PatientHistory() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4">
-          <button onClick={() => navigate('/dashboard')} className="text-blue-600 text-sm font-semibold hover:underline">
+          <button onClick={() => navigate(-1)} className="text-blue-600 text-sm font-semibold hover:underline">
             {'<- Back to Dashboard'}
           </button>
           <h1 className="text-xl font-bold text-gray-800">Patient History</h1>
