@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { io } from 'socket.io-client';
 
 function PatientDetail() {
     const [data, setData] = useState({ messages: [], notes: [] });
@@ -19,6 +20,8 @@ function PatientDetail() {
     const [querying, setQuerying] = useState(false);
     const [activeSessionId, setActiveSessionId] = useState(null);
     const [endingSession, setEndingSession] = useState(false);
+    const [riskAlerts, setRiskAlerts] = useState([]);
+    const socketRef = useRef(null);
 
 
     const fetchDocuments = useCallback(async () => {
@@ -59,10 +62,44 @@ function PatientDetail() {
         }
     }, [patientId]);
 
+    // Fetch risk alerts for this patient
+    const fetchRiskAlerts = useCallback(async () => {
+        try {
+            const alerts = await api.get(`/api/risk-alerts/patient/${patientId}`);
+            setRiskAlerts(Array.isArray(alerts) ? alerts : []);
+        } catch (err) {
+            console.error('Risk alerts fetch error:', err);
+        }
+    }, [patientId]);
+
     useEffect(() => {
         fetchData();
         fetchDocuments();
-    }, [fetchData, fetchDocuments]);
+        fetchRiskAlerts();
+    }, [fetchData, fetchDocuments, fetchRiskAlerts]);
+
+    // Real-time risk alert updates via Socket.IO
+    useEffect(() => {
+        const raw = localStorage.getItem('user');
+        if (!raw) return;
+        const user = JSON.parse(raw);
+        if (user.role !== 'psychologist') return;
+
+        const socket = io('http://localhost:5000', {
+            auth: { token: localStorage.getItem('token') },
+            transports: ['websocket']
+        });
+        socketRef.current = socket;
+        socket.emit('join_psychologist_room', user.id || user._id);
+
+        socket.on('risk_alert', (payload) => {
+            if (payload.patientId === patientId) {
+                fetchRiskAlerts();
+            }
+        });
+
+        return () => { socket.disconnect(); };
+    }, [patientId, fetchRiskAlerts]);
 
     const addNote = async () => {
         if (!newNote.trim()) return;
@@ -130,6 +167,17 @@ function PatientDetail() {
         }
     };
 
+
+    const acknowledgeAlert = async (alertId) => {
+        try {
+            await api.put(`/api/risk-alerts/${alertId}/acknowledge`, {});
+            setRiskAlerts(prev => prev.map(a =>
+                a._id === alertId ? { ...a, isAcknowledged: true, acknowledgedAt: new Date().toISOString() } : a
+            ));
+        } catch (err) {
+            console.error('Acknowledge error:', err);
+        }
+    };
 
     const getSentimentColor = (trend) => {
         if (trend === 'improving') return 'text-green-600 bg-green-50';
@@ -250,6 +298,82 @@ function PatientDetail() {
                         )}
                     </div>
                 )}
+
+                {/* Risk Alert History */}
+                <div className="bg-white rounded-2xl shadow p-6">
+                    <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        🚨 Risk Alerts
+                        {riskAlerts.filter(a => !a.isAcknowledged).length > 0 && (
+                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                {riskAlerts.filter(a => !a.isAcknowledged).length} new
+                            </span>
+                        )}
+                    </h2>
+                    {riskAlerts.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm">No risk alerts detected.</p>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {riskAlerts.map(alert => {
+                                const severityColors = {
+                                    low: { bg: 'bg-yellow-50', border: 'border-yellow-200', badge: 'bg-yellow-400', text: 'text-yellow-800', icon: '⚠️' },
+                                    medium: { bg: 'bg-orange-50', border: 'border-orange-200', badge: 'bg-orange-500', text: 'text-orange-800', icon: '🔶' },
+                                    high: { bg: 'bg-red-50', border: 'border-red-200', badge: 'bg-red-500', text: 'text-red-800', icon: '🚨' },
+                                    critical: { bg: 'bg-red-100', border: 'border-red-400', badge: 'bg-red-700', text: 'text-red-900', icon: '🔴' }
+                                };
+                                const s = severityColors[alert.severity] || severityColors.medium;
+                                const CATEGORY_LABELS = {
+                                    self_harm: 'Self-Harm Signal',
+                                    suicidal_ideation: 'Suicidal Ideation',
+                                    abuse_trauma: 'Abuse / Trauma Disclosure',
+                                    crisis_escalation: 'Crisis Escalation'
+                                };
+                                return (
+                                    <div key={alert._id} className={`${s.bg} border ${s.border} rounded-xl px-4 py-3 ${alert.isAcknowledged ? 'opacity-60' : ''}`}>
+                                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span>{s.icon}</span>
+                                                <span className={`text-xs font-bold text-white ${s.badge} px-2 py-0.5 rounded`}>
+                                                    {alert.severity.toUpperCase()}
+                                                </span>
+                                                <span className={`text-sm font-semibold ${s.text}`}>
+                                                    {CATEGORY_LABELS[alert.riskCategory] || alert.riskCategory}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-gray-400">
+                                                    {new Date(alert.createdAt).toLocaleString()}
+                                                </span>
+                                                {!alert.isAcknowledged && (
+                                                    <button
+                                                        onClick={() => acknowledgeAlert(alert._id)}
+                                                        className="text-xs bg-white border border-gray-300 text-gray-600 px-3 py-1 rounded-lg font-semibold hover:bg-gray-50 transition"
+                                                    >
+                                                        ✓ Acknowledge
+                                                    </button>
+                                                )}
+                                                {alert.isAcknowledged && (
+                                                    <span className="text-xs text-green-600 font-semibold">✓ Acknowledged</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {alert.triggerMessage && (
+                                            <p className="text-sm text-gray-600 italic mb-1">
+                                                "{alert.triggerMessage.slice(0, 150)}{alert.triggerMessage.length > 150 ? '…' : ''}"
+                                            </p>
+                                        )}
+                                        {alert.llmReasoning && (
+                                            <p className="text-xs text-gray-500">
+                                                🤖 {alert.llmReasoning}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-gray-400 mt-1">Score: {alert.riskScore}/100</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
 
                 {/* Conversation */}
                 <div className="bg-white rounded-2xl shadow p-6">
