@@ -3,7 +3,8 @@ const router = express.Router();
 const multer = require('multer');
 const { uploadDocuments, getPendingVerifications, approvePsychologist, rejectPsychologist } = require('../controllers/verificationController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
-
+const path = require('path');
+const fs = require('fs');
 const upload = multer({
     dest: 'uploads/',
     limits: { fileSize: 10 * 1024 * 1024 },
@@ -24,5 +25,13 @@ router.post('/upload', protect, restrictTo('psychologist'), upload.fields([
 router.get('/pending', protect, restrictTo('admin'), getPendingVerifications);
 router.put('/:id/approve', protect, restrictTo('admin'), approvePsychologist);
 router.put('/:id/reject', protect, restrictTo('admin'), rejectPsychologist);
+
+router.get('/file/:filename', protect, restrictTo('admin'), (req, res) => {
+    const filePath = path.join(__dirname, '../../uploads', req.params.filename);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'File not found' });
+    }
+    res.sendFile(filePath);
+});
 
 module.exports = router;
