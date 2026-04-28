@@ -26,7 +26,10 @@ export default function Register() {
   const navigate = useNavigate();
 
   const canSubmit = useMemo(() => {
-    return form.email.trim().length > 0 && form.password.trim().length >= 6 && !loading;
+    const password = form.password.trim();
+    const hasMinLength = password.length >= 8;
+    const hasNumber = /\d/.test(password);
+    return form.email.trim().length > 0 && hasMinLength && hasNumber && !loading;
   }, [form.email, form.password, loading]);
 
   const handleRegister = async () => {
@@ -90,10 +93,10 @@ export default function Register() {
             type="password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder="Minimum 6 characters"
+            placeholder="Minimum 8 characters + number"
             className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
           />
-          <div className="text-xs text-white/50">Use at least 6 characters.</div>
+          <div className="text-xs text-white/50">Use at least 8 characters and include a number.</div>
         </label>
 
         <div className="mt-2">
@@ -126,4 +129,3 @@ export default function Register() {
     </AuthShell>
   );
 }
-

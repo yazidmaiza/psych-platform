@@ -1,0 +1,259 @@
+@startuml PsychPlatform_UseCases
+
+'==================================================
+' SKIN & THEME
+'==================================================
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName  "Segoe UI"
+skinparam defaultFontSize  13
+
+skinparam ActorBorderColor      #2C3E50
+skinparam ActorBackgroundColor  #ECF0F1
+skinparam ActorFontColor        #2C3E50
+skinparam ActorFontStyle        bold
+
+skinparam UsecaseBorderColor        #5D8AA8
+skinparam UsecaseBackgroundColor    #FFFFFF
+skinparam UsecaseFontColor          #2C3E50
+skinparam UsecaseArrowColor         #7F8C8D
+skinparam UsecaseBorderThickness    1.5
+
+skinparam PackageBorderColor        #BDC3C7
+skinparam PackageBackgroundColor    #F8F9FA
+skinparam PackageFontStyle          bold
+skinparam PackageFontSize           14
+
+skinparam ArrowColor     #95A5A6
+skinparam ArrowThickness 1.2
+
+skinparam Padding  12
+skinparam Margin   10
+
+'==================================================
+' ACTORS  (left side)
+'==================================================
+left to right direction
+
+actor "Patient"         as P   #4A90D9
+actor "Psychologist"    as PSY #27AE60
+actor "Admin"           as ADM #E74C3C
+actor "System / AI"     as SYS #8E44AD
+
+'==================================================
+' USE CASE DOMAINS  (right side)
+'==================================================
+
+rectangle "Authentication & Account" as AUTH {
+    usecase "Register Account"   as UC_REG
+    usecase "Login"              as UC_LOGIN
+    usecase "View My Profile"    as UC_ME
+}
+
+rectangle "Psychologist Profile & Verification" as VERIF {
+    usecase "Create Psychologist Profile"  as UC_CREATE_PROF
+    usecase "Update Profile"               as UC_UPD_PROF
+    usecase "Upload CV & Diploma"          as UC_UPLOAD_DOCS
+    usecase "AI Verification Summary"      as UC_AI_VERIF
+    usecase "View Pending Verifications"   as UC_PEND_VERIF
+    usecase "Approve Psychologist"         as UC_APPROVE
+    usecase "Reject Psychologist"          as UC_REJECT
+}
+
+rectangle "Browse & Search" as BROWSE {
+    usecase "Browse Psychologist List"     as UC_BROWSE
+    usecase "Search Nearby Psychologists"  as UC_NEARBY
+    usecase "View Psychologist Profile"    as UC_VIEW_PROF
+}
+
+rectangle "Calendar & Booking" as CALENDAR {
+    usecase "Add Availability Slot"   as UC_ADD_SLOT
+    usecase "View Available Slots"    as UC_VIEW_SLOTS
+    usecase "Request Booking"         as UC_REQ_BOOK
+    usecase "Confirm Booking"         as UC_CONFIRM_BOOK
+    usecase "Reject Booking"          as UC_REJECT_BOOK
+    usecase "Delete Slot"             as UC_DEL_SLOT
+}
+
+rectangle "Session Management" as SESSIONS {
+    usecase "Create Session"        as UC_CREATE_SES
+    usecase "Confirm Payment"       as UC_PAY
+    usecase "Verify Session Code"   as UC_VERIFY_CODE
+    usecase "View My Sessions"      as UC_MY_SES
+    usecase "Cancel Session"        as UC_CANCEL_SES
+    usecase "End Session"           as UC_END_SES
+    usecase "Generate PDF Report"   as UC_PDF
+}
+
+rectangle "Messaging" as MESSAGING {
+    usecase "Send Message"          as UC_SEND_MSG
+    usecase "View Conversation"     as UC_VIEW_CONV
+    usecase "Get Unread Count"      as UC_UNREAD
+    usecase "Mark Messages Read"    as UC_MARK_READ
+    usecase "Send Voice Message"    as UC_VOICE
+}
+
+rectangle "AI Chatbot" as CHATBOT {
+    usecase "Chat with AI Chatbot"    as UC_CHAT
+    usecase "End Chatbot Session"     as UC_END_CHAT
+    usecase "Get Chat History"        as UC_CHAT_HIST
+    usecase "Get AI Summary"          as UC_SUMMARY
+    usecase "Generate Logout Summary" as UC_LOGOUT_SUM
+}
+
+rectangle "Ratings & Reviews" as RATINGS {
+    usecase "Submit Rating"            as UC_RATE
+    usecase "View Psychologist Rating" as UC_VIEW_RATE
+    usecase "Check If Already Rated"   as UC_CHECK_RATE
+}
+
+rectangle "Psychologist Dashboard" as DASHBOARD {
+    usecase "View Dashboard Stats"      as UC_DASH_STATS
+    usecase "View Patient List"         as UC_PAT_LIST
+    usecase "View Patient Detail"       as UC_PAT_DETAIL
+    usecase "Add Private Note"          as UC_ADD_NOTE
+    usecase "View Private Notes"        as UC_VIEW_NOTES
+    usecase "Add Emotional Indicators"  as UC_ADD_EMO
+    usecase "View Emotional Indicators" as UC_VIEW_EMO
+    usecase "Add Patient History"       as UC_ADD_HIST
+    usecase "View Patient History"      as UC_VIEW_HIST
+}
+
+rectangle "Document Management" as DOCS {
+    usecase "Upload Patient Document"  as UC_UPLOAD_DOC
+    usecase "View Patient Documents"   as UC_VIEW_DOCS
+    usecase "Query Document with AI"   as UC_QUERY_DOC
+}
+
+rectangle "Notifications" as NOTIFS {
+    usecase "View Notifications"         as UC_VIEW_NOTIF
+    usecase "Mark Notification Read"     as UC_MARK_NOTIF
+    usecase "Mark All Notifications Read" as UC_MARK_ALL_NOTIF
+}
+
+rectangle "Admin Panel" as ADMIN {
+    usecase "View All Users"     as UC_ADMIN_USERS
+    usecase "Delete User"        as UC_ADMIN_DEL
+    usecase "Update User Role"   as UC_ADMIN_ROLE
+    usecase "View Platform Stats" as UC_ADMIN_STATS
+}
+
+rectangle "Platform Assistant" as ASSISTANT {
+    usecase "Ask Navigation Assistant" as UC_ASSIST
+}
+
+'==================================================
+' PATIENT ASSOCIATIONS
+'==================================================
+P --> UC_REG
+P --> UC_LOGIN
+P --> UC_ME
+
+P --> UC_BROWSE
+P --> UC_NEARBY
+P --> UC_VIEW_PROF
+
+P --> UC_VIEW_SLOTS
+P --> UC_REQ_BOOK
+
+P --> UC_CREATE_SES
+P --> UC_PAY
+P --> UC_VERIFY_CODE
+P --> UC_MY_SES
+P --> UC_CANCEL_SES
+
+P --> UC_SEND_MSG
+P --> UC_VIEW_CONV
+P --> UC_UNREAD
+P --> UC_MARK_READ
+P --> UC_VOICE
+
+P --> UC_CHAT
+P --> UC_END_CHAT
+P --> UC_CHAT_HIST
+P --> UC_SUMMARY
+
+P --> UC_RATE
+P --> UC_VIEW_RATE
+P --> UC_CHECK_RATE
+
+P --> UC_VIEW_NOTES
+P --> UC_VIEW_HIST
+
+P --> UC_VIEW_NOTIF
+P --> UC_MARK_NOTIF
+P --> UC_MARK_ALL_NOTIF
+
+P --> UC_ASSIST
+
+'==================================================
+' PSYCHOLOGIST ASSOCIATIONS
+'==================================================
+PSY --> UC_REG
+PSY --> UC_LOGIN
+PSY --> UC_ME
+
+PSY --> UC_CREATE_PROF
+PSY --> UC_UPD_PROF
+PSY --> UC_UPLOAD_DOCS
+
+PSY --> UC_ADD_SLOT
+PSY --> UC_VIEW_SLOTS
+PSY --> UC_CONFIRM_BOOK
+PSY --> UC_REJECT_BOOK
+PSY --> UC_DEL_SLOT
+
+PSY --> UC_END_SES
+PSY --> UC_PDF
+PSY --> UC_MY_SES
+
+PSY --> UC_SEND_MSG
+PSY --> UC_VIEW_CONV
+PSY --> UC_UNREAD
+PSY --> UC_MARK_READ
+PSY --> UC_VOICE
+
+PSY --> UC_DASH_STATS
+PSY --> UC_PAT_LIST
+PSY --> UC_PAT_DETAIL
+PSY --> UC_ADD_NOTE
+PSY --> UC_VIEW_NOTES
+PSY --> UC_ADD_EMO
+PSY --> UC_VIEW_EMO
+PSY --> UC_ADD_HIST
+PSY --> UC_VIEW_HIST
+
+PSY --> UC_UPLOAD_DOC
+PSY --> UC_VIEW_DOCS
+PSY --> UC_QUERY_DOC
+
+PSY --> UC_VIEW_NOTIF
+PSY --> UC_MARK_NOTIF
+PSY --> UC_MARK_ALL_NOTIF
+
+PSY --> UC_ASSIST
+
+'==================================================
+' ADMIN ASSOCIATIONS
+'==================================================
+ADM --> UC_LOGIN
+ADM --> UC_ME
+
+ADM --> UC_PEND_VERIF
+ADM --> UC_APPROVE
+ADM --> UC_REJECT
+
+ADM --> UC_PDF
+
+ADM --> UC_ADMIN_USERS
+ADM --> UC_ADMIN_DEL
+ADM --> UC_ADMIN_ROLE
+ADM --> UC_ADMIN_STATS
+
+'==================================================
+' SYSTEM / AI ASSOCIATIONS
+'==================================================
+SYS --> UC_AI_VERIF
+SYS --> UC_LOGOUT_SUM
+SYS --> UC_QUERY_DOC
+
+@enduml

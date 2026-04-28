@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -23,8 +23,44 @@ export default function PsychologistSetup() {
   });
   const [cv, setCv] = useState(null);
   const [diploma, setDiploma] = useState(null);
+  const [idFront, setIdFront] = useState(null);
+  const [idBack, setIdBack] = useState(null);
+  const [idFrontPreview, setIdFrontPreview] = useState('');
+  const [idBackPreview, setIdBackPreview] = useState('');
+  const [introVideo, setIntroVideo] = useState(null);
+  const [introVideoPreview, setIntroVideoPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!idFront) {
+      setIdFrontPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(idFront);
+    setIdFrontPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [idFront]);
+
+  useEffect(() => {
+    if (!idBack) {
+      setIdBackPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(idBack);
+    setIdBackPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [idBack]);
+
+  useEffect(() => {
+    if (!introVideo) {
+      setIntroVideoPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(introVideo);
+    setIntroVideoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [introVideo]);
 
   const toggleItem = (field, value) => {
     setForm(prev => ({
@@ -52,8 +88,8 @@ export default function PsychologistSetup() {
   };
 
   const handleDocumentUpload = async () => {
-    if (!cv || !diploma) {
-      return setError('Both CV and diploma are required.');
+    if (!cv || !diploma || !idFront || !idBack || !introVideo) {
+      return setError('CV, diploma, both sides of your ID card, and an introduction video are required.');
     }
     setLoading(true);
     setError('');
@@ -62,6 +98,9 @@ export default function PsychologistSetup() {
       const formData = new FormData();
       formData.append('cv', cv);
       formData.append('diploma', diploma);
+      formData.append('idFront', idFront);
+      formData.append('idBack', idBack);
+      formData.append('introVideo', introVideo);
 
       const res = await fetch('http://localhost:5000/api/verification/upload', {
         method: 'POST',
@@ -215,7 +254,7 @@ export default function PsychologistSetup() {
         {step === 2 && (
           <>
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700">
-              Please upload your CV and diploma in PDF format. Our AI will analyze them and an admin will approve your account.
+              Please upload your CV and diploma in PDF format, plus front and back images of your ID card, and an introduction video. Our AI will analyze your documents and an admin will approve your account.
             </div>
 
             <div className="bg-white rounded-2xl shadow p-6">
@@ -243,12 +282,77 @@ export default function PsychologistSetup() {
                   />
                   {diploma && <p className="text-green-600 text-xs mt-1">Selected: {diploma.name}</p>}
                 </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-gray-700">ID Card Upload (NEW)</h3>
+                  <p className="text-xs text-gray-500 mt-1">Upload clear images (JPG/JPEG/PNG, max 5MB each).</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 mb-2 block">Front</label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        onChange={e => setIdFront(e.target.files[0] || null)}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
+                      />
+                      {idFront && <p className="text-green-600 text-xs mt-1">Selected: {idFront.name}</p>}
+                      {idFrontPreview && (
+                        <img
+                          src={idFrontPreview}
+                          alt="ID front preview"
+                          className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 mb-2 block">Back</label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        onChange={e => setIdBack(e.target.files[0] || null)}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
+                      />
+                      {idBack && <p className="text-green-600 text-xs mt-1">Selected: {idBack.name}</p>}
+                      {idBackPreview && (
+                        <img
+                          src={idBackPreview}
+                          alt="ID back preview"
+                          className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-gray-700">Introduction Video</h3>
+                  <p className="text-xs text-gray-500 mt-1">Record a short video (1–3 min) introducing yourself to patients.</p>
+
+                  <div className="mt-3">
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,.mov"
+                      onChange={e => setIntroVideo(e.target.files[0] || null)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
+                    />
+                    {introVideo && <p className="text-green-600 text-xs mt-1">Selected: {introVideo.name}</p>}
+                    {introVideoPreview && (
+                      <video
+                        src={introVideoPreview}
+                        controls
+                        className="mt-2 w-full max-h-64 bg-gray-50 border border-gray-200 rounded-xl"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
             <button
               onClick={handleDocumentUpload}
-              disabled={loading || !cv || !diploma}
+              disabled={loading || !cv || !diploma || !idFront || !idBack || !introVideo}
               className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
             >
               {loading ? 'Uploading & Analyzing...' : 'Submit for Verification ->'}
