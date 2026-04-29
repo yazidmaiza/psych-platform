@@ -94,10 +94,20 @@ io.on('connection', (socket) => {
     io.to(data.roomId).emit('receive_message', data);
   });
 
+  // Psychologist joins their private room for real-time risk alerts
+  socket.on('join_psychologist_room', (psychologistId) => {
+    const room = `psychologist_${psychologistId}`;
+    socket.join(room);
+    console.log(`Psychologist joined risk-alert room: ${room}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
 });
+
+// Export io so services (RiskAlertService) can emit events
+module.exports.io = io;
 
 //////////////////////////////////////////////////
 // 📡 ROUTES
@@ -117,6 +127,9 @@ app.use('/api/verification', apiLimiter, require('./routes/verificationRoutes'))
 app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
 app.use('/api/calendar', apiLimiter, calendarRoutes);
 app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
+app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
+app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
+app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
 
 //////////////////////////////////////////////////
 // 🤖 PLATFORM ASSISTANT (Groq)

@@ -7,6 +7,7 @@ import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AssistantBot from './components/AssistantBot';
+import RiskAlertBanner from './components/RiskAlertBanner';
 // Patient pages
 import PsychologistList from './pages/PsychologistList';
 import PsychologistProfile from './pages/PsychologistProfile';
@@ -221,6 +222,7 @@ function App() {
         />
       </Routes>
       <AssistantBot />
+      <RiskAlertBanner />
     </BrowserRouter>
   );
 }

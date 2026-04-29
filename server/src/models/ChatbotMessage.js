@@ -14,7 +14,14 @@ const chatbotMessageSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true
+  },
+  // Which intake stage this message belongs to (1–5)
+  intakeStage: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('ChatbotMessage', chatbotMessageSchema);
+module.exports = mongoose.model('ChatbotMessage', chatbotMessageSchema);
