@@ -38,6 +38,7 @@ export default function PsychologistProfileForm({ onSaved }) {
     sessionPrice: '',
     location: null // { lat, lng }
   });
+  const [profileExists, setProfileExists] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -49,6 +50,7 @@ export default function PsychologistProfileForm({ onSaved }) {
     try {
       if (!userId) throw new Error('Missing user id');
       const p = await api.get('/api/psychologists/by-user/' + userId);
+      setProfileExists(true);
       setForm({
         firstName: p.firstName || '',
         lastName: p.lastName || '',
@@ -61,7 +63,22 @@ export default function PsychologistProfileForm({ onSaved }) {
         location: p.location && p.location.coordinates ? { lat: p.location.coordinates[1], lng: p.location.coordinates[0] } : null
       });
     } catch (e) {
-      setError(e.message || 'Failed to load profile');
+      if (e?.status === 404) {
+        setProfileExists(false);
+        setForm({
+          firstName: '',
+          lastName: '',
+          bio: '',
+          city: '',
+          availability: '',
+          specializations: [],
+          languages: [],
+          sessionPrice: '',
+          location: null
+        });
+      } else {
+        setError(e.message || 'Failed to load profile');
+      }
     } finally {
       setLoading(false);
     }
@@ -93,11 +110,19 @@ export default function PsychologistProfileForm({ onSaved }) {
     setError('');
     setSuccess('');
     try {
-      await api.put('/api/psychologists/me', {
+      const payload = {
         ...form,
         sessionPrice: form.sessionPrice !== '' ? Number(form.sessionPrice) : 0
-      });
-      setSuccess('Profile updated successfully.');
+      };
+
+      if (profileExists) {
+        await api.put('/api/psychologists/me', payload);
+        setSuccess('Profile updated successfully.');
+      } else {
+        await api.post('/api/psychologists/profile', payload);
+        setProfileExists(true);
+        setSuccess('Profile created successfully.');
+      }
       onSaved?.();
     } catch (e) {
       setError(e.message || 'Failed to save profile.');

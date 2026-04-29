@@ -9,7 +9,11 @@ export const api = {
     get: async (url) => {
         const res = await fetch(`${BASE_URL}${url}`, { headers: getHeaders() });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Request failed');
+        if (!res.ok) {
+            const err = new Error(data.message || 'Request failed');
+            err.status = res.status;
+            throw err;
+        }
         return data;
     },
     post: async (url, body) => {
@@ -19,7 +23,11 @@ export const api = {
             body: JSON.stringify(body)
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Request failed');
+        if (!res.ok) {
+            const err = new Error(data.message || 'Request failed');
+            err.status = res.status;
+            throw err;
+        }
         return data;
     },
     put: async (url, body) => {
@@ -29,7 +37,11 @@ export const api = {
             body: JSON.stringify(body)
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Request failed');
+        if (!res.ok) {
+            const err = new Error(data.message || 'Request failed');
+            err.status = res.status;
+            throw err;
+        }
         return data;
     }
 };

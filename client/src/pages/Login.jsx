@@ -29,8 +29,8 @@ export default function Login() {
       else if (user.role === 'psychologist') navigate('/psychologist/dashboard');
       else if (user.role === 'patient') navigate('/patient/dashboard');
       else setError('Invalid role');
-    } catch {
-      setError('Invalid email or password');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -95,4 +95,3 @@ export default function Login() {
     </AuthShell>
   );
 }
-

@@ -1,0 +1,452 @@
+# Chapter 2: State of the Art
+
+---
+
+## Introduction
+
+The preceding chapter established the general context and objectives of this project: the design and development of an AI-assisted psychological consultation platform, hereafter referred to as *PsychPlatform*. This platform aims to connect patients in need of psychological support with verified, licensed psychologists through a structured and intelligent digital environment. The system integrates role-based access control, an AI-powered conversational agent, automated clinical summarisation, real-time communication, geospatial practitioner discovery, and a document-based credential verification workflow.
+
+The present chapter constitutes a thorough review of the scientific domains underpinning the project and of the existing solutions that operate within comparable problem spaces. The purpose of this review is twofold. First, it provides the conceptual and theoretical foundations necessary to understand the choices made during the design and development of the system. Second, it situates the proposed platform within a landscape of existing tools and services, identifying the gaps and limitations that motivate and justify the specific contributions of this work.
+
+The chapter is organised as follows. Section 2.1 surveys the scientific domains and key concepts relevant to the project. Section 2.2 presents an analysis of existing platforms and solutions. Section 2.3 provides a structured comparative analysis of these solutions. Section 2.4 identifies the limitations of current systems. Section 2.5 articulates the opportunities that remain unaddressed and explains how the proposed platform responds to them.
+
+---
+
+## 2.1 Scientific Domains and Key Concepts
+
+The development of PsychPlatform draws upon a broad and interdisciplinary set of scientific fields. This section introduces each major domain and explains the specific concepts within that domain that are directly relevant to the architecture and functionality of the system.
+
+---
+
+### 2.1.1 Web Engineering and Full-Stack Development
+
+Web engineering is the discipline concerned with the systematic application of engineering principles to the design, development, testing, and maintenance of web-based software systems (Murugesan, 2001). Modern web engineering has evolved significantly from the era of static HTML documents to the present paradigm of dynamic, data-driven, reactive applications served over distributed architectures.
+
+#### 2.1.1.1 The Client-Server Architecture
+
+The client-server model is the foundational architectural paradigm of modern web applications. Under this model, a *client* (typically a browser running a JavaScript application) communicates with a *server* (a process running on remote hardware) over the HTTP or HTTPS protocol. The server is responsible for processing business logic, authenticating requests, and managing persistent data. The client is responsible for rendering the user interface and managing localised application state.
+
+PsychPlatform follows this paradigm strictly, with the client implemented in React and the server implemented in Node.js with Express.
+
+#### 2.1.1.2 The MERN Stack
+
+The MERN stack is a collection of four open-source technologies — MongoDB, Express.js, React, and Node.js — that together form a comprehensive JavaScript-based ecosystem for building full-stack web applications. Its principal advantage is the uniformity of the programming language (JavaScript and its superset TypeScript) across both the client and server tiers, which reduces context-switching for developers and facilitates the sharing of validation logic, data models, and utility functions.
+
+- **MongoDB** is a document-oriented NoSQL database that stores data as flexible JSON-like documents (BSON). Its schemaless nature allows for rapid, iterative development of data models, which is particularly valuable in early-stage projects where requirements evolve frequently. In PsychPlatform, MongoDB stores all persistent entities: users, psychologist profiles, sessions, messages, chatbot histories, ratings, calendar slots, and clinical summaries.
+
+- **Express.js** is a minimal and unopinionated web application framework for Node.js. It provides routing, middleware composition, and HTTP utility methods, enabling the development of structured RESTful APIs. PsychPlatform's backend exposes a comprehensive REST API organised into domain-specific route groups (authentication, sessions, chatbot, psychologist management, admin, notifications, etc.).
+
+- **React** is a declarative, component-based JavaScript library developed by Meta (Facebook) for building user interfaces (Fedosejev, 2015). React's virtual DOM diffing algorithm allows for efficient, incremental updates to the user interface without full page reloads. PsychPlatform's frontend is a single-page application (SPA) built with React, using React Router for client-side navigation.
+
+- **Node.js** is a JavaScript runtime built on the V8 engine that allows JavaScript to be executed outside of a browser, enabling server-side development. Its event-driven, non-blocking I/O model makes it particularly well-suited to I/O-intensive applications that handle many concurrent connections, as is the case for a consultation platform managing real-time sessions.
+
+#### 2.1.1.3 RESTful API Design
+
+Representational State Transfer (REST) is an architectural style for distributed hypermedia systems (Fielding, 2000). A RESTful API is one that adheres to REST constraints, including stateless communication, a uniform interface (typically CRUD operations mapped to HTTP verbs: GET, POST, PUT, DELETE), and resource-based URIs. RESTful APIs have become the de facto standard for web service design due to their simplicity, scalability, and compatibility with a wide range of clients.
+
+PsychPlatform exposes a RESTful API with endpoints organised by resource (e.g., `/api/sessions`, `/api/chatbot`, `/api/psychologists`, `/api/ratings`), each subject to role-based access control enforced through JWT middleware.
+
+#### 2.1.1.4 Authentication and Authorisation
+
+Authentication is the process of verifying the identity of a user or system. Authorisation is the process of determining what an authenticated entity is permitted to do. These two mechanisms are distinct but complementary.
+
+JSON Web Tokens (JWT) are an open standard (RFC 7519) for securely transmitting claims between parties as a digitally signed JSON object. JWTs are stateless: the server does not maintain a session table; instead, the token itself carries the user's identity and role, and its integrity is guaranteed by a cryptographic signature. Upon a valid login, PsychPlatform issues a JWT encoding the user's identifier and role (`patient`, `psychologist`, or `admin`). This token is attached to all subsequent API requests in the `Authorization` header and verified by the server's authentication middleware before any protected endpoint is accessed.
+
+Password security is enforced through bcrypt hashing. bcrypt is a computationally expensive adaptive hashing function designed specifically for password storage, incorporating a work factor to resist brute-force attacks (Provos & Mazières, 1999).
+
+#### 2.1.1.5 Real-Time Communication with WebSockets
+
+The HTTP request-response protocol is fundamentally unidirectional: the client initiates a request, and the server responds. This model is insufficient for real-time applications where the server must push data to connected clients asynchronously, such as in live messaging systems.
+
+WebSocket is a protocol (RFC 6455) that establishes a persistent, full-duplex communication channel over a single TCP connection. Socket.IO is a JavaScript library that abstracts over WebSocket (with fallbacks to HTTP long-polling when WebSocket is unavailable), providing room-based broadcasting, event-driven APIs, and automatic reconnection logic. PsychPlatform uses Socket.IO to power its real-time session messaging feature, allowing psychologists and patients to exchange messages instantaneously within a shared room identified by the session identifier.
+
+#### 2.1.1.6 Internationalisation (i18n)
+
+Internationalisation refers to the engineering practice of designing a software system to support multiple languages and locales without requiring changes to the core codebase (W3C, 2005). The `react-i18next` library, built on top of the i18next framework, provides a declarative API for declaring translatable strings using lookup keys and for switching languages at runtime. PsychPlatform supports three languages — English, French, and Arabic — including right-to-left (RTL) layout rendering for Arabic, which requires CSS-level direction reversals for all directionally sensitive UI components.
+
+---
+
+### 2.1.2 Artificial Intelligence and Machine Learning
+
+Artificial Intelligence (AI) encompasses a broad field of computer science concerned with the development of systems that exhibit behaviours associated with human intelligence, such as reasoning, learning, natural language understanding, and perception (Russell & Norvig, 2020). Machine Learning (ML) is a subfield of AI in which systems learn patterns from data rather than being programmed with explicit rules (Mitchell, 1997).
+
+Within PsychPlatform, AI is employed not as a peripheral feature but as a core architectural component. The platform integrates AI at three distinct functional layers: (1) the patient-facing conversational agent; (2) the automated clinical summarisation and emotional analysis engine; and (3) the credential verification assistant for psychologist onboarding.
+
+#### 2.1.2.1 The Role of AI in Mental Health Applications
+
+The application of AI to mental health support is a rapidly growing area of research and commercial development. Broadly speaking, AI in this domain serves two non-exclusive roles. The first is *screening and triage*: AI systems analyse patient-provided data (text, voice, physiological signals) to detect indicators of mental health conditions and assess severity. The second is *therapeutic augmentation*: AI systems supplement, extend, or prepare the patient for human-led therapeutic sessions by providing a safe, non-judgmental conversational space.
+
+PsychPlatform belongs to the second category. Its chatbot is explicitly designed not to diagnose or provide medical advice, but to serve as a preparatory and expressive tool that lowers the barrier to formal psychological consultation.
+
+---
+
+### 2.1.3 Natural Language Processing (NLP)
+
+Natural Language Processing is the branch of AI concerned with enabling computers to understand, interpret, generate, and respond to human language (Jurafsky & Martin, 2023). NLP spans a wide spectrum of tasks, from low-level morphological analysis (tokenisation, stemming, lemmatisation) to high-level semantic understanding (question answering, sentiment analysis, discourse modelling).
+
+Key NLP tasks relevant to PsychPlatform include:
+
+- **Sentiment Analysis**: The computational identification of subjective information — opinions, emotions, and attitudes — from textual data. In the context of this platform, sentiment analysis is used to assess the emotional tone of a patient's conversational messages and to infer a sentiment trend (improving, stable, or declining) over time.
+
+- **Emotion Detection**: A more fine-grained form of sentiment analysis that classifies text according to discrete emotional categories (e.g., anxiety, sadness, anger, joy). PsychPlatform computes emotional scores across four dimensions — anxiety, sadness, anger, and positivity — for each patient's session.
+
+- **Text Summarisation**: The automatic production of a condensed version of a longer text that preserves the essential information. Abstractive summarisation, as opposed to extractive summarisation, generates novel sentences rather than selecting and concatenating existing ones. PsychPlatform employs abstractive summarisation to produce clinical summaries (`rawSummary`) from the full transcript of a patient's chatbot conversation.
+
+- **Key Theme Extraction**: The identification of the most salient topics or subjects discussed in a body of text (`keyThemes`). This assists the psychologist in rapidly identifying the principal concerns a patient has raised before a scheduled session.
+
+- **Multilingual Processing**: NLP at scale must handle text in multiple languages. PsychPlatform's chatbot is designed to detect the language of the patient's input automatically and respond accordingly, supporting Arabic, French, and English within a single conversational pipeline.
+
+---
+
+### 2.1.4 Large Language Models (LLMs)
+
+Large Language Models are a class of neural network-based AI systems trained on massive corpora of text with the objective of modelling the probability distribution of token sequences. The transformer architecture (Vaswani et al., 2017), with its self-attention mechanism, is the foundational building block of all modern LLMs. The pretraining phase exposes the model to billions of text tokens, enabling it to acquire broad linguistic and world knowledge. Models such as GPT-4 (OpenAI, 2023), LLaMA 3 (Meta AI, 2024), Claude (Anthropic, 2024), and Gemini (Google DeepMind, 2024) have demonstrated remarkable capabilities in instruction following, multi-turn dialogue, code generation, and complex reasoning.
+
+PsychPlatform integrates two LLaMA 3 model variants served through the Groq inference API:
+
+- **LLaMA 3.3 70B Versatile**: A large, general-purpose model used for the patient-facing conversational chatbot and for the platform navigation assistant. Its large parameter count enables nuanced, contextually appropriate, and empathetic dialogue generation.
+
+- **LLaMA 3.1 8B Instant**: A smaller, faster model used for structured JSON generation tasks such as clinical summarisation and credential analysis. Its lower latency is advantageous for tasks where response speed and output format compliance are more critical than response depth.
+
+The use of LLMs in PsychPlatform represents a significant departure from earlier chatbot paradigms based on rule-based systems or retrieval-based models. Rule-based systems respond according to predefined scripts and decision trees; they are robust but brittle, failing when user input deviates from anticipated patterns. Retrieval-based models select responses from a fixed candidate pool, offering slightly greater flexibility but still constrained by the quality and scope of the response database. LLMs, by contrast, generate responses dynamically, enabling them to handle the full unpredictability of natural human dialogue (Brown et al., 2020).
+
+---
+
+### 2.1.5 Prompt Engineering
+
+Prompt engineering is the discipline of designing, structuring, and iterating upon the textual instructions (prompts) provided to an LLM in order to elicit specific, reliable, and appropriately constrained outputs (White et al., 2023). Since LLMs are highly sensitive to the phrasing and structure of their input, prompt engineering is a critical engineering skill in any application that relies on LLM inference.
+
+PsychPlatform employs several prompt engineering strategies:
+
+- **System Prompt Role Assignment**: Each LLM call is prefixed with a system prompt that assigns a specific role to the model (e.g., "You are a compassionate listening assistant", "You are a clinical assistant", "You are an assistant that verifies psychologist credentials"). This shapes the model's output register, vocabulary, and behavioural boundaries.
+
+- **Output Format Constraints**: For structured tasks such as clinical summarisation, the system prompt explicitly instructs the model to return only a valid JSON object with precisely defined fields. This is necessary because LLMs by default produce free-form text, and consuming applications require machine-readable, predictable output.
+
+- **Behavioural Guardrails**: The chatbot's system prompt includes explicit prohibitions ("Never provide medical diagnoses or suggest medications", "Never rush the patient") and instructions for edge cases ("Always detect the language the patient is writing in and respond in the SAME language"), which serve as safety and quality constraints.
+
+- **Temperature Control**: The `temperature` parameter governs the randomness of the model's output distribution. A temperature of `0.3` is used for analytical and structured tasks (summarisation, verification) to ensure consistent and conservative outputs, while `0.7` is used for conversational generation to introduce natural variation and prevent repetitive phrasing.
+
+- **Robust Output Parsing**: In practice, LLMs may deviate from the requested output format by wrapping JSON in Markdown code fences or inserting explanatory text. PsychPlatform implements a parsing function (`parseJsonFromModel`) that strips known formatting artefacts before applying `JSON.parse`, and falls back to boundary-scanning the text for the first and last brace characters when standard parsing fails.
+
+---
+
+### 2.1.6 Sentiment Analysis and Emotional State Modelling
+
+Sentiment analysis occupies a central functional role in PsychPlatform through the generation of clinical summaries. When a patient's chatbot session is concluded, the full conversation transcript is submitted to the LLM with a prompt requesting a structured assessment of the patient's emotional state. The output includes:
+
+- **Dominant Emotion** (`dominantEmotion`): A single-word classification of the most prevalent emotional state expressed in the conversation.
+- **Urgency Score** (`urgencyScore`): A numerical score from 1 to 5 representing the clinical urgency of the patient's situation, where higher values indicate greater need for immediate professional attention.
+- **Sentiment Trend** (`sentimentTrend`): A categorical assessment of whether the patient's emotional state has been improving, stable, or declining over the course of the conversation.
+- **Key Themes** (`keyThemes`): An array of the main topics or concerns raised by the patient.
+- **Raw Summary** (`rawSummary`): A free-text narrative summary of the full conversation.
+
+This information is subsequently made available to the assigned psychologist via the patient detail view, enabling evidence-based, personalised consultation preparation.
+
+Furthermore, the platform maintains an `EmotionalIndicator` model that stores per-session quantitative scores across four emotional dimensions (anxiety, sadness, anger, positivity) on a normalised scale of 0 to 100. These indicators allow for longitudinal tracking of a patient's emotional trajectory across multiple sessions, supporting data-driven insight for the supervising psychologist.
+
+---
+
+### 2.1.7 Geospatial Computing and Location-Based Services
+
+Geospatial computing involves the processing of geographic information to solve location-based problems. In the context of web applications, location-based services (LBS) allow users to discover entities of interest within a defined geographic proximity.
+
+PsychPlatform integrates geospatial search to enable patients to locate psychologists near their physical location. The `Psychologist` schema stores a GeoJSON `Point` object containing latitude and longitude coordinates, and a `2dsphere` index is created on this field in MongoDB. This index enables MongoDB's geospatial query operators (e.g., `$near`, `$geoWithin`) to efficiently compute proximity-based search results, sorting psychologists by their distance from the patient's coordinates. This functionality is particularly relevant in contexts where patients prefer or require in-person consultations when available.
+
+---
+
+### 2.1.8 Document Parsing and AI-Assisted Credential Verification
+
+The onboarding of psychologists to the platform requires validation of professional credentials to protect patients from unqualified practitioners. PsychPlatform implements an automated preliminary screening workflow that uses AI to assist the administrator in this process.
+
+When a psychologist submits their CV and diploma as PDF documents, the server extracts the textual content of each document using the `pdf-parse` library. The extracted text is then submitted to an LLM with a structured prompt requesting an assessment of the candidate's qualifications, estimated years of experience, identified specialisations, the apparent legitimacy of the diploma, and an overall recommendation (Approve, Review, or Reject). The resulting AI-generated summary (`aiVerificationSummary`) is stored in the psychologist's profile and displayed to the administrator in the pending verifications panel, alongside the document files themselves. The final decision to approve or reject the psychologist is made by the human administrator, preserving human oversight in this safety-critical process.
+
+This workflow reflects a broader trend in AI-assisted decision-making: using AI to augment and accelerate human judgment rather than to fully automate consequential decisions (Dellermann et al., 2019).
+
+---
+
+### 2.1.9 Rate Limiting and API Security
+
+In distributed web systems, API endpoints are subject to abuse through denial-of-service (DoS) attacks, credential stuffing, and excessive automated requests. Rate limiting is a protective mechanism that restricts the number of requests a client (typically identified by IP address) can make to an endpoint within a defined time window.
+
+PsychPlatform applies three distinct rate limiters. The authentication endpoints are restricted to 10 requests per 15-minute window, protecting against brute-force password attacks. General API endpoints are limited to 100 requests per hour. The chatbot endpoints are specifically limited to 50 messages per hour, preventing the abuse of expensive LLM inference resources.
+
+---
+
+## 2.2 Study of Existing Solutions
+
+This section surveys the landscape of existing platforms and tools that occupy similar problem spaces to PsychPlatform. The solutions are grouped into five categories based on primary function and design philosophy.
+
+---
+
+### 2.2.1 Telepsychology and Online Therapy Platforms
+
+This category encompasses commercial platforms whose primary purpose is to connect patients with licensed mental health professionals over the internet.
+
+#### 2.2.1.1 BetterHelp
+
+BetterHelp is one of the largest online therapy platforms globally, operating in the United States and internationally. The platform matches patients with therapists based on a self-reported intake questionnaire covering mental health history, preferences, and severity of concerns. Communication takes place through asynchronous text messaging, live chat, video sessions, and phone calls. Patients can switch therapists upon request, and the platform handles all billing and scheduling logistics.
+
+**Strengths**: BetterHelp excels in access and scale. It provides therapy to patients who would otherwise face geographic, financial, or stigma-related barriers. The asynchronous messaging model allows patients to communicate with their therapist at any time, which is valuable for patients with non-standard schedules or acute moments of distress.
+
+**Limitations**: The platform has faced significant criticism regarding practitioner oversight and quality assurance. Critics have noted that the high volume of patients per therapist can compromise the depth of therapeutic relationships. Furthermore, BetterHelp does not employ any AI integration in the therapeutic process; it functions as a communication and scheduling intermediary without analytical intelligence. The matching algorithm is opaque and non-adaptive, relying entirely on the initial intake questionnaire without learning from subsequent patient-therapist interaction patterns.
+
+#### 2.2.1.2 Talkspace
+
+Talkspace is a structured teletherapy platform offering text, audio, and video therapy as well as psychiatry (medication management) services. It differentiates itself from BetterHelp through the provision of psychiatry services and through partnerships with insurers and employers.
+
+**Strengths**: Talkspace's integration with employer health benefits programmes and insurance providers represents a significant advancement in accessibility. The availability of psychiatry services within a single platform also allows for more holistic mental health support.
+
+**Limitations**: Like BetterHelp, Talkspace does not employ AI within the therapeutic workflow itself. Session scheduling, therapist matching, and outcome tracking are managed manually or through basic algorithmic filtering. The platform lacks mechanisms for automated pre-session patient preparation, emotional state analysis, or clinical summarisation.
+
+#### 2.2.1.3 Doctolib (Mental Health Module)
+
+Doctolib is a dominant European health appointment management platform, with strong market presence in France, Germany, and Italy. More recently, the platform has expanded to include mental health practitioners. Patients search for therapists by specialty, location, and availability, and book appointments through the platform's calendar interface.
+
+**Strengths**: Doctolib's strength lies in its seamlessly integrated scheduling infrastructure and its broad network of certified practitioners. The platform is compliant with European health data regulations (GDPR, HDS certification in France) and is widely trusted by both patients and clinicians.
+
+**Limitations**: Doctolib is fundamentally a scheduling and administrative platform, not a therapeutic one. It provides no AI-assisted features, no inter-session communication between patient and therapist, and no mechanisms for patient preparation or emotional tracking. It functions as a digital appointment book rather than an intelligent healthcare companion.
+
+---
+
+### 2.2.2 AI-Powered Mental Health Chatbot Applications
+
+This category covers standalone AI chatbot applications designed to provide psychological support, mood tracking, or Cognitive Behavioural Therapy (CBT)-based interventions.
+
+#### 2.2.2.1 Woebot
+
+Woebot is a fully automated, AI-powered chatbot application developed by clinical researchers at Stanford University. It delivers CBT-based therapeutic content through structured conversational exercises. The system is guided by clinical principles and evidence-based therapeutic techniques, presenting prompts and exercises aligned with established CBT protocols.
+
+**Strengths**: Woebot is rigorously designed around clinical evidence and has been validated in randomised controlled trials demonstrating reductions in self-reported anxiety and depression (Fitzpatrick et al., 2017). Its fully autonomous design makes it highly scalable and immediately accessible.
+
+**Limitations**: Woebot is a standalone application with no pathway to human therapist consultation. While it is effective for mild symptom management, it is not designed to facilitate or prepare for human-led sessions. It also lacks adaptive personalisation: the conversational pathways are largely scripted according to CBT protocols, with limited ability to deviate from or dynamically respond to unexpected patient disclosures.
+
+#### 2.2.2.2 Wysa
+
+Wysa is an AI-powered mental health application that combines rule-based CBT and mindfulness techniques with periodic human coach support. Users interact with an anonymous AI penguin character and are offered structured coping exercises in response to expressed emotional states.
+
+**Strengths**: Wysa's combination of structured AI-driven exercises with optional human support represents a thoughtful hybrid model. The anonymised character design and conversational tone are intended to reduce stigma and lower the barrier to emotional disclosure.
+
+**Limitations**: The human coaching component in Wysa is limited and text-based; the platform does not support full therapist sessions or prescription services. The AI component relies on rule-based dialogue management rather than generative LLMs, limiting its capacity to handle the full complexity and unpredictability of human emotional expression.
+
+#### 2.2.2.3 Replika
+
+Replika is a general companionship AI application that employs large language models to simulate an empathetic conversational companion. While not explicitly a mental health application, many users turn to Replika for emotional support and companionship.
+
+**Strengths**: Replika demonstrates the commercial viability and user demand for LLM-powered empathetic conversational agents. Its ability to sustain long-term, personalised, and emotionally resonant conversations represents a significant technical achievement.
+
+**Limitations**: Replika lacks any integration with clinical professionals and makes no attempt to route users with serious mental health concerns toward professional help. It provides no structured assessment, emotional analysis, or clinical summarisation. Its purely companionship-oriented design also makes it inappropriate for deployment in a formal healthcare context.
+
+---
+
+### 2.2.3 General-Purpose Video Consultation Platforms
+
+This category includes platforms originally designed for video communication that have been adapted for or adopted in telemedicine and mental health contexts.
+
+#### 2.2.3.1 Zoom for Healthcare
+
+Zoom for Healthcare is a HIPAA-compliant variant of the Zoom video conferencing platform, used extensively by mental health practitioners in the United States for conducting teletherapy sessions. It provides end-to-end encrypted video and audio communication and is compatible with a wide range of devices.
+
+**Strengths**: Zoom's ubiquity, ease of use, and technical reliability make it a practical choice for practitioners who require a simple video channel with no additional infrastructure.
+
+**Limitations**: Zoom for Healthcare is a communication tool, not a therapeutic platform. It provides no patient management features, no AI integration, no scheduling automation, no progress tracking, and no inter-session tools. Therapists using Zoom must manage all administrative and clinical functions through separate, disconnected systems.
+
+#### 2.2.3.2 Whereby and Doxy.me
+
+Whereby and Doxy.me are browser-based video consultation platforms specifically designed for medical and therapeutic contexts. They operate without any software installation and emphasise simplicity of access for both practitioners and patients.
+
+**Strengths**: The zero-installation, browser-based approach significantly reduces friction for first-time patients. Doxy.me, in particular, has been widely adopted by independent therapists for its minimal technical requirements and HIPAA-compliant architecture.
+
+**Limitations**: Like Zoom for Healthcare, these platforms are communication channels without clinical intelligence. They offer no patient history tracking, no AI-assisted features, no automated documentation, and no mechanism for session preparation or outcome measurement.
+
+---
+
+### 2.2.4 Practice Management and EHR Systems
+
+This category covers software solutions designed not for direct patient engagement, but for the administrative management of clinical practice.
+
+#### 2.2.4.1 SimplePractice
+
+SimplePractice is a practice management and EHR (Electronic Health Records) system targeted at solo and small-group mental health practitioners. It provides scheduling, billing, progress note templates, telehealth integration, and a patient portal.
+
+**Strengths**: SimplePractice offers a comprehensive administrative suite that reduces the documentation burden on practitioners. Its telehealth integration and secure messaging features create a more unified experience than using disconnected tools.
+
+**Limitations**: SimplePractice is designed primarily as a practitioner-side administrative tool. Its patient-facing features (portal, forms, secure messaging) are minimal compared to its back-office capabilities. The system incorporates no AI features whatsoever; progress notes, treatment plans, and assessments are entirely manual. Furthermore, as a practitioner-centric system, it is not designed for patient-initiated discovery of psychologists.
+
+#### 2.2.4.2 Theranest
+
+Theranest is a similar practice management platform targeting mental health and counselling practices. It offers appointment scheduling, billing, electronic signatures, and a client portal.
+
+**Strengths**: Theranest's group practice features, including staff management, treatment team collaboration, and role-based access for multiple practitioners, are well-implemented and relevant to larger clinical settings.
+
+**Limitations**: Like SimplePractice, Theranest is a back-office system with a limited patient-facing interface and no AI integration. It is not a public-facing platform through which patients can discover and book sessions with new practitioners.
+
+---
+
+### 2.2.5 AI-Integrated Healthcare and Scheduling Platforms
+
+This emerging category represents platforms that have begun to integrate AI capabilities into appointment management, clinical documentation, or patient engagement workflows.
+
+#### 2.2.5.1 Nabla Copilot
+
+Nabla Copilot is an AI-powered clinical documentation assistant that listens to consultation recordings (video or audio) and automatically generates structured clinical notes, including diagnosis, treatment plan, and follow-up instructions, using large language models.
+
+**Strengths**: Nabla demonstrates the feasibility and value of LLM-based automation of clinical documentation, one of the most time-consuming aspects of a clinician's workload. By reducing documentation burden, such systems can increase practitioner availability for patient care.
+
+**Limitations**: Nabla operates as a post-session documentation tool for practitioners; it is not patient-facing and does not contribute to inter-session support, patient preparation, or emotion tracking. It is also exclusively a documentation assistant and does not manage sessions, scheduling, or patient-practitioner relationships.
+
+#### 2.2.5.2 Kry / LIVI
+
+Kry (marketed as LIVI in the United Kingdom) is a general digital health platform providing on-demand video consultations with general practitioners and, to a limited extent, mental health specialists. The platform uses AI assistance in symptom pre-assessment, asking patients a structured series of questions before the consultation to provide the clinician with a preliminary patient summary.
+
+**Strengths**: Kry's pre-assessment functionality represents a meaningful integration of AI into the pre-session workflow, reducing the time practitioners spend gathering basic information. Its on-demand model also reduces waiting times for patients with episodic needs.
+
+**Limitations**: Kry's AI pre-assessment is form-based and structured, lacking the conversational depth and emotional nuance of an LLM-powered chatbot. The platform is general-purpose and not optimised for ongoing therapeutic relationships or longitudinal mental health monitoring.
+
+---
+
+## 2.3 Comparative Analysis
+
+This section provides a structured comparative analysis of the solutions surveyed in Section 2.2 with respect to a set of functional and technical dimensions directly relevant to PsychPlatform.
+
+### 2.3.1 Comparison Dimensions
+
+The following dimensions are used for comparison:
+
+1. **Practitioner Discovery**: Does the platform allow patients to search for and select psychologists based on criteria such as specialisation, location, language, and rating?
+2. **AI Conversational Agent**: Does the platform include an LLM-powered conversational chatbot for inter-session patient support?
+3. **Clinical Summarisation**: Does the platform generate AI-produced summaries of patient interactions for practitioner review?
+4. **Emotional State Tracking**: Does the platform quantitatively track the patient's emotional indicators over time?
+5. **Credential Verification**: Does the platform verify practitioner credentials, and is AI used in this process?
+6. **Real-Time Messaging**: Does the platform support real-time text and/or voice messaging between patient and practitioner?
+7. **Session Code Security**: Does the platform implement a secure code-based mechanism for session activation?
+8. **Multilingual Support**: Does the platform natively support multiple languages in both the interface and conversational AI?
+9. **Geospatial Search**: Does the platform support location-based practitioner search?
+10. **Role-Based Administration**: Does the platform provide a dedicated administrator role for oversight and management?
+
+### 2.3.2 Comparison Table
+
+| Solution | Practitioner Discovery | AI Chatbot | Clinical Summarisation | Emotional Tracking | AI Credential Verification | Real-Time Messaging | Session Code | Multilingual | Geospatial Search | Admin Panel |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **PsychPlatform** (proposed) | ✅ Full | ✅ LLM-based | ✅ Automated | ✅ Multi-dimensional | ✅ LLM-assisted | ✅ Text + Voice | ✅ 6-digit email code | ✅ EN / FR / AR | ✅ 2dsphere | ✅ Full |
+| BetterHelp | ✅ Partial | ❌ | ❌ | ❌ | ✅ Manual review | ✅ Async text | ❌ | ✅ Partial | ❌ | ❌ Limited |
+| Talkspace | ✅ Partial | ❌ | ❌ | ❌ | ✅ Manual review | ✅ Text + Video | ❌ | ✅ Partial | ❌ | ❌ |
+| Doctolib | ✅ Full | ❌ | ❌ | ❌ | ✅ Manual | ❌ | ❌ | ✅ Partial | ✅ | ❌ |
+| Woebot | ❌ | ✅ Rule-based | ❌ | ✅ Basic | N/A | ❌ | ❌ | ✅ Partial | ❌ | ❌ |
+| Wysa | ❌ | ✅ Rule-based | ❌ | ✅ Basic | N/A | ❌ Human coach | ❌ | ❌ | ❌ | ❌ |
+| Replika | ❌ | ✅ LLM-based | ❌ | ❌ | N/A | ❌ | ❌ | ✅ Partial | ❌ | ❌ |
+| Zoom for Healthcare | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Video | ❌ | ✅ | ❌ | ❌ |
+| SimplePractice | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Async | ❌ | ❌ | ❌ | ✅ Partial |
+| Nabla Copilot | ❌ | ❌ | ✅ Post-session | ❌ | ❌ | ❌ | ❌ | ✅ Partial | ❌ | ❌ |
+| Kry / LIVI | ✅ Full | ✅ Form-based | ✅ Structured | ❌ | ✅ Manual | ✅ Video | ❌ | ✅ | ❌ | ❌ |
+
+*Table 2.1 – Comparative overview of existing solutions and PsychPlatform across key functional dimensions.*
+
+### 2.3.3 Analytical Observations
+
+Several important observations emerge from this comparison.
+
+First, no existing solution combines all ten dimensions within a single platform. Current solutions are specialised: AI chatbot applications (Woebot, Wysa) lack practitioner integration; practitioner discovery platforms (Doctolib, BetterHelp) lack AI intelligence; and clinical documentation tools (Nabla) lack patient-facing engagement features. PsychPlatform is the only system in this analysis that integrates all ten dimensions cohesively.
+
+Second, among the platforms that do employ AI, none use it across as many distinct functional workflows as PsychPlatform. Specifically, PsychPlatform applies LLM intelligence to: (a) the conversational agent, (b) inter-session clinical summarisation, (c) credential verification, (d) follow-up question generation for psychologists, and (e) a platform navigation assistant.
+
+Third, emotional state tracking, which is arguably the most clinically valuable form of AI integration for a mental health platform, is absent from all surveyed platforms except for the standalone chatbot applications (Woebot, Wysa), and even those implementations are limited to simple mood ratings rather than the multi-dimensional, conversation-derived indicators implemented in PsychPlatform.
+
+---
+
+## 2.4 Limitations of Current Systems
+
+Building upon the comparative analysis presented in Section 2.3, this section provides a more analytical critique of the structural and systemic limitations that characterise the current generation of mental health technology solutions.
+
+### 2.4.1 The Fragmentation Problem
+
+Perhaps the most pervasive limitation in the current landscape is the fragmentation of tools across the patient's care journey. A patient who requires psychological support may currently need to use: (1) a search engine or directory to find a psychologist; (2) a scheduling platform such as Doctolib to book an appointment; (3) a separate video conferencing tool for the session itself; (4) a mental health chatbot for inter-session emotional support; and (5) a patient portal or email for post-session communication. This fragmentation imposes significant cognitive and organisational overhead on patients who are, by definition, in a vulnerable state. It also creates data silos that prevent any single entity from forming a complete longitudinal picture of the patient's wellbeing trajectory.
+
+### 2.4.2 Absence of Pre-Session Patient Preparation
+
+The majority of platforms surveyed do not address the pre-session period as an opportunity for clinical value. Patients frequently arrive at therapy sessions without having reflected systematically on their emotional state, resulting in sessions that begin slowly or fail to address the most pressing concerns. Neither BetterHelp, Talkspace, nor Doctolib provide tools that help patients organise and articulate their thoughts before meeting with their practitioner. The standalone chatbot applications (Woebot, Wysa) do not bridge into formal therapeutic relationships and thus do not serve a preparatory function in that context.
+
+### 2.4.3 Lack of AI-Mediated Clinical Intelligence for Practitioners
+
+The information available to a psychologist when they begin a session is typically limited to whatever the patient has chosen to self-report in registration forms or initial assessments. Platforms do not, in general, provide the practitioner with AI-generated insight into the patient's recent emotional state, key preoccupations, or urgency level. This represents a missed opportunity to improve the efficiency and relevance of clinical consultations. Nabla Copilot addresses the post-session documentation burden, but no platform reviewed provides the psychologist with pre-session AI intelligence derived from inter-session patient interactions.
+
+### 2.4.4 Manual and Opaque Credential Verification
+
+The verification of practitioner credentials is a critical patient safety mechanism, yet all surveyed platforms that offer it rely on entirely manual review processes. This is time-consuming for administrators, creates delays in onboarding qualified practitioners, and provides no structured assistance to the reviewing party in assessing the completeness or plausibility of submitted documentation. The absence of AI-assisted preliminary screening means that the quality of the review is entirely dependent on the individual reviewer's expertise and diligence.
+
+### 2.4.5 Limited Multilingual and Cultural Accessibility
+
+Mental health platforms are predominantly designed for English-speaking markets, with localisation treated as an afterthought rather than a first-class design concern. This is particularly problematic in linguistically diverse societies, where patients who are not fluent in the platform's primary language may be unable to effectively communicate their emotional state, navigate platform features, or derive benefit from AI-generated content. Very few platforms support Arabic, despite the language being spoken by over 400 million native speakers worldwide. This gap represents both a social equity concern and a significant commercial opportunity.
+
+### 2.4.6 Absence of Secure, Code-Based Session Authentication
+
+Online therapy sessions transmit sensitive mental health information that must be protected from unauthorised access. Most platforms authenticate session access through standard login credentials alone, which is vulnerable to session hijacking, credential stealing, and account enumeration attacks. None of the surveyed platforms employ an out-of-band, one-time session activation code mechanism to provide an additional layer of assurance that the correct patient is participating in the session.
+
+### 2.4.7 Static Practitioner Profiles and Insufficient Discovery Mechanisms
+
+Practitioner discovery on existing platforms is generally limited to keyword search by name or specialty. Rating and review systems, where they exist, are either absent or based on superficial star ratings without dimensionality. Geospatial proximity, which is relevant when patients consider in-person sessions, is rarely integrated into the search interface. Furthermore, practitioner profiles are typically static text documents with no dynamic integration of availability, specialisation filtering, or community-provided ratings based on multi-dimensional assessment questionnaires.
+
+---
+
+## 2.5 Opportunities and Motivation
+
+The limitations identified in Section 2.4 define a clear opportunity space for an integrated, AI-augmented mental health consultation platform. This section articulates each opportunity and explains how PsychPlatform is designed to address it.
+
+### 2.5.1 Towards an Integrated Care Journey
+
+PsychPlatform responds to the fragmentation problem by integrating the complete care journey within a single, cohesive platform. A patient can discover a psychologist, book a session, prepare with an AI chatbot, attend the session with real-time messaging tools, receive post-session notifications, and rate the session, all without leaving the platform. This integration eliminates organisational overhead and ensures that the platform accumulates a rich, longitudinal dataset about each patient that can be used to continuously improve the quality of care.
+
+### 2.5.2 AI-Powered Inter-Session Preparation
+
+One of PsychPlatform's most distinctive features is its use of an LLM-powered conversational agent specifically designed to serve as a preparatory bridge between patient and psychologist. Before a scheduled session, the patient can use the chatbot to express their feelings, revisit their recent experiences, and identify the themes they wish to discuss. This conversational activity is not merely logged; it is analysed by the AI to produce a structured clinical summary that is made available to the psychologist before the session begins. This transforms the pre-session period from dead time into a clinically productive opportunity, and significantly reduces the time required to "warm up" a consultation.
+
+### 2.5.3 AI-Generated Clinical Intelligence for Practitioners
+
+PsychPlatform addresses the lack of pre-session AI intelligence by providing the psychologist with a comprehensive, automatically generated summary of the patient's most recent chatbot interactions. This summary includes the dominant emotion, sentiment trend, urgency score, key themes, and a narrative summary. Additionally, the system uses an LLM to generate five tailored follow-up questions that the psychologist should consider asking during the consultation, based on the content of the patient's chatbot conversations. This AI-augmented briefing significantly enhances the practitioner's preparedness and allows the consultation to be more focused, personalised, and therapeutically effective.
+
+### 2.5.4 AI-Assisted Credential Verification
+
+The automated credential analysis pipeline implemented in PsychPlatform addresses the inefficiency of fully manual credential review. By automatically extracting text from submitted PDFs and submitting that text to an LLM for structured analysis, the system provides the administrator with a preliminary assessment summary in seconds rather than hours. While the final approval decision remains with the human administrator (preserving necessary oversight), the AI dramatically reduces the cognitive effort required for routine review, enabling faster onboarding of qualified practitioners and more focused administrative attention on cases flagged as requiring further scrutiny.
+
+### 2.5.5 Native Multilingual and RTL Support
+
+PsychPlatform is designed from the ground up as a multilingual platform, supporting English, French, and Arabic with full right-to-left layout adaptation for Arabic. This is not a superficial feature: the AI chatbot itself is designed to detect the patient's language and respond in kind, ensuring that the highest-value feature of the platform — the therapeutic conversational agent — is equally accessible to speakers of all three languages. This approach reflects a commitment to equity of access and positions the platform appropriately for deployment in North African and Middle Eastern markets, as well as in French-speaking West African communities.
+
+### 2.5.6 Enhanced Security Through One-Time Session Codes
+
+PsychPlatform introduces a one-time, six-digit session activation code sent to the patient's registered email address upon payment confirmation. This code must be entered before the session becomes active, providing an additional out-of-band authentication factor that ensures only the registered, paying patient can initiate the session. This mechanism, absent in all surveyed platforms, mitigates the risk of session hijacking and provides an auditable payment confirmation trail.
+
+### 2.5.7 Rich, Quantitative Emotional Longitudinal Tracking
+
+By maintaining a structured `EmotionalIndicator` record for each session, PsychPlatform enables longitudinal analysis of a patient's emotional trajectory across multiple consultations. Scores for anxiety, sadness, anger, and positivity are stored per session, creating a time-series dataset that can reveal trends, regression, or progress in the patient's mental health. This quantitative tracking provides the psychologist with objective supplementary evidence alongside their qualitative clinical judgment, supporting more rigorous, outcome-oriented therapeutic practice.
+
+### 2.5.8 Multi-Dimensional Practitioner Rating System
+
+PsychPlatform implements a post-session rating system comprising ten questions rated on a five-point Likert scale, yielding a maximum score of 50. This multi-dimensional approach provides a significantly richer and more reliable measure of patient satisfaction than a simple star rating, enabling meaningful comparison and quality assurance across the practitioner community. The resulting average rating and total rating count are displayed on each psychologist's public profile, supporting informed patient decision-making.
+
+---
+
+## Summary
+
+This chapter has provided a comprehensive review of the scientific domains and existing solutions that inform and contextualise the development of PsychPlatform. Section 2.1 established the theoretical foundations of the system, spanning web engineering, full-stack development, large language models, prompt engineering, sentiment analysis, geospatial computing, and document-based AI verification. Section 2.2 presented an in-depth survey of ten existing platforms across five categories: telepsychology platforms, AI chatbot applications, general-purpose video consultation tools, practice management systems, and AI-integrated healthcare solutions. Section 2.3 conducted a structured comparative analysis across ten functional dimensions, demonstrating that PsychPlatform is the only solution in the surveyed landscape to integrate all dimensions within a single platform. Section 2.4 identified seven systemic limitations in existing solutions, including tool fragmentation, absence of pre-session preparation, lack of AI clinical intelligence for practitioners, and insufficient multilingual accessibility. Section 2.5 articulated the corresponding opportunities and explained precisely how each design decision in PsychPlatform is motivated by and responsive to an identified gap.
+
+The analysis conducted in this chapter demonstrates that, while individual aspects of PsychPlatform's functionality are addressed in isolation by existing tools, no single solution achieves the degree of integration, AI augmentation, clinical intelligence, and multilingual accessibility that the proposed platform aims to deliver. This distinction constitutes the primary academic and practical contribution of the project and motivates the design choices elaborated in the following chapters.
+
+---
+
+## References
+
+- Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan, J., Dhariwal, P., ... & Amodei, D. (2020). Language models are few-shot learners. *Advances in Neural Information Processing Systems*, 33, 1877–1901.
+- Dellermann, D., Ebel, P., Söllner, M., & Leimeister, J. M. (2019). Hybrid intelligence. *Business & Information Systems Engineering*, 61(5), 637–643.
+- Fedosejev, A. (2015). *React.js Essentials*. Packt Publishing.
+- Fielding, R. T. (2000). *Architectural styles and the design of network-based software architectures* (Doctoral dissertation). University of California, Irvine.
+- Fitzpatrick, K. K., Darcy, A., & Vierhile, M. (2017). Delivering cognitive behavior therapy to young adults with symptoms of depression and anxiety using a fully automated conversational agent (Woebot): A randomized controlled trial. *JMIR Mental Health*, 4(2), e19.
+- Jurafsky, D., & Martin, J. H. (2023). *Speech and Language Processing* (3rd ed. draft). Stanford University.
+- Meta AI. (2024). *Introducing Meta Llama 3*. Meta AI Research Blog. https://ai.meta.com/blog/meta-llama-3/
+- Mitchell, T. M. (1997). *Machine Learning*. McGraw-Hill.
+- Murugesan, S. (2001). Web engineering: A new discipline for development of web-based systems. In *Web Engineering* (pp. 3–13). Springer, Berlin, Heidelberg.
+- OpenAI. (2023). *GPT-4 Technical Report*. arXiv:2303.08774.
+- Provos, N., & Mazières, D. (1999). A future-adaptable password scheme. In *Proceedings of the FREENIX Track: USENIX Annual Technical Conference* (pp. 81–91).
+- Russell, S., & Norvig, P. (2020). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson.
+- Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., ... & Polosukhin, I. (2017). Attention is all you need. *Advances in Neural Information Processing Systems*, 30.
+- W3C. (2005). *Internationalization (i18n)*. World Wide Web Consortium. https://www.w3.org/International/
+- White, J., Fu, Q., Hays, S., Sandborn, M., Olea, C., Gilbert, H., ... & Schmidt, D. C. (2023). A prompt pattern catalog to enhance prompt engineering with ChatGPT. *arXiv preprint arXiv:2302.11382*.

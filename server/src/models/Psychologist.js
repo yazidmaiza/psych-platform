@@ -74,6 +74,16 @@ const psychologistSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  idCard: {
+    front: {
+      type: String,
+      default: ''
+    },
+    back: {
+      type: String,
+      default: ''
+    }
+  },
   isRejected: {
     type: Boolean,
     default: false
@@ -81,6 +91,18 @@ const psychologistSchema = new mongoose.Schema({
   aiVerificationSummary: {
     type: String,
     default: ''
+  },
+  introVideo: {
+    type: String,
+    required: function () {
+      // Intro video is required as part of verification submission,
+      // but profile creation happens before any documents are uploaded.
+      return Boolean(
+        (this.cvUrl && this.cvUrl.length) ||
+        (this.diplomaUrl && this.diplomaUrl.length) ||
+        (this.idCard && ((this.idCard.front && this.idCard.front.length) || (this.idCard.back && this.idCard.back.length)))
+      );
+    }
   },
   sessionPrice: {
     type: Number,

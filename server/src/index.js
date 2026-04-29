@@ -7,10 +7,17 @@ const { Server } = require('socket.io');
 const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const helmet = require('helmet');
+const dns = require('dns');
   // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
 dotenv.config();
+
+// Optional: force DNS resolvers (fixes SRV lookup failures on some Windows/VPN setups)
+if (process.env.DNS_SERVERS) {
+  const servers = process.env.DNS_SERVERS.split(',').map((s) => s.trim()).filter(Boolean);
+  if (servers.length) dns.setServers(servers);
+}
 
 const app = express();
 const server = http.createServer(app);

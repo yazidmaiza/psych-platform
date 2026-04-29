@@ -2,6 +2,36 @@ const Psychologist = require('../models/Psychologist');
 const axios = require('axios');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
+const path = require('path');
+
+const MAX_ID_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_INTRO_VIDEO_SIZE_BYTES = 100 * 1024 * 1024;
+
+const safeUnlink = (filePath) => {
+  try {
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (err) {
+    // best-effort cleanup
+  }
+};
+
+const ensureJpegAtPath = async (file) => {
+  if (!file?.path || !file?.mimetype) return;
+  if (file.mimetype !== 'image/png') return;
+
+  // Files are stored as *.jpg for ID images; if the upload is PNG,
+  // convert & overwrite so downstream consumers can reliably read JPEG.
+  let sharp;
+  try {
+    sharp = require('sharp');
+  } catch (err) {
+    throw new Error('PNG ID images require the server dependency "sharp". Please install it or upload a JPG/JPEG.');
+  }
+  const input = fs.readFileSync(file.path);
+  const output = await sharp(input).jpeg({ quality: 90 }).toBuffer();
+  fs.writeFileSync(file.path, output);
+};
 
 // Helper: extract text from PDF file
 const extractPDFText = async (filePath) => {
@@ -49,12 +79,36 @@ exports.uploadDocuments = async (req, res) => {
   try {
     console.log('uploadDocuments called');
     console.log('files:', req.files);
-    if (!req.files || !req.files.cv || !req.files.diploma) {
-      return res.status(400).json({ message: 'Both CV and diploma are required' });
+    if (!req.files || !req.files.cv || !req.files.diploma || !req.files.idFront || !req.files.idBack || !req.files.introVideo) {
+      // Cleanup any uploaded files to avoid orphaned uploads
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
+      return res.status(400).json({ message: 'CV, diploma, ID front, ID back, and introduction video are required' });
     }
 
     const cvPath = req.files.cv[0].path;
     const diplomaPath = req.files.diploma[0].path;
+    const idFrontFile = req.files.idFront[0];
+    const idBackFile = req.files.idBack[0];
+    const introVideoFile = req.files.introVideo[0];
+
+    if (req.files.cv[0].size > MAX_PDF_SIZE_BYTES || req.files.diploma[0].size > MAX_PDF_SIZE_BYTES) {
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
+      return res.status(400).json({ message: 'CV and diploma must be 10MB or less' });
+    }
+
+    if (idFrontFile.size > MAX_ID_IMAGE_SIZE_BYTES || idBackFile.size > MAX_ID_IMAGE_SIZE_BYTES) {
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
+      return res.status(400).json({ message: 'Each ID card image must be 5MB or less' });
+    }
+
+    // Normalize ID images to actual JPEG bytes (multer stores as front.jpg/back.jpg).
+    await ensureJpegAtPath(idFrontFile);
+    await ensureJpegAtPath(idBackFile);
+
+    if (introVideoFile.size > MAX_INTRO_VIDEO_SIZE_BYTES) {
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
+      return res.status(400).json({ message: 'Introduction video must be 100MB or less' });
+    }
 
     // Extract text from PDFs
     console.log('extracting CV text...');
@@ -69,11 +123,23 @@ exports.uploadDocuments = async (req, res) => {
     const aiSummary = await analyzeWithGroq(cvText, diplomaText);
 
     // Update psychologist profile
+    const userId = String(req.user.id);
+    const idCardDir = path.posix.join('verification', userId, 'id');
+    const idCardFrontPath = path.posix.join(idCardDir, idFrontFile.filename);
+    const idCardBackPath = path.posix.join(idCardDir, idBackFile.filename);
+    const introVideoDir = path.posix.join('verification', userId, 'video');
+    const introVideoPath = path.posix.join(introVideoDir, introVideoFile.filename);
+
     const psychologist = await Psychologist.findOneAndUpdate(
       { userId: req.user.id },
       {
         cvUrl: req.files.cv[0].filename,
         diplomaUrl: req.files.diploma[0].filename,
+        idCard: {
+          front: idCardFrontPath,
+          back: idCardBackPath
+        },
+        introVideo: introVideoPath,
         aiVerificationSummary: aiSummary,
         isApproved: false
       },
@@ -81,10 +147,16 @@ exports.uploadDocuments = async (req, res) => {
     );
 
     if (!psychologist) {
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
       return res.status(404).json({ message: 'Psychologist profile not found. Please complete your profile first.' });
     }
 
-    res.status(200).json({ message: 'Documents uploaded and analyzed. Awaiting admin approval.', aiSummary });
+    res.status(200).json({
+      message: 'Documents uploaded and analyzed. Awaiting admin approval.',
+      aiSummary,
+      idCardUploaded: true,
+      introVideoUploaded: true
+    });
 
   } catch (err) {
     console.log('uploadDocuments error:', err.message);

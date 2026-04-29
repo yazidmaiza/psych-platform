@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const API = 'http://localhost:5000';
@@ -13,6 +13,9 @@ export default function AdminPanel() {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [assetUrls, setAssetUrls] = useState({});
+  const [faceChecks, setFaceChecks] = useState({});
+  const [faceDiag, setFaceDiag] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -61,7 +64,7 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) return setError(data.message || 'Failed to delete user');
       setMessage('User deleted');
-      setUsers(users.filter(u => u._id !== id));
+      setUsers(users.filter((u) => u._id !== id));
     } catch (err) {
       setError('Failed to delete user');
     }
@@ -77,7 +80,7 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) return setError(data.message || 'Failed to update role');
       setMessage('Role updated');
-      setUsers(users.map(u => u._id === id ? { ...u, role: data.role } : u));
+      setUsers(users.map((u) => (u._id === id ? { ...u, role: data.role } : u)));
     } catch (err) {
       setError('Failed to update role');
     }
@@ -92,7 +95,7 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) return setError(data.message || 'Failed to approve');
       setMessage('Psychologist approved');
-      setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
+      setPendingVerifications(pendingVerifications.filter((p) => p._id !== id));
     } catch (err) {
       setError('Failed to approve');
     }
@@ -107,7 +110,7 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) return setError(data.message || 'Failed to reject');
       setMessage('Psychologist rejected');
-      setPendingVerifications(pendingVerifications.filter(p => p._id !== id));
+      setPendingVerifications(pendingVerifications.filter((p) => p._id !== id));
     } catch (err) {
       setError('Failed to reject');
     }
@@ -132,154 +135,334 @@ export default function AdminPanel() {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
+  const loadAssetPreview = async (key, assetPath) => {
+    try {
+      const existingUrl = assetUrls[key];
+      if (existingUrl) return;
+
+      const res = await fetch(API + '/api/verification/asset?path=' + encodeURIComponent(assetPath), {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+      });
+      if (!res.ok) throw new Error('Failed to load asset');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setAssetUrls((prev) => ({ ...prev, [key]: url }));
+    } catch (err) {
+      setError('Could not load asset preview');
+    }
+  };
+
+  const runFaceCheck = async (psy) => {
+    const key = `face:${psy._id}`;
+    const userId = typeof psy.userId === 'string' ? psy.userId : psy.userId?._id;
+    if (!userId) {
+      setFaceChecks((prev) => ({
+        ...prev,
+        [key]: { loading: false, result: { match: false, confidence: 0, error: 'Missing userId for this request' } }
+      }));
+      return;
+    }
+
+    setFaceChecks((prev) => ({ ...prev, [key]: { loading: true, result: null } }));
+    try {
+      const res = await fetch(API + '/api/verification/face-check/' + userId, {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+      });
+      const data = await res.json();
+      setFaceChecks((prev) => ({ ...prev, [key]: { loading: false, result: data } }));
+    } catch (err) {
+      setFaceChecks((prev) => ({
+        ...prev,
+        [key]: { loading: false, result: { match: false, confidence: 0, error: 'Request failed' } }
+      }));
+    }
+  };
+
+  const loadFaceDiagnostics = async () => {
+    try {
+      const res = await fetch(API + '/api/verification/face-check-diagnostics', {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+      });
+      const data = await res.json();
+      setFaceDiag(data);
+    } catch (err) {
+      setFaceDiag({ error: 'Failed to load diagnostics' });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(assetUrls).forEach((url) => {
+        try {
+          window.URL.revokeObjectURL(url);
+        } catch (e) {
+          // ignore
+        }
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const statCards = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { label: 'Total Users', value: stats.totalUsers },
+      { label: 'Patients', value: stats.totalPatients },
+      { label: 'Psychologists', value: stats.totalPsychologists },
+      { label: 'Total Sessions', value: stats.totalSessions },
+      { label: 'Active', value: stats.activeSessions },
+      { label: 'Completed', value: stats.completedSessions }
+    ];
+  }, [stats]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="text-sm text-white/70">Loading admin dashboard…</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', padding: 30, fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 4 }}>Admin Panel</h1>
-          <p style={{ color: '#718096', marginTop: 0 }}>Manage users and verification requests</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={fetchData}
-            style={{ padding: '6px 14px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-          >
-            Refresh
-          </button>
-          <button
-            onClick={logout}
-            style={{ padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-          >
-            Logout
-          </button>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="border-b border-white/10 bg-slate-950/50 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+            <p className="text-sm text-white/60">Review verifications, manage users, and monitor platform stats.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchData}
+              className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={logout}
+              className="h-10 rounded-2xl bg-rose-500/90 px-4 text-sm font-semibold text-white hover:bg-rose-500 transition"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
-      {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
-      {message && <p style={{ color: 'green', marginBottom: 12 }}>{message}</p>}
+      <div className="mx-auto max-w-6xl px-6 py-8 space-y-6">
+        {error && (
+          <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
+            {message}
+          </div>
+        )}
 
-      {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, margin: '18px 0 28px' }}>
-          {[
-            { label: 'Total Users', value: stats.totalUsers },
-            { label: 'Patients', value: stats.totalPatients },
-            { label: 'Psychologists', value: stats.totalPsychologists },
-            { label: 'Total Sessions', value: stats.totalSessions },
-            { label: 'Active Sessions', value: stats.activeSessions },
-            { label: 'Completed Sessions', value: stats.completedSessions }
-          ].map(s => (
-            <div key={s.label} style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, textAlign: 'center' }}>
-              <div style={{ color: '#718096', fontSize: 13 }}>{s.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 'bold', marginTop: 6 }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>Users</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        <thead style={{ background: '#f7fafc', textAlign: 'left' }}>
-          <tr>
-            <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Email</th>
-            <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Role</th>
-            <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Created</th>
-            <th style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <td style={{ padding: '10px 12px' }}>{u.email}</td>
-              <td style={{ padding: '10px 12px' }}>
-                <select
-                  value={u.role}
-                  onChange={e => updateRole(u._id, e.target.value)}
-                  disabled={u.role === 'admin'}
-                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e0' }}
-                >
-                  <option value="patient">patient</option>
-                  <option value="psychologist">psychologist</option>
-                  <option value="admin">admin</option>
-                </select>
-              </td>
-              <td style={{ padding: '10px 12px', color: '#718096' }}>
-                {new Date(u.createdAt).toLocaleDateString()}
-              </td>
-              <td style={{ padding: '10px 12px' }}>
-                {u.role !== 'admin' && (
-                  <button
-                    onClick={() => deleteUser(u._id)}
-                    style={{ padding: '4px 10px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                  >
-                    Delete
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, marginTop: 32 }}>
-        Pending Verifications
-      </h2>
-
-      {pendingVerifications.length === 0 && (
-        <p style={{ color: '#718096', fontSize: 14 }}>No pending verifications.</p>
-      )}
-
-      {pendingVerifications.map(psy => (
-        <div key={psy._id} style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <p style={{ fontWeight: 'bold', fontSize: 15 }}>{psy.firstName} {psy.lastName}</p>
-              <p style={{ color: '#718096', fontSize: 13 }}>{psy.userId?.email}</p>
-              <p style={{ color: '#718096', fontSize: 13 }}>{psy.city}</p>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {psy.cvUrl && (
-                  <button
-                    onClick={() => viewFile(psy.cvUrl)}
-                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
-                  >
-                    View CV
-                  </button>
-                )}
-                {psy.diplomaUrl && (
-                  <button
-                    onClick={() => viewFile(psy.diplomaUrl)}
-                    style={{ padding: '4px 10px', background: '#2D6A9F', color: '#fff', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
-                  >
-                    View Diploma
-                  </button>
-                )}
+        {statCards.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {statCards.map((s) => (
+              <div key={s.label} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">{s.label}</div>
+                <div className="mt-2 text-2xl font-bold">{s.value}</div>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => approvePsy(psy._id)}
-                style={{ padding: '6px 14px', background: '#38a169', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => rejectPsy(psy._id)}
-                style={{ padding: '6px 14px', background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
-              >
-                Reject
-              </button>
-            </div>
+            ))}
+          </div>
+        )}
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-bold">Users</h2>
+            <p className="text-sm text-white/60">Manage roles and remove accounts when needed.</p>
           </div>
 
-          {psy.aiVerificationSummary && (
-            <div style={{ marginTop: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 12 }}>
-              <p style={{ fontSize: 12, fontWeight: 'bold', color: '#4a5568', marginBottom: 6 }}>AI Analysis</p>
-              <p style={{ fontSize: 13, color: '#4a5568', whiteSpace: 'pre-wrap' }}>{psy.aiVerificationSummary}</p>
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-white/5 text-white/70">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left font-semibold">Role</th>
+                    <th className="px-4 py-3 text-left font-semibold">Created</th>
+                    <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {users.map((u) => (
+                    <tr key={u._id} className="hover:bg-white/5">
+                      <td className="px-4 py-3">{u.email}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={u.role}
+                          onChange={(e) => updateRole(u._id, e.target.value)}
+                          disabled={u.role === 'admin'}
+                          className="h-9 rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                        >
+                          <option value="patient">patient</option>
+                          <option value="psychologist">psychologist</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-white/60">{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3">
+                        {u.role !== 'admin' && (
+                          <button
+                            onClick={() => deleteUser(u._id)}
+                            className="h-9 rounded-2xl bg-rose-500/90 px-3 text-xs font-semibold text-white hover:bg-rose-500 transition"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">Pending Verifications</h2>
+              <p className="text-sm text-white/60">Review uploaded documents, intro video, and face check.</p>
+            </div>
+            <div className="text-sm text-white/60">{pendingVerifications.length} pending</div>
+          </div>
+
+          {pendingVerifications.length === 0 && (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+              No pending verifications.
             </div>
           )}
-        </div>
-      ))}
+
+          <div className="grid gap-4">
+            {pendingVerifications.map((psy) => (
+              <div key={psy._id} className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-base">{psy.firstName} {psy.lastName}</p>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-white/70">
+                        {psy.city || '—'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-white/60 break-all">{psy.userId?.email}</p>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {psy.cvUrl && (
+                        <button
+                          onClick={() => viewFile(psy.cvUrl)}
+                          className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition"
+                        >
+                          View CV
+                        </button>
+                      )}
+                      {psy.diplomaUrl && (
+                        <button
+                          onClick={() => viewFile(psy.diplomaUrl)}
+                          className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition"
+                        >
+                          View Diploma
+                        </button>
+                      )}
+                      {psy.introVideo && (
+                        <button
+                          onClick={() => loadAssetPreview(`introVideo:${psy._id}`, psy.introVideo)}
+                          className="h-9 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                        >
+                          Load Intro Video
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => approvePsy(psy._id)}
+                      className="h-10 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white hover:bg-emerald-500 transition"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => rejectPsy(psy._id)}
+                      className="h-10 rounded-2xl bg-rose-500/90 px-4 text-sm font-semibold text-white hover:bg-rose-500 transition"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+
+                {psy.aiVerificationSummary && (
+                  <details className="mt-4 rounded-3xl border border-white/10 bg-slate-950/30 p-4">
+                    <summary className="cursor-pointer select-none text-sm font-semibold text-white/80">
+                      AI Analysis
+                    </summary>
+                    <div className="mt-3 whitespace-pre-wrap text-sm text-white/70">{psy.aiVerificationSummary}</div>
+                  </details>
+                )}
+
+                {assetUrls[`introVideo:${psy._id}`] && (
+                  <div className="mt-4 rounded-3xl border border-white/10 bg-slate-950/30 p-4">
+                    <p className="text-sm font-semibold text-white/80">Introduction Video</p>
+                    <video
+                      src={assetUrls[`introVideo:${psy._id}`]}
+                      controls
+                      className="mt-3 w-full max-h-80 rounded-2xl bg-black/40"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-3xl border border-white/10 bg-slate-950/30 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-sm font-semibold text-white/80">Automated Face Verification</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => runFaceCheck(psy)}
+                        disabled={!psy.userId?._id && typeof psy.userId !== 'string' ? true : faceChecks[`face:${psy._id}`]?.loading}
+                        className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition disabled:opacity-60"
+                      >
+                        {faceChecks[`face:${psy._id}`]?.loading ? 'Running…' : 'Run Face Check'}
+                      </button>
+                      <button
+                        onClick={loadFaceDiagnostics}
+                        className="h-9 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      >
+                        Diagnostics
+                      </button>
+                    </div>
+                  </div>
+
+                  {faceChecks[`face:${psy._id}`]?.result && (
+                    <div className="mt-3 text-sm text-white/70">
+                      {faceChecks[`face:${psy._id}`].result.error ? (
+                        <p>Face check could not be completed: {faceChecks[`face:${psy._id}`].result.error}</p>
+                      ) : faceChecks[`face:${psy._id}`].result.match ? (
+                        <p>
+                          Face Match Confirmed <span className="text-white/50">·</span> Confidence: {faceChecks[`face:${psy._id}`].result.confidence}%
+                        </p>
+                      ) : (
+                        <p>
+                          Face Mismatch Detected <span className="text-white/50">·</span> Confidence: {faceChecks[`face:${psy._id}`].result.confidence}%
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {faceDiag && (
+                    <details className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <summary className="cursor-pointer select-none text-xs font-semibold text-white/70">Diagnostics output</summary>
+                      <pre className="mt-2 whitespace-pre-wrap text-xs text-white/60">{JSON.stringify(faceDiag, null, 2)}</pre>
+                    </details>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
