@@ -10,7 +10,7 @@ class RiskAnalysisServer {
    * Classifies a patient message for behavioral risk signals.
    * @param {string} message - Raw patient message
    * @param {string} contextSnippet - Last 3 turns of conversation (formatted text)
-   * @returns {Promise<{ category: string, score: number, reasoning: string }>}
+   * @returns {Promise<{ risk_level: string, confidence: number, signals_detected: string[], urgency: string, recommended_action: string }>}
    */
   async classify(message, contextSnippet) {
     const prompt = `You are a clinical risk screening system embedded in a psychological intake chatbot.
@@ -22,23 +22,40 @@ PATIENT MESSAGE:
 RECENT CONVERSATION CONTEXT (last 3 turns):
 ${contextSnippet || 'No prior context.'}
 
-Analyze for these specific risk categories only:
-- "self_harm": explicit or implied references to self-injury, cutting, burning, hurting oneself
-- "suicidal_ideation": wishes to die, statements of hopelessness, "no point in living", passive death wishes
-- "abuse_trauma": disclosures of physical, sexual, or emotional violence, abuse by others
-- "crisis_escalation": sudden incoherence, panic, rapid emotional destabilization, explicit danger
-- "safe": no meaningful risk detected — includes figurative language, metaphors, venting without harm signals
+CLASSIFICATION RULES:
+Classify the message into one of three risk levels based on semantic understanding, tone, urgency, and phrasing.
+
+LOW RISK:
+- General emotional distress
+- Sadness, stress, confusion
+- No indication of harm
+Examples: "I feel tired", "I'm overwhelmed"
+
+MEDIUM RISK:
+- Indirect or passive harmful thoughts
+- Expressions of wanting escape or disappearance
+Examples: "I just want everything to stop", "I feel like disappearing sometimes"
+
+HIGH RISK (CRITICAL):
+- Explicit or implied intent to harm self or others
+- Threats, urgency, manipulation, coercion
+Examples: "I'm going to hurt myself", "If you don't help me, I'll do something bad"
 
 SCORING RULES:
-- Be conservative. Figurative language ("I want to kill this stress") = safe.
-- Only flag concrete, direct, or strongly implied harm signals.
-- Score 0–100 represents confidence that this category applies.
+- Consider semantic understanding, not just keywords.
+- Consider tone, urgency, and phrasing.
+- If the user uses coercion or manipulation (e.g., "If you don't help me, I'll hurt myself"), classify as HIGH RISK.
+- When unsure between two levels, ALWAYS classify to the higher risk level (fail-safe).
+- Risk level must be: "LOW", "MEDIUM", or "HIGH".
+- Confidence is a float between 0.0 and 1.0.
 
 Respond ONLY with a single valid JSON object. No other text, no explanation, no markdown:
 {
-  "category": "safe" | "self_harm" | "suicidal_ideation" | "abuse_trauma" | "crisis_escalation",
-  "score": <integer 0-100>,
-  "reasoning": "<one concise sentence explaining the classification>"
+  "risk_level": "LOW" | "MEDIUM" | "HIGH",
+  "confidence": <float 0.0-1.0>,
+  "signals_detected": ["<signal 1>", "<signal 2>"],
+  "urgency": "immediate" | "soon" | "none",
+  "recommended_action": "<one sentence recommendation>"
 }`;
 
     try {
@@ -46,18 +63,17 @@ Respond ONLY with a single valid JSON object. No other text, no explanation, no 
       return this._parseClassification(rawResponse);
     } catch (error) {
       console.error('RiskAnalysisServer - classify Error:', error.message);
-      // Fail safe: never crash the pipeline
-      return { category: 'safe', score: 0, reasoning: 'Classification failed — defaulting to safe.' };
+      return { risk_level: 'LOW', confidence: 1.0, signals_detected: [], urgency: 'none', recommended_action: 'Classification failed — defaulting to safe.' };
     }
   }
 
   /**
    * Parses and validates the LLM JSON output.
    * @param {string} raw
-   * @returns {{ category: string, score: number, reasoning: string }}
+   * @returns {{ risk_level: string, confidence: number, signals_detected: string[], urgency: string, recommended_action: string }}
    */
   _parseClassification(raw) {
-    const VALID_CATEGORIES = ['safe', 'self_harm', 'suicidal_ideation', 'abuse_trauma', 'crisis_escalation'];
+    const VALID_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 
     try {
       const cleaned = raw.replace(/```json|```/g, '').trim();
@@ -67,15 +83,17 @@ Respond ONLY with a single valid JSON object. No other text, no explanation, no 
 
       const parsed = JSON.parse(cleaned.slice(start, end + 1));
 
-      if (!VALID_CATEGORIES.includes(parsed.category)) {
-        parsed.category = 'safe';
+      if (!VALID_LEVELS.includes(parsed.risk_level)) {
+        parsed.risk_level = 'LOW';
       }
-      parsed.score = Math.min(100, Math.max(0, parseInt(parsed.score, 10) || 0));
-      parsed.reasoning = String(parsed.reasoning || '').slice(0, 300);
+      parsed.confidence = Math.min(1.0, Math.max(0.0, parseFloat(parsed.confidence) || 0.0));
+      parsed.signals_detected = Array.isArray(parsed.signals_detected) ? parsed.signals_detected : [];
+      parsed.urgency = parsed.urgency || 'none';
+      parsed.recommended_action = String(parsed.recommended_action || '').slice(0, 300);
 
       return parsed;
     } catch {
-      return { category: 'safe', score: 0, reasoning: 'Parse error — defaulting to safe.' };
+      return { risk_level: 'LOW', confidence: 0.0, signals_detected: [], urgency: 'none', recommended_action: 'Parse error — defaulting to safe.' };
     }
   }
 }

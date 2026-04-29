@@ -121,6 +121,7 @@ app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
 app.use('/api/calendar', apiLimiter, calendarRoutes);
 app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
+app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
 app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
 
 //////////////////////////////////////////////////
