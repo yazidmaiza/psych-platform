@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 
 const API = 'http://localhost:5000';
 
@@ -227,11 +229,15 @@ export default function AdminPanel() {
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="border-b border-white/10 bg-slate-950/50 backdrop-blur">
         <div className="mx-auto max-w-6xl px-6 py-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-            <p className="text-sm text-white/60">Review verifications, manage users, and monitor platform stats.</p>
+          <div className="flex items-center gap-3">
+            <PlatformLogo size={40} />
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+              <p className="text-sm text-white/60">Review verifications, manage users, and monitor platform stats.</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggleButton />
             <button
               onClick={fetchData}
               className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition"
@@ -466,4 +472,3 @@ export default function AdminPanel() {
     </div>
   );
 }
-

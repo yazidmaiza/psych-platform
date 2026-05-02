@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { getUser } from '../services/auth';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { useTheme } from '../context/ThemeContext';
 
 const localizer = momentLocalizer(moment);
 
@@ -15,6 +16,7 @@ const Glass = ({ children, className = '' }) => (
 );
 
 export default function CalendarPage() {
+  const { theme } = useTheme();
   const [events, setEvents] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -312,25 +314,25 @@ export default function CalendarPage() {
   }, [isPatientOwnCalendar, isPsychologistOwnCalendar]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
-        <div className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+        <div className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
           <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Calendar</h1>
-                <p className="mt-1 text-sm text-white/60">{headerHint}</p>
+                <p className="mt-1 text-sm text-[color:var(--muted)]">{headerHint}</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
               >
                 Back
               </button>
@@ -342,8 +344,8 @@ export default function CalendarPage() {
           <Glass className="p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-sm font-semibold text-white">Legend</div>
-                <div className="mt-1 text-xs text-white/60">
+                <div className="text-sm font-semibold text-[color:var(--app-fg)]">Legend</div>
+                <div className="mt-1 text-xs text-[color:var(--muted)]">
                   {isPatientOwnCalendar
                     ? 'This calendar shows your booked dates and their current status.'
                     : isPsychologistOwnCalendar
@@ -351,7 +353,7 @@ export default function CalendarPage() {
                       : 'Available times are shown in blue. Your pending request is amber.'}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-white/70">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-[color:var(--muted)]">
                 {isPatientOwnCalendar ? (
                   <>
                     <div className="flex items-center gap-2">
@@ -408,7 +410,7 @@ export default function CalendarPage() {
             )}
           </Glass>
 
-          <div className="mt-4 rbc-dark">
+          <div className={`mt-4 ${theme === 'light' ? 'rbc-light' : 'rbc-dark'}`}>
             <Calendar
               localizer={localizer}
               events={events}

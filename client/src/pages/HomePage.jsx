@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 
 const StarRating = ({ rating = 0, total = 0 }) => {
   const stars = [1, 2, 3, 4, 5];
@@ -148,26 +150,30 @@ export default function HomePage() {
   const visible = useMemo(() => psychologists.slice(0, 9), [psychologists]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
         {/* Top nav */}
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold tracking-tight">{t('navTitle')}</div>
-                <div className="mt-1 text-xs text-white/60">{t('navSubtitle')}</div>
+              <div className="flex min-w-0 items-center gap-3">
+                <PlatformLogo size={36} />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold tracking-tight">{t('navTitle')}</div>
+                  <div className="mt-1 text-xs text-[color:var(--muted)]">{t('navSubtitle')}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
+                <ThemeToggleButton />
                 <select
-                  className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition outline-none rtl:ml-2 ltr:mr-2 cursor-pointer"
+                  className="rounded-2xl border border-white/10 bg-white/10 px-2 py-2 text-sm font-semibold text-white/90 hover:bg-white/15 transition outline-none rtl:ml-2 ltr:mr-2 cursor-pointer"
                   value={i18n.language}
                   onChange={(e) => i18n.changeLanguage(e.target.value)}
                 >
@@ -185,7 +191,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => navigate('/register')}
-                  className="rounded-2xl bg-indigo-500/90 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                  className="rounded-2xl bg-[color:var(--accent-90)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
                 >
                   {t('createAccount')}
                 </button>
@@ -245,14 +251,14 @@ export default function HomePage() {
 
               <div className="mt-4 grid gap-3">
                 <input
-                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white placeholder:text-white/60 outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   placeholder={t('searchPlaceholder')}
                   value={filters.search}
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 />
                 
                 <select
-                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   value={filters.sort}
                   onChange={e => setFilters({ ...filters, sort: e.target.value })}
                 >
@@ -476,4 +482,3 @@ export default function HomePage() {
     </div>
   );
 }
-

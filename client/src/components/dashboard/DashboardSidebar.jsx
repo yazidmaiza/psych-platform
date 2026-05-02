@@ -1,4 +1,5 @@
 import React from 'react';
+import PlatformLogo from '../branding/PlatformLogo';
 
 const Item = ({ active, disabled, onClick, label, meta }) => (
   <button
@@ -37,9 +38,12 @@ export default function DashboardSidebar({
     <aside className="w-full lg:w-[320px]">
       <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-white">Psychologist</div>
-            <div className="mt-1 text-xs text-white/60">Dashboard</div>
+          <div className="flex min-w-0 items-start gap-3">
+            <PlatformLogo size={36} className="mt-0.5" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">Psychologist</div>
+              <div className="mt-1 text-xs text-white/60">Dashboard</div>
+            </div>
           </div>
           <button
             type="button"

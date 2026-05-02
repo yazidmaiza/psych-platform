@@ -34,16 +34,18 @@ import CalendarPage from './pages/Calendar';
 
 // Admin
 import AdminPanel from './pages/AdminPanel';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/p/psychologist/:id" element={<PublicPsychologistProfile />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<HomePage />} />
+          <Route path="/p/psychologist/:id" element={<PublicPsychologistProfile />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
         {/* Patient routes */}
         <Route
@@ -220,10 +222,11 @@ function App() {
             </ProtectedRoute>
           }
         />
-      </Routes>
-      <AssistantBot />
-      <RiskAlertBanner />
-    </BrowserRouter>
+        </Routes>
+        <AssistantBot />
+        <RiskAlertBanner />
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

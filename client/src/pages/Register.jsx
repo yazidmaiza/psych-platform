@@ -10,12 +10,12 @@ const RoleCard = ({ active, label, description, onClick }) => (
     className={[
       'rounded-3xl border p-4 text-left transition',
       active
-        ? 'border-indigo-400/30 bg-indigo-500/15'
-        : 'border-white/10 bg-white/5 hover:bg-white/10'
+        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-12)]'
+        : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] hover:brightness-110'
     ].join(' ')}
   >
-    <div className="text-sm font-semibold text-white">{label}</div>
-    <div className="mt-1 text-xs text-white/60">{description}</div>
+    <div className="text-sm font-semibold text-[color:var(--app-fg)]">{label}</div>
+    <div className="mt-1 text-xs text-[color:var(--muted)]">{description}</div>
   </button>
 );
 
@@ -59,11 +59,11 @@ export default function Register() {
       backLabel="Home"
       footer={
         <div className="flex items-center justify-between gap-3 text-sm">
-          <div className="text-white/60">Already have an account?</div>
+          <div className="text-[color:var(--muted)]">Already have an account?</div>
           <button
             type="button"
             onClick={() => navigate('/login')}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
           >
             Login
           </button>
@@ -78,29 +78,29 @@ export default function Register() {
 
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Email</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Email</span>
           <input
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="you@example.com"
-            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
           />
         </label>
 
         <label className="grid gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Password</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Password</span>
           <input
             type="password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             placeholder="Minimum 8 characters + number"
-            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
           />
-          <div className="text-xs text-white/50">Use at least 8 characters and include a number.</div>
+          <div className="text-xs text-[color:var(--muted)]">Use at least 8 characters and include a number.</div>
         </label>
 
         <div className="mt-2">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Account type</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Account type</div>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <RoleCard
               active={form.role === 'patient'}
@@ -121,7 +121,7 @@ export default function Register() {
           type="button"
           onClick={handleRegister}
           disabled={!canSubmit}
-          className="mt-2 h-11 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition disabled:opacity-50"
+          className="mt-2 h-11 rounded-2xl bg-[color:var(--accent-90)] px-4 text-sm font-semibold text-white shadow hover:brightness-110 transition disabled:opacity-50"
         >
           {loading ? 'Creating account...' : 'Create account'}
         </button>

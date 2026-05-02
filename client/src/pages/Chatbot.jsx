@@ -256,8 +256,8 @@ export default function Chatbot() {
       <style>{`
         .intake-root {
           min-height: 100vh;
-          background: #0a0f1e;
-          color: #fff;
+          background: var(--app-bg);
+          color: var(--app-fg);
           font-family: 'Inter', -apple-system, sans-serif;
           position: relative;
           display: flex;
@@ -281,14 +281,14 @@ export default function Chatbot() {
           transform: translateX(-50%);
           width: 600px;
           height: 300px;
-          background: radial-gradient(ellipse, #6366f1 0%, #8b5cf6 100%);
+          background: radial-gradient(ellipse, var(--accent) 0%, rgba(139, 92, 246, 1) 100%);
         }
         .ambient-orb-bottom {
           bottom: -100px;
           right: -100px;
           width: 400px;
           height: 400px;
-          background: radial-gradient(ellipse, #ec4899 0%, #8b5cf6 100%);
+          background: radial-gradient(ellipse, #ec4899 0%, var(--accent) 100%);
         }
         .intake-layout {
           position: relative;
@@ -305,9 +305,9 @@ export default function Chatbot() {
           position: sticky;
           top: 0;
           z-index: 40;
-          background: rgba(10, 15, 30, 0.85);
+          background: color-mix(in srgb, var(--app-bg) 85%, transparent);
           backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+          border-bottom: 1px solid var(--panel-border);
           padding: 0 1rem;
         }
         .header-inner {
@@ -325,7 +325,7 @@ export default function Chatbot() {
           font-size: 1.5rem;
           width: 2.5rem;
           height: 2.5rem;
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          background: linear-gradient(135deg, var(--accent), #8b5cf6);
           border-radius: 0.75rem;
           display: flex;
           align-items: center;
@@ -338,7 +338,7 @@ export default function Chatbot() {
         }
         .header-sub {
           font-size: 0.7rem;
-          color: rgba(255,255,255,0.45);
+          color: var(--muted);
           margin-top: 1px;
         }
         .header-actions {
@@ -346,9 +346,9 @@ export default function Chatbot() {
           gap: 0.5rem;
         }
         .btn-ghost {
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: rgba(255,255,255,0.7);
+          background: var(--panel-bg);
+          border: 1px solid var(--panel-border);
+          color: color-mix(in srgb, var(--app-fg) 75%, transparent);
           padding: 0.4rem 0.9rem;
           border-radius: 9999px;
           font-size: 0.8rem;
@@ -357,8 +357,8 @@ export default function Chatbot() {
           transition: all 0.15s;
         }
         .btn-ghost:hover {
-          background: rgba(255,255,255,0.12);
-          color: #fff;
+          filter: brightness(1.08);
+          color: var(--app-fg);
         }
         .safety-banner {
           background: rgba(239, 68, 68, 0.15);

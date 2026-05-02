@@ -81,25 +81,25 @@ export default function NotificationsDrawer({ open, onClose }) {
 
       <aside
         className={[
-          'absolute right-0 top-0 h-full w-full max-w-md border-l border-white/10 bg-slate-950/70 shadow-2xl backdrop-blur-xl',
+          'absolute right-0 top-0 h-full w-full max-w-md border-l border-[color:var(--panel-border)] bg-[color:var(--app-bg-85)] shadow-2xl backdrop-blur-xl',
           'transition-transform duration-200',
           open ? 'translate-x-0' : 'translate-x-full'
         ].join(' ')}
         aria-hidden={!open}
       >
         <div className="flex h-full flex-col">
-          <div className="border-b border-white/10 p-5">
+          <div className="border-b border-[color:var(--panel-border)] p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-base font-semibold text-white">Notifications</div>
-                <div className="mt-1 text-xs text-white/60">
+                <div className="text-base font-semibold text-[color:var(--app-fg)]">Notifications</div>
+                <div className="mt-1 text-xs text-[color:var(--muted)]">
                   {loading ? 'Loading...' : (unreadCount > 0 ? `${unreadCount} unread` : 'All caught up')}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
               >
                 Close
               </button>
@@ -109,14 +109,14 @@ export default function NotificationsDrawer({ open, onClose }) {
               <button
                 type="button"
                 onClick={fetchNotifications}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
               >
                 Refresh
               </button>
               <button
                 type="button"
                 onClick={markAllRead}
-                className="rounded-xl bg-indigo-500/90 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition"
+                className="rounded-xl bg-[color:var(--accent-90)] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 transition"
               >
                 Mark all read
               </button>

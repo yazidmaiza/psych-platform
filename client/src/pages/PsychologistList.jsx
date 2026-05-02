@@ -6,6 +6,8 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 import moment from 'moment';
 
 const StarRating = ({ rating, total }) => {
@@ -438,29 +440,33 @@ function PsychologistList() {
   }, [psychologists, openPsychologistUserIds]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
         {/* Header */}
-        <div className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+        <div className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
           <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0" dir={i18n.dir()}>
-                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{t('patientDashboard')}</h1>
-                <p className="mt-1 text-sm text-white/60">
-                  {t('dashboardDesc')}
-                </p>
+              <div className="flex min-w-0 items-start gap-3" dir={i18n.dir()}>
+                <PlatformLogo size={40} className="mt-0.5" />
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{t('patientDashboard')}</h1>
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">
+                    {t('dashboardDesc')}
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-end gap-2" dir={i18n.dir()}>
-                 <select
-                    className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition outline-none cursor-pointer"
+                 <ThemeToggleButton />
+                  <select
+                    className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition outline-none cursor-pointer"
                     value={i18n.language}
                     onChange={(e) => i18n.changeLanguage(e.target.value)}
                   >
@@ -470,7 +476,7 @@ function PsychologistList() {
                   </select>
                 <button
                   onClick={() => navigate('/history')}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                  className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
                 >
                   {t('mySessions')}
                 </button>
@@ -512,14 +518,14 @@ function PsychologistList() {
 
               <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end flex-wrap">
                 <input
-                  className="w-full lg:max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full lg:max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/60 outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   placeholder={t('searchPlaceholder')}
                   value={filters.search}
                   onChange={e => setFilters({ ...filters, search: e.target.value })}
                 />
                 
                 <select
-                  className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+                  className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   value={filters.sort}
                   onChange={e => setFilters({ ...filters, sort: e.target.value })}
                 >

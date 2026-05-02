@@ -15,17 +15,17 @@ export default function MessageBubble({
 }) {
   const bubbleTone =
     tone === 'warning'
-      ? 'bg-amber-500/15 border-amber-400/20 text-amber-50'
+      ? 'bg-amber-500/15 border-amber-400/20 text-[color:var(--app-fg)]'
       : isMe
-        ? 'bg-indigo-500/20 border-indigo-400/20 text-white'
-        : 'bg-white/10 border-white/10 text-white/90';
+        ? 'bg-[color:var(--accent-15)] border-[color:var(--accent-25)] text-[color:var(--app-fg)]'
+        : 'bg-[color:var(--panel-bg)] border-[color:var(--panel-border)] text-[color:var(--app-fg)]';
 
   return (
     <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl border px-4 py-3 shadow-sm ${bubbleTone}`}>
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
         {timestamp && (
-          <div className={`mt-1 text-[11px] ${isMe ? 'text-white/60' : 'text-white/50'}`}>
+          <div className="mt-1 text-[11px] text-[color:var(--muted)]">
             {formatTime(timestamp)}
           </div>
         )}

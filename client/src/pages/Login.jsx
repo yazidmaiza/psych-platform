@@ -44,11 +44,11 @@ export default function Login() {
       backLabel="Home"
       footer={
         <div className="flex items-center justify-between gap-3 text-sm">
-          <div className="text-white/60">No account yet?</div>
+          <div className="text-[color:var(--muted)]">No account yet?</div>
           <button
             type="button"
             onClick={() => navigate('/register')}
-            className="rounded-2xl bg-indigo-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+            className="rounded-2xl bg-[color:var(--accent-90)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition"
           >
             Create account
           </button>
@@ -63,23 +63,23 @@ export default function Login() {
 
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Email</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Email</span>
           <input
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="you@example.com"
-            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
           />
         </label>
 
         <label className="grid gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Password</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Password</span>
           <input
             type="password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             placeholder="********"
-            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
           />
         </label>
 

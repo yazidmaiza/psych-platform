@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { verifyFaceMatch, getFaceCheckDiagnostics } = require('../services/faceVerificationService');
+const { getPublicUploadsRoot, getPrivateUploadsRoot } = require('../utils/uploadRoots');
 
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png']);
 const VIDEO_MIMES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
@@ -17,7 +18,7 @@ const storage = multer.diskStorage({
             if (file.fieldname === 'idFront' || file.fieldname === 'idBack') {
                 const userId = req.user?.id;
                 if (!userId) return cb(new Error('Unauthorized'), null);
-                const dir = path.join('uploads', 'verification', String(userId), 'id');
+                const dir = path.join(getPrivateUploadsRoot(), 'verification', String(userId), 'id');
                 fs.mkdirSync(dir, { recursive: true });
                 return cb(null, dir);
             }
@@ -25,13 +26,13 @@ const storage = multer.diskStorage({
             if (file.fieldname === 'introVideo') {
                 const userId = req.user?.id;
                 if (!userId) return cb(new Error('Unauthorized'), null);
-                const dir = path.join('uploads', 'verification', String(userId), 'video');
+                const dir = path.join(getPrivateUploadsRoot(), 'verification', String(userId), 'video');
                 fs.mkdirSync(dir, { recursive: true });
                 return cb(null, dir);
             }
 
             // Keep existing behavior for CV/Diploma (stored in uploads/ with random filenames)
-            const dir = path.join('uploads');
+            const dir = path.join(getPublicUploadsRoot());
             fs.mkdirSync(dir, { recursive: true });
             return cb(null, dir);
         } catch (err) {
@@ -93,7 +94,7 @@ router.put('/:id/approve', protect, restrictTo('admin'), approvePsychologist);
 router.put('/:id/reject', protect, restrictTo('admin'), rejectPsychologist);
 
 router.get('/file/:filename', protect, restrictTo('admin'), (req, res) => {
-    const filePath = path.join(__dirname, '../../uploads', req.params.filename);
+    const filePath = path.join(getPublicUploadsRoot(), req.params.filename);
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: 'File not found' });
     }
@@ -104,7 +105,7 @@ router.get('/asset', protect, restrictTo('admin'), (req, res) => {
     const relativePath = String(req.query.path || '');
     if (!relativePath) return res.status(400).json({ message: 'path query param is required' });
 
-    // Only allow reading from uploads/verification/... to avoid leaking other files.
+    // Only allow reading from verification/... to avoid leaking other files.
     const normalized = path.posix.normalize(relativePath.replace(/\\/g, '/'));
     if (!normalized.startsWith('verification/')) {
         return res.status(400).json({ message: 'Invalid asset path' });
@@ -113,17 +114,17 @@ router.get('/asset', protect, restrictTo('admin'), (req, res) => {
         return res.status(400).json({ message: 'Invalid asset path' });
     }
 
-    const uploadsRoot = path.resolve(__dirname, '../../uploads');
-    const absolutePath = path.resolve(uploadsRoot, normalized);
-    if (!absolutePath.startsWith(uploadsRoot + path.sep)) {
-        return res.status(400).json({ message: 'Invalid asset path' });
+    const roots = [getPrivateUploadsRoot(), getPublicUploadsRoot()];
+
+    for (const root of roots) {
+        const resolvedRoot = path.resolve(root);
+        const absolutePath = path.resolve(resolvedRoot, normalized);
+        if (!absolutePath.startsWith(resolvedRoot + path.sep)) continue;
+        if (!fs.existsSync(absolutePath)) continue;
+        return res.sendFile(absolutePath);
     }
 
-    if (!fs.existsSync(absolutePath)) {
-        return res.status(404).json({ message: 'File not found' });
-    }
-
-    return res.sendFile(absolutePath);
+    return res.status(404).json({ message: 'File not found' });
 });
 
 router.get('/face-check/:userId', protect, restrictTo('admin'), async (req, res) => {

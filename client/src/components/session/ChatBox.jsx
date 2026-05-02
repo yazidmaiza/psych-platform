@@ -5,13 +5,13 @@ import TypingIndicator from './TypingIndicator';
 const EmptyState = ({ title, description, actionLabel, onAction }) => (
   <div className="grid place-items-center rounded-3xl border border-white/10 bg-white/5 px-6 py-16 text-center">
     <div className="max-w-md">
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      {description && <p className="mt-2 text-sm text-white/70">{description}</p>}
+      <h3 className="text-base font-semibold text-[color:var(--app-fg)]">{title}</h3>
+      {description && <p className="mt-2 text-sm text-[color:var(--muted)]">{description}</p>}
       {actionLabel && (
         <button
           type="button"
           onClick={onAction}
-          className="mt-6 rounded-xl bg-indigo-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+          className="mt-6 rounded-xl bg-[color:var(--accent-90)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition"
         >
           {actionLabel}
         </button>
@@ -64,8 +64,8 @@ export default function ChatBox({
       <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-white">{title}</div>
-            {subtitle && <div className="mt-1 truncate text-xs text-white/60">{subtitle}</div>}
+            <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">{title}</div>
+            {subtitle && <div className="mt-1 truncate text-xs text-[color:var(--muted)]">{subtitle}</div>}
           </div>
           {disabled && disabledReason && (
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
@@ -126,7 +126,7 @@ export default function ChatBox({
             rows={2}
             placeholder={placeholder}
             disabled={disabled}
-            className="min-h-[44px] flex-1 resize-none rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+            className="min-h-[44px] flex-1 resize-none rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm text-[color:var(--app-fg)] placeholder:text-[color:var(--muted)] outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)] disabled:opacity-50"
           />
           {showVoiceOptions && !disabled && (
             <>

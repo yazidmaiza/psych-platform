@@ -200,12 +200,12 @@ export default function SessionPage() {
   }, [session]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
