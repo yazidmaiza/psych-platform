@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 
 const StarRating = ({ rating, total }) => {
@@ -98,8 +98,14 @@ function PsychologistProfile() {
       <div className="max-w-3xl mx-auto px-6 py-8">
         <div className="bg-white rounded-2xl shadow p-8 mb-6">
           <div className="flex items-center gap-6 mb-6">
-            <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
-              {psy?.firstName?.[0]}{psy?.lastName?.[0]}
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
+              {psy?.photo ? (
+                <img src={toAbsoluteUrl(psy.photo)} alt={`${psy.firstName} ${psy.lastName}`} className="h-full w-full object-cover" />
+              ) : (
+                <>
+                  {psy?.firstName?.[0]}{psy?.lastName?.[0]}
+                </>
+              )}
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">{psy.firstName} {psy.lastName}</h1>

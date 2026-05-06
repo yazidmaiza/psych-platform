@@ -38,11 +38,22 @@ export default function PsychologistProfileForm({ onSaved }) {
     sessionPrice: '',
     location: null // { lat, lng }
   });
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState('');
   const [profileExists, setProfileExists] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  const [photoSuccess, setPhotoSuccess] = useState('');
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+  const [photoModeration, setPhotoModeration] = useState(null);
+
+  const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+  const PHOTO_MIN_SIZE = 300;
+  const ALLOWED_PHOTO_MIMES = useMemo(() => new Set(['image/jpeg', 'image/png', 'image/webp']), []);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -51,6 +62,7 @@ export default function PsychologistProfileForm({ onSaved }) {
       if (!userId) throw new Error('Missing user id');
       const p = await api.get('/api/psychologists/by-user/' + userId);
       setProfileExists(true);
+      setCurrentPhotoUrl(p.photo || '');
       setForm({
         firstName: p.firstName || '',
         lastName: p.lastName || '',
@@ -84,9 +96,35 @@ export default function PsychologistProfileForm({ onSaved }) {
     }
   }, [userId]);
 
+  const fetchPhotoModeration = useCallback(async () => {
+    setPhotoError('');
+    try {
+      const data = await api.get('/api/profile-photos/me');
+      setPhotoModeration(data || null);
+      if (data?.approvedPhotoUrl) setCurrentPhotoUrl(data.approvedPhotoUrl);
+    } catch (e) {
+      // Avoid blocking profile UI if moderation endpoint fails.
+      setPhotoModeration(null);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    fetchPhotoModeration();
+  }, [fetchPhotoModeration]);
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreviewUrl('');
+      return;
+    }
+    const url = URL.createObjectURL(photoFile);
+    setPhotoPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photoFile]);
 
   const toggleItem = (field, value) => {
     setForm((prev) => ({
@@ -100,6 +138,71 @@ export default function PsychologistProfileForm({ onSaved }) {
   const missingRequired = useMemo(() => {
     return !form.firstName || !form.lastName || !form.city;
   }, [form.city, form.firstName, form.lastName]);
+
+  const validatePhotoFile = async (file) => {
+    if (!file) return { ok: false, message: 'Please select an image.' };
+    if (!ALLOWED_PHOTO_MIMES.has(file.type)) return { ok: false, message: 'Allowed formats: JPG, PNG, WEBP.' };
+    if (file.size > PHOTO_MAX_BYTES) return { ok: false, message: 'Max file size is 5MB.' };
+
+    const url = URL.createObjectURL(file);
+    try {
+      const dims = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => reject(new Error('Failed to read image.'));
+        img.src = url;
+      });
+
+      if (dims.width < PHOTO_MIN_SIZE || dims.height < PHOTO_MIN_SIZE) {
+        return { ok: false, message: `Minimum resolution is ${PHOTO_MIN_SIZE}x${PHOTO_MIN_SIZE}px.` };
+      }
+
+      return { ok: true, message: '' };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const onSelectPhoto = async (file) => {
+    setPhotoError('');
+    setPhotoSuccess('');
+    if (!file) {
+      setPhotoFile(null);
+      return;
+    }
+    const result = await validatePhotoFile(file);
+    if (!result.ok) {
+      setPhotoFile(null);
+      setPhotoError(result.message);
+      return;
+    }
+    setPhotoFile(file);
+  };
+
+  const handleUploadPhoto = async () => {
+    setPhotoError('');
+    setPhotoSuccess('');
+    const result = await validatePhotoFile(photoFile);
+    if (!result.ok) {
+      setPhotoError(result.message);
+      return;
+    }
+
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('photo', photoFile);
+      const res = await api.postForm('/api/profile-photos/upload', formData);
+      setPhotoModeration(res || null);
+      setPhotoFile(null);
+      setPhotoSuccess('Upload succeeded. Your photo is pending moderation.');
+    } catch (e) {
+      setPhotoError(e.message || 'Failed to upload photo.');
+    } finally {
+      setPhotoUploading(false);
+      fetchPhotoModeration();
+    }
+  };
 
   const handleSave = async () => {
     if (missingRequired) {
@@ -151,6 +254,98 @@ export default function PsychologistProfileForm({ onSaved }) {
           {error || success}
         </div>
       )}
+
+      <GlassPanel className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold text-white">Profile photo</div>
+            <div className="mt-1 text-xs text-white/60">Upload a clear headshot (JPG/PNG/WEBP, max 5MB). Photos are reviewed automatically.</div>
+          </div>
+          {photoModeration?.status && (
+            <div
+              className={[
+                'shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide',
+                photoModeration.status === 'approved'
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                  : photoModeration.status === 'rejected'
+                    ? 'border-rose-500/20 bg-rose-500/10 text-rose-100'
+                    : 'border-amber-500/20 bg-amber-500/10 text-amber-100'
+              ].join(' ')}
+            >
+              {photoModeration.status}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-[140px_1fr]">
+          <div className="h-[140px] w-[140px] overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            {(photoPreviewUrl || currentPhotoUrl) ? (
+              <img
+                src={photoPreviewUrl || currentPhotoUrl}
+                alt="Profile preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs text-white/50">
+                No photo
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => onSelectPhoto(e.target.files?.[0] || null)}
+                className="block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-500/90 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-500 transition"
+                disabled={photoUploading}
+              />
+
+              {photoModeration?.status === 'rejected' && photoModeration?.rejectionReason && (
+                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-50">
+                  Rejected: {photoModeration.rejectionReason}
+                </div>
+              )}
+
+              {(photoError || photoSuccess) && (
+                <div
+                  className={[
+                    'rounded-2xl border px-3 py-2 text-xs',
+                    photoError ? 'border-rose-500/20 bg-rose-500/10 text-rose-50' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-50'
+                  ].join(' ')}
+                >
+                  {photoError || photoSuccess}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={handleUploadPhoto}
+                disabled={photoUploading || !photoFile}
+                className="h-11 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition disabled:opacity-50"
+              >
+                {photoUploading ? 'Uploading...' : 'Upload photo'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPhotoFile(null); setPhotoError(''); setPhotoSuccess(''); }}
+                disabled={photoUploading}
+                className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition disabled:opacity-50"
+              >
+                Clear
+              </button>
+              {photoModeration?.status === 'pending' && (
+                <div className="text-xs text-white/60 sm:ml-2">
+                  Public display is disabled until approved.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </GlassPanel>
 
       <GlassPanel className="p-5">
         <div className="text-sm font-semibold text-white">Basic information</div>

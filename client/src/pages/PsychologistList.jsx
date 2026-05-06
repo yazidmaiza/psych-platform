@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { logout } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
@@ -674,12 +674,19 @@ function PsychologistList() {
                   {visiblePsychologists.map((psy) => {
                     const initials = `${psy.firstName?.[0] || ''}${psy.lastName?.[0] || ''}`.toUpperCase();
                     const psychologistUserId = String(psy.userId?._id || psy.userId || '');
+                    const photoUrl = toAbsoluteUrl(psy.photo);
 
                     return (
                       <Glass key={psy._id} className="p-5 transition hover:bg-white/10">
                         <div className="flex items-start gap-4">
-                          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-white">
-                            {initials || 'P'}
+                          <div className="h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                            {photoUrl ? (
+                              <img src={photoUrl} alt={`${psy.firstName} ${psy.lastName}`} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center text-sm font-bold text-white">
+                                {initials || 'P'}
+                              </div>
+                            )}
                           </div>
 
                           <div className="min-w-0 flex-1">

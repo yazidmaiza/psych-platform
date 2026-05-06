@@ -1,0 +1,91 @@
+% ============================================================
+%  Project Gantt Chart — Sprint Timeline
+%  Psych Platform — Planning Section
+% ============================================================
+
+\section{Project Gantt Chart (Sprint Timeline)}
+\label{sec:gantt-sprints}
+
+This section summarises the project plan as a sprint-based timeline. The plan is
+organised into five sprints, each with a fixed duration and a bounded scope that
+maps to the product backlog (PB) identifiers. The timeline also embeds the
+\emph{Definition of Done (DoD)} as the shared completion standard for all sprint
+items.
+
+\subsection{Sprint Overview}
+\begin{itemize}
+  \item \textbf{Sprint 1 (2 weeks)} — Core infrastructure: authentication, role
+  system, and base MERN architecture. \textbf{Backlog:} PB-01, PB-02.
+  \item \textbf{Sprint 2 (2 weeks)} — Psychologist onboarding: profile creation,
+  credential upload, AI verification, and admin approval flow.
+  \textbf{Backlog:} PB-03, PB-04, PB-05.
+  \item \textbf{Sprint 3 (2 weeks)} — Patient engagement: search and discovery,
+  geospatial search, calendar management, and full booking lifecycle.
+  \textbf{Backlog:} PB-06 through PB-09.
+  \item \textbf{Sprint 4 (3 weeks)} — Core consultation engine: payment and
+  session code system, real-time messaging (Socket.IO), voice messages, session
+  lifecycle, PDF report generation, and AI chatbot integration.
+  \textbf{Backlog:} PB-10 through PB-15.
+  \item \textbf{Sprint 5 (2 weeks)} — Platform enrichment: psychologist
+  dashboard, document AI querying, ratings, admin panel, i18n (EN/FR/AR + RTL),
+  floating assistant, and notifications. \textbf{Backlog:} PB-16 through PB-22.
+\end{itemize}
+
+\subsection{Definition of Done (DoD)}
+A backlog item is considered \emph{Done} when: (i) all acceptance criteria are
+met and verified; (ii) the feature is integrated into the main branch without
+regressions; (iii) the relevant API endpoint returns the expected HTTP status
+codes under test; and (iv) the UI component renders correctly on both desktop
+and mobile viewports.
+
+\subsection{Gantt Chart (Sprints)}
+Figure~\ref{fig:gantt-sprints} provides a high-level sprint Gantt chart.
+The chart is intentionally sprint-granular (not task-granular) to keep planning
+readable and to match the delivery cadence.
+
+\begin{figure}[H]
+  \centering
+  % Requires: \usepackage{pgfgantt}
+  \begin{ganttchart}[
+    hgrid,
+    vgrid,
+    time slot format=isodate-yearmonthday,
+    x unit=0.28cm,
+    y unit chart=0.6cm,
+    bar height=0.5,
+    group height=0.3,
+    bar/.style={fill=black!20, draw=black!60},
+    group/.style={fill=black!10, draw=black!60},
+    milestone/.style={fill=black!60, draw=black!60},
+    title/.style={draw=none, fill=none},
+    title label font=\small\bfseries,
+    bar label font=\small,
+  ]{2026-01-05}{2026-03-16}
+    \gantttitle{Sprint Timeline (Example 11-week Plan)}{71} \\
+    \gantttitlecalendar{year, month=name} \\
+
+    \ganttgroup{Sprint 1 (PB-01..PB-02)}{2026-01-05}{2026-01-18} \\
+    \ganttbar{Core infrastructure (Auth/Roles/MERN)}{2026-01-05}{2026-01-18} \\
+
+    \ganttgroup{Sprint 2 (PB-03..PB-05)}{2026-01-19}{2026-02-01} \\
+    \ganttbar{Psychologist onboarding + admin approval}{2026-01-19}{2026-02-01} \\
+
+    \ganttgroup{Sprint 3 (PB-06..PB-09)}{2026-02-02}{2026-02-15} \\
+    \ganttbar{Discovery + geo search + booking lifecycle}{2026-02-02}{2026-02-15} \\
+
+    \ganttgroup{Sprint 4 (PB-10..PB-15)}{2026-02-16}{2026-03-08} \\
+    \ganttbar{Consultation engine + realtime + chatbot}{2026-02-16}{2026-03-08} \\
+
+    \ganttgroup{Sprint 5 (PB-16..PB-22)}{2026-03-09}{2026-03-22} \\
+    \ganttbar{Enrichment (dashboard/i18n/assistant/notifs)}{2026-03-09}{2026-03-22} \\
+
+    \ganttmilestone{Release candidate}{2026-03-23} \\
+  \end{ganttchart}
+  \caption{Project Gantt chart: sprint-level delivery timeline (illustrative dates).}
+  \label{fig:gantt-sprints}
+\end{figure}
+
+The dates shown are illustrative. If a different project start date is required,
+the chart can be shifted without changing the sprint durations (2, 2, 2, 3, 2
+weeks).
+

@@ -112,8 +112,8 @@ exports.getPsychologistByUserId = async (req, res) => {
 
 exports.updatePsychologist = async (req, res) => {
   try {
-    const { photo, bio, specializations, languages, availability, city, firstName, lastName, sessionPrice, location } = req.body;
-    let updateData = { photo, bio, specializations, languages, availability, city, firstName, lastName, sessionPrice };
+    const { bio, specializations, languages, availability, city, firstName, lastName, sessionPrice, location } = req.body;
+    let updateData = { bio, specializations, languages, availability, city, firstName, lastName, sessionPrice };
     
     if (location && location.lat && location.lng) {
       updateData.location = {

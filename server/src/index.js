@@ -8,6 +8,9 @@ const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const helmet = require('helmet');
 const dns = require('dns');
+const path = require('path');
+const multer = require('multer');
+const { getPublicUploadsRoot } = require('./utils/uploadRoots');
   // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
@@ -64,12 +67,23 @@ app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
     req.path.startsWith('/api/verification/upload') ||
+    req.path.startsWith('/api/profile-photos/upload') ||
     (req.path.startsWith('/api/sessions') && req.path.includes('/voice'))
   ) {
     return next();
   }
   express.json({ limit: '10kb' })(req, res, next);
 });
+
+// Serve ONLY approved profile photos publicly (avoid exposing verification uploads).
+app.use('/uploads/profile-photos', express.static(
+  path.join(getPublicUploadsRoot(), 'profile_photos', 'approved'),
+  {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  }
+));
 
 //////////////////////////////////////////////////
 // 🔌 SOCKET.IO
@@ -130,6 +144,7 @@ app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes')
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
 app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
 app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
+app.use('/api/profile-photos', apiLimiter, require('./routes/profilePhotoRoutes'));
 
 //////////////////////////////////////////////////
 // 🤖 PLATFORM ASSISTANT (Groq)
@@ -203,6 +218,20 @@ app.get('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
+
+  // Multer (multipart) payload errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ message: 'Uploaded file is too large.' });
+    }
+    return res.status(400).json({ message: err.message || 'Upload failed' });
+  }
+
+  // Some upload size errors may arrive as plain Errors with this code
+  if (err && (err.code === 'LIMIT_FILE_SIZE' || err.code === 'REQUEST_ENTITY_TOO_LARGE')) {
+    return res.status(413).json({ message: 'Uploaded file is too large.' });
+  }
+
   res.status(err.status || 500).json({
     message: err.message || 'Internal server error'
   });

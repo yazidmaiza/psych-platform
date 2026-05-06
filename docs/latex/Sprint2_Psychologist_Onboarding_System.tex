@@ -1,0 +1,416 @@
+\chapter{Sprint 2: Psychologist Onboarding System}
+\label{chap:sprint2-onboarding}
+
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Sprint~2 focuses on the design and implementation of a structured onboarding
+pipeline for psychologists. In a mental-health platform, onboarding is more
+than a registration form: it is a security boundary and a trust mechanism. The
+platform must ensure that only verified and qualified professionals are able to
+offer services, appear in search results, and access sensitive patient-facing
+features.
+
+This sprint introduces an end-to-end onboarding workflow covering: (i) profile
+creation and completion, (ii) secure submission of professional credentials,
+(iii) AI-assisted pre-screening to detect obvious inconsistencies or missing
+elements, and (iv) an administrative review process that produces a final
+approve/reject decision. A key requirement is auditability: every important
+transition (submission, verification, admin decision) is recorded with
+timestamps and actor identity to guarantee traceability and accountability.
+
+\section{Sprint Objectives and Scope}
+\label{sec:sprint2-objectives}
+
+The main objective of Sprint~2 is to deliver a complete onboarding system that
+transitions a psychologist from an initial account state to an \emph{Active}
+state only after verification. The scope includes both user-facing components
+and internal operational tooling:
+
+\begin{itemize}
+    \item Collect comprehensive professional information (identity, practice
+    details, specialisations, and experience).
+    \item Enable secure upload and management of credential documents.
+    \item Integrate an AI-assisted verification step that produces a structured
+    result (risk score, extracted entities, and flags).
+    \item Provide an admin review queue and a decision workflow with explicit
+    reasoning and audit logging.
+    \item Enforce access control so that only approved psychologists can use
+    privileged features and become discoverable on the platform.
+\end{itemize}
+
+\textbf{Out of scope.} Sprint~2 does not attempt to fully automate professional
+licence validation against external government registries (where such APIs are
+often unavailable or inconsistent). Instead, the system is designed so that AI
+pre-screening supports (but does not replace) human administrative judgement.
+
+\textbf{Success Criteria.}
+\begin{itemize}
+    \item A psychologist can complete onboarding without admin intervention
+    until the final approval step.
+    \item Admin decisions are fully traceable (who, when, what, and why).
+    \item The onboarding status model has clear state transitions and prevents
+    invalid moves (e.g., approving an incomplete submission).
+    \item Uploaded credentials are stored securely and only accessible to
+    authorised roles.
+\end{itemize}
+
+\section{Sprint Planning}
+\label{sec:sprint2-planning}
+
+\subsection{Assumptions}
+\begin{itemize}
+    \item Sprint duration: 2 weeks.
+    \item Agile team structure: Product Owner, backend developer(s), frontend
+    developer(s), QA, and an admin representative for workflow validation.
+    \item Security and privacy constraints are treated as first-class
+    requirements (least privilege, encrypted storage, and audit logging).
+\end{itemize}
+
+\subsection{Deliverables}
+\begin{itemize}
+    \item Onboarding UI (profile form, document checklist, submission and status
+    tracking).
+    \item Backend APIs for onboarding records, document upload metadata, and
+    status transitions.
+    \item AI verification pipeline integration (job submission, result
+    persistence, and failure handling).
+    \item Admin dashboard (review queue, submission detail view, decision
+    actions, and audit log view).
+    \item Testing pipeline covering validation, permissions, and end-to-end
+    onboarding scenarios.
+\end{itemize}
+
+\section{Stakeholders and Roles}
+\label{sec:sprint2-stakeholders}
+
+Sprint~2 formalises responsibilities across three main actors:
+
+\begin{itemize}
+    \item \textbf{Psychologist:} provides profile data and credentials, submits
+    onboarding request, and monitors status updates and feedback.
+    \item \textbf{Admin:} reviews submissions, interprets AI verification
+    results, and approves or rejects onboarding with recorded reasoning.
+    \item \textbf{AI Verification Service:} analyses submitted documents and
+    returns structured evidence to support admin decisions (risk score, flags,
+    and extracted fields).
+\end{itemize}
+
+\section{Sprint Backlog}
+\label{sec:sprint2-backlog}
+
+\renewcommand{\arraystretch}{1.4}
+
+\subsection{User Stories (Onboarding Flow)}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|c|X|X|}
+\hline
+\rowcolor{medgray}
+\textbf{ID} & \textbf{Description} & \textbf{Acceptance Criteria} \\
+\hline
+
+US-2.1 & Creation of professional profile &
+\begin{itemize}[leftmargin=*]
+\item Validate required fields (identity, contact, location, specialisation).
+\item Allow saving as draft and resuming later.
+\item Persist a clear ``completion'' indicator to guide the user.
+\end{itemize} \\ \hline
+
+US-2.2 & Upload credential documents &
+\begin{itemize}[leftmargin=*]
+\item Validate file type and size; reject unsupported uploads.
+\item Categorise documents (licence, degree, ID, other).
+\item Confirm secure storage and display upload status per document.
+\end{itemize} \\ \hline
+
+US-2.3 & Submit onboarding request &
+\begin{itemize}[leftmargin=*]
+\item Block submission if required fields/documents are missing.
+\item Assign onboarding status and store submission timestamp.
+\item Trigger AI verification and store a job reference.
+\end{itemize} \\ \hline
+
+US-2.4 & Track onboarding status &
+\begin{itemize}[leftmargin=*]
+\item Display status and next steps clearly (what is pending and why).
+\item If rejected, show a human-readable rejection reason.
+\item Provide guidance for resubmission when applicable.
+\end{itemize} \\ \hline
+
+\end{tabularx}
+\caption{User Stories: Onboarding Flow}
+\end{table}
+
+\subsection{AI and Admin Workflow}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|c|X|X|}
+\hline
+\rowcolor{medgray}
+\textbf{ID} & \textbf{Feature} & \textbf{Description} \\
+\hline
+
+US-2.5 & AI Verification & AI analyses documents and returns risk score, extracted fields, and flags. \\ \hline
+US-2.6 & Admin Queue & Displays pending onboarding requests with filtering and prioritisation. \\ \hline
+US-2.7 & Admin Decision & Admin approves/rejects with mandatory logging, reason, and timestamp. \\ \hline
+
+\end{tabularx}
+\caption{User Stories: AI and Admin Workflow}
+\end{table}
+
+\subsection{Technical Tasks}
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|X|X|}
+\hline
+\rowcolor{medgray}
+\textbf{Task} & \textbf{Description} \\
+\hline
+
+State Machine & Define onboarding states, transitions, and invariants. \\ \hline
+Secure Storage & Implement encrypted credential storage and controlled access paths. \\ \hline
+AI Integration & Integrate verification pipeline (async jobs, retries, persistence). \\ \hline
+Admin Dashboard & Build moderation interface and decision endpoints with audit trail. \\ \hline
+Testing & Add unit, integration, and end-to-end tests for onboarding scenarios. \\ \hline
+
+\end{tabularx}
+\caption{Technical Tasks}
+\end{table}
+
+\section{Functional Specification}
+\label{sec:sprint2-functional}
+
+\subsection{Profile Data Collection}
+The onboarding profile is designed as a structured record with both required
+and optional fields. Required fields focus on identity and professional
+credibility; optional fields enhance matching and discovery:
+
+\begin{itemize}
+    \item \textbf{Identity and contact:} full name, verified email/phone,
+    country/city, profile photo (optional, subject to moderation policy).
+    \item \textbf{Professional details:} licence/registration number (when
+    applicable), issuing authority, specialisations, spoken languages, years of
+    experience, and short professional biography.
+    \item \textbf{Operational preferences:} availability windows, online/offline
+    capability, consultation types offered, and pricing policy (if the platform
+    supports it).
+\end{itemize}
+
+Client-side and server-side validation rules are aligned to prevent inconsistent
+states and to ensure the backend remains the source of truth. Draft saving is
+supported to reduce onboarding abandonment and allow incremental completion.
+
+\subsection{Credential Submission and Document Handling}
+Credential submission is implemented as a checklist-driven flow. Each document
+upload creates a record containing:
+
+\begin{itemize}
+    \item Document type (licence, degree, ID, other).
+    \item Original filename, MIME type, file size, and upload timestamp.
+    \item Storage reference (e.g., encrypted object key) and integrity metadata
+    (e.g., checksum) when supported.
+    \item Visibility constraints enforcing that only the psychologist (for their
+    own submission) and admins can access documents.
+\end{itemize}
+
+To maintain privacy and limit exposure of sensitive documents, the platform
+should prefer short-lived, role-scoped access mechanisms (e.g., signed URLs or
+streaming through the backend) rather than permanent public links.
+
+\subsection{Submission, Locking, and Resubmission Policy}
+Upon submission, the system validates completeness and transitions the record
+into an immutable review state (policy-dependent). A common approach is to lock
+critical fields and documents to avoid post-submission tampering; any changes
+require explicit resubmission and generate a new audit event.
+
+If rejected, the record includes an admin-provided reason and can either:
+(i) allow edits and resubmission while preserving the historical audit trail, or
+(ii) require a new onboarding attempt linked to the same user. Sprint~2 targets
+the first option because it minimises friction while preserving traceability.
+
+\section{AI-Assisted Verification}
+\label{sec:sprint2-ai}
+
+The AI verification step is designed as a pre-screening mechanism that provides
+evidence to admins. Typical checks include:
+
+\begin{itemize}
+    \item \textbf{OCR and entity extraction:} extract name, licence number,
+    issuing body, and validity dates.
+    \item \textbf{Consistency checks:} compare extracted entities against
+    profile fields (e.g., name match, country/authority plausibility).
+    \item \textbf{Completeness checks:} detect missing required document types
+    or unreadable uploads (low OCR confidence).
+    \item \textbf{Risk scoring:} compute an overall risk score with supporting
+    flags to guide review prioritisation.
+\end{itemize}
+
+Because AI systems can produce false positives and false negatives, the output
+is treated as \emph{advisory} rather than determinative. The admin interface
+must clearly separate factual extracted fields from risk heuristics and provide
+enough context to justify the final decision.
+
+\section{Administrative Review and Auditability}
+\label{sec:sprint2-admin}
+
+\subsection{Admin Review Queue}
+The admin queue provides operational visibility and prioritisation. Essential
+capabilities include filtering by status (e.g., submitted, pending review,
+flagged), sorting by submission date, and quickly opening a detailed view.
+
+\subsection{Decision Workflow}
+Admin decisions must be explicit and recorded. Approvals transition the
+psychologist account to an \emph{Active} state and enable platform privileges.
+Rejections require a reason and transition the record to \emph{Rejected}. The
+system records:
+
+\begin{itemize}
+    \item Admin identity and timestamp.
+    \item Decision type (approve/reject).
+    \item Rationale text and, when applicable, references to AI flags or
+    inconsistencies.
+\end{itemize}
+
+\subsection{Audit Log}
+An audit log is maintained for all state transitions and security-sensitive
+events (document upload, submission, AI result received, admin decision,
+resubmission). This log supports operational debugging, dispute resolution, and
+compliance requirements.
+
+\section{Onboarding State Machine}
+\label{sec:sprint2-state-machine}
+
+Sprint~2 enforces onboarding progression through a controlled state machine.
+The exact naming may vary in implementation, but the conceptual states are
+stable:
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|X|X|}
+\hline
+\rowcolor{medgray}
+\textbf{State} & \textbf{Meaning} & \textbf{Typical Transitions} \\
+\hline
+
+Draft & Profile and/or documents are being prepared. &
+Draft $\rightarrow$ Submitted (after completeness validation). \\ \hline
+
+Submitted & Submission is complete and awaiting verification. &
+Submitted $\rightarrow$ Verifying; Submitted $\rightarrow$ Rejected (admin). \\ \hline
+
+Verifying & AI verification job is running or pending results. &
+Verifying $\rightarrow$ Pending Admin Review; Verifying $\rightarrow$ Verification Failed (retry). \\ \hline
+
+Pending Admin Review & Admin review is required before activation. &
+Pending Admin Review $\rightarrow$ Approved; Pending Admin Review $\rightarrow$ Rejected. \\ \hline
+
+Approved & Onboarding accepted; psychologist can be activated. &
+Approved $\rightarrow$ Active (system action). \\ \hline
+
+Rejected & Onboarding rejected; edits and resubmission allowed. &
+Rejected $\rightarrow$ Draft (edit); Rejected $\rightarrow$ Submitted (resubmit). \\ \hline
+
+\end{tabularx}
+\caption{Onboarding state machine (conceptual model)}
+\end{table}
+
+The state machine prevents invalid operations such as approving without a
+submission, submitting without required documents, or exposing privileged
+features before activation.
+
+\section{System Design}
+\label{sec:sprint2-design}
+
+\subsection{Use Case Diagram}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.85\textwidth}{\centering Placeholder for Use Case Diagram (Sprint~2)}}
+\caption{Use Case Diagram: Psychologist Onboarding}
+\end{figure}
+
+\subsection{Class Diagram}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.85\textwidth}{\centering Placeholder for Class Diagram (Onboarding, Documents, AuditLog)}}
+\caption{Class Diagram: Onboarding Domain}
+\end{figure}
+
+\subsection{Sequence Diagram}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.85\textwidth}{\centering Placeholder for Sequence Diagram (Submit $\rightarrow$ AI Verify $\rightarrow$ Admin Decision)}}
+\caption{Sequence Diagram: End-to-End Onboarding}
+\end{figure}
+
+\subsection{State Machine Diagram}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.85\textwidth}{\centering Placeholder for State Machine Diagram}}
+\caption{Onboarding State Machine}
+\end{figure}
+
+\section{Testing and Validation Strategy}
+\label{sec:sprint2-testing}
+
+\subsection{Unit Testing}
+\begin{itemize}
+    \item Validate profile field rules and error messages.
+    \item Test state transition guards (valid vs.\ invalid moves).
+    \item Verify RBAC permissions for psychologist vs.\ admin operations.
+\end{itemize}
+
+\subsection{Integration Testing}
+\begin{itemize}
+    \item API communication between client and backend for onboarding actions.
+    \item Document storage interactions (upload metadata, access controls).
+    \item AI pipeline integration (job creation, result persistence, retries).
+\end{itemize}
+
+\subsection{End-to-End Testing}
+\begin{itemize}
+    \item Complete onboarding workflow from draft to admin approval.
+    \item Admin review flow with both approve and reject outcomes.
+    \item Access control checks ensuring only approved psychologists become
+    discoverable and gain privileged access.
+\end{itemize}
+
+\subsection{Test Environment}
+Testing is conducted in a staging environment configured with production-like
+security controls and monitoring. Where external AI services are involved,
+tests use deterministic fixtures or mocked responses to ensure reliability.
+
+\section{Sprint Review and Retrospective}
+\label{sec:sprint2-review}
+
+\subsection{Sprint Review}
+\begin{itemize}
+    \item Demonstration of the onboarding UI (drafting, uploading, submission).
+    \item Demonstration of AI verification results integrated into admin review.
+    \item Admin decision workflow including audit trail visibility.
+\end{itemize}
+
+\subsection{Retrospective}
+\textbf{Challenges:}
+\begin{itemize}
+    \item AI integration complexity (latency, failures, and confidence handling).
+    \item Security constraints for document access and storage.
+    \item Balancing user experience with strict validation requirements.
+\end{itemize}
+
+\textbf{Improvements:}
+\begin{itemize}
+    \item Improve user feedback (clearer checklist and missing-item guidance).
+    \item Optimise AI processing (async jobs, retries, and better status UX).
+    \item Extend admin tooling (bulk actions, prioritisation, and analytics).
+\end{itemize}
+
+\section{Conclusion}
+\label{sec:sprint2-conclusion}
+
+Sprint~2 delivers a robust onboarding pipeline that combines secure credential
+handling, AI-assisted pre-screening, and an accountable administrative approval
+workflow. By enforcing a controlled state machine and a complete audit trail,
+the platform establishes the trust and governance needed to safely connect
+patients with verified psychologists.
+
