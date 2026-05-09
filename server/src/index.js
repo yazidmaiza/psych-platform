@@ -7,7 +7,10 @@ const { Server } = require('socket.io');
 const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const xssClean = require('xss-clean');
 const dns = require('dns');
+const { startNotificationWorker } = require('./services/notificationWorker');
   // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
@@ -59,7 +62,6 @@ app.use(helmet({
   crossOriginResourcePolicy: false, // For image/audio fetching if cross-domain needed, adjust as needed
 }));
 
-
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
@@ -70,6 +72,11 @@ app.use((req, res, next) => {
   }
   express.json({ limit: '10kb' })(req, res, next);
 });
+
+// Apply sanitization after JSON parsing to avoid conflicts with file uploads
+// Note: express-mongo-sanitize disabled due to Express 5 read-only query property
+// app.use(mongoSanitize());
+// app.use(xssClean()); // Disabled for Express 5 read-only query compatibility
 
 //////////////////////////////////////////////////
 // 🔌 SOCKET.IO
@@ -84,6 +91,11 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  socket.on('join_user', (userId) => {
+    if (!userId) return;
+    socket.join(`user_${userId}`);
+  });
 
   socket.on('join_room', (roomId) => {
     socket.join(roomId);
@@ -212,9 +224,15 @@ app.use((err, req, res, next) => {
 // 🗄️ DATABASE CONNECTION
 //////////////////////////////////////////////////
 
+if (!process.env.MONGO_URI) {
+  console.error('MONGO_URI is not set. Create server/.env and add MONGO_URI=your_mongodb_connection_string');
+  process.exit(1);
+}
+
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
+    startNotificationWorker();
     server.listen(process.env.PORT || 5000, () => {
       console.log('Server running on port ' + (process.env.PORT || 5000));
     });
@@ -222,4 +240,4 @@ mongoose.connect(process.env.MONGO_URI)
   .catch((err) => {
     console.error('MongoDB connection failed:', err.message);
     process.exit(1);
-    });
+  });

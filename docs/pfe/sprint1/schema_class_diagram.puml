@@ -1,0 +1,157 @@
+@startuml
+' Class diagram for Psych Platform (core domain)
+class User {
+  +id: ObjectId
+  +email: String
+  +password: String
+  +role: Enum
+  +isVerified: Boolean
+  +comparePassword(candidate): boolean
+}
+
+class PsychologistProfile {
+  +id: ObjectId
+  +userId: ObjectId
+  +bio: String
+  +languages: [String]
+  +location: GeoPoint
+  +price: Number
+  +verificationAssets: {cvUrl, diplomaUrl, idFrontPath, idBackPath, introVideoPath}
+  +verified: Boolean
+}
+
+class CalendarSlot {
+  +id: ObjectId
+  +psychologistId: ObjectId
+  +patientId: ObjectId
+  +start: Date
+  +end: Date
+  +pendingSessionId: ObjectId
+}
+
+class Session {
+  +id: ObjectId
+  +patientId: ObjectId
+  +psychologistId: ObjectId
+  +calendarSlotId: ObjectId
+  +status: Enum
+  +start: Date
+  +end: Date
+  +end(): void
+}
+
+class SessionCode {
+  +id: ObjectId
+  +sessionId: ObjectId
+  +code: String
+  +expiresAt: Date
+  +markUsed(): void
+}
+
+class Message {
+  +id: ObjectId
+  +senderId: ObjectId
+  +receiverId: ObjectId
+  +sessionId: ObjectId
+  +content: String
+  +createdAt: Date
+  +markRead(): void
+}
+
+class Notification {
+  +id: ObjectId
+  +userId: ObjectId
+  +type: String
+  +content: String
+  +createdAt: Date
+  +markRead(): void
+}
+
+class Rating {
+  +id: ObjectId
+  +patientId: ObjectId
+  +psychologistId: ObjectId
+  +score: Number
+  +computeScore(): number
+}
+
+class PrivateNote {
+  +id: ObjectId
+  +sessionId: ObjectId
+  +content: String
+}
+
+class EmotionalIndicator {
+  +id: ObjectId
+  +sessionId: ObjectId
+  +scores: EmotionScores
+}
+
+class PatientHistoryEntry {
+  +id: ObjectId
+  +patientId: ObjectId
+  +sessionId: ObjectId
+  +emotionalScores: EmotionScores
+}
+
+class PatientDocument {
+  +id: ObjectId
+  +patientId: ObjectId
+  +fileUrl: String
+  +query(question): string
+}
+
+class IntakeSession {
+  +id: ObjectId
+  +userId: ObjectId
+  +stage: Number
+  +advanceStageIfNeeded(): void
+}
+
+class ChatbotMessage {
+  +id: ObjectId
+  +userId: ObjectId
+  +content: String
+  +intakeStage: Number
+}
+
+class ChatbotSummary {
+  +id: ObjectId
+  +patientId: ObjectId
+  +recommendations: [String]
+}
+
+class RiskAlert {
+  +id: ObjectId
+  +patientId: ObjectId
+  +psychologistId: ObjectId
+  +level: Enum
+  +acknowledge(): void
+}
+
+class PersonaConfig {
+  +id: ObjectId
+  +psychologistId: ObjectId
+  +customGreeting: String
+}
+
+' Relationships
+User "1" -- "0..1" PsychologistProfile : has
+User "1" -- "*" Session : patient
+User "1" -- "*" Session : psychologist
+Session "1" -- "0..1" CalendarSlot
+Session "1" -- "*" Message
+Session "1" -- "*" PrivateNote
+Session "1" -- "*" EmotionalIndicator
+Session "1" -- "*" PatientHistoryEntry
+Session "1" -- "*" Rating
+Session "1" -- "*" PatientDocument
+User "1" -- "*" Notification
+User "1" -- "*" ChatbotMessage
+User "1" -- "*" IntakeSession
+User "1" -- "*" RiskAlert
+User "1" -- "*" ChatbotSummary
+PsychologistProfile "1" -- "*" CalendarSlot
+PsychologistProfile "1" -- "*" PersonaConfig
+PatientDocument "1" -- "*" ChatbotSummary
+@enduml

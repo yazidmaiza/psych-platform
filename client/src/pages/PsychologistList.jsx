@@ -343,14 +343,12 @@ function PsychologistList() {
   const fetchPsychologists = useCallback(async (currentFilters) => {
     try {
       setError('');
-      
-      let url = '/api/psychologists?';
-      if (currentFilters.lat && currentFilters.lng) {
-        url = `/api/psychologists/nearby?lat=${currentFilters.lat}&lng=${currentFilters.lng}&distance=${currentFilters.distance}&`;
-      }
-      
+      let url = '/api/psychologists/search?';
+
       if (currentFilters.search) url += `search=${encodeURIComponent(currentFilters.search)}&`;
-      if (currentFilters.sort) url += `sort=${encodeURIComponent(currentFilters.sort)}&`;
+      if (currentFilters.lat && currentFilters.lng) {
+        url += `lat=${currentFilters.lat}&lng=${currentFilters.lng}&distance=${currentFilters.distance}&`;
+      }
 
       const data = await api.get(url);
       setPsychologists(Array.isArray(data) ? data : []);
@@ -702,6 +700,12 @@ function PsychologistList() {
                             <div className="mt-3 flex" dir={i18n.dir()}>
                               <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
                             </div>
+
+                            {psy.nextAvailableAt && (
+                              <div className="mt-2 text-xs text-emerald-200" dir={i18n.dir()}>
+                                {t('nextAvailable')}: {moment(psy.nextAvailableAt).format('ddd D MMM, HH:mm')}
+                              </div>
+                            )}
 
                             <div className="mt-3 grid gap-2 text-sm text-white/70" dir={i18n.dir()}>
                               <div className="truncate">

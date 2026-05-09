@@ -36,7 +36,18 @@ class LoadPersonaConfig {
 
       // Load persona config
       const persona = await PersonaConfig.findOne({ psychologistId: psychologist._id }).lean();
-      return persona || null;
+      const preferredLanguage = Array.isArray(psychologist.languages) && psychologist.languages.length > 0
+        ? psychologist.languages[0]
+        : 'auto';
+
+      if (!persona) {
+        return { language: preferredLanguage };
+      }
+
+      return {
+        ...persona,
+        language: persona.language || preferredLanguage
+      };
     } catch (error) {
       console.error('[LoadPersonaConfig] Error:', error.message);
       return null; // Never crash the pipeline

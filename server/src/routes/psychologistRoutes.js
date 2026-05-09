@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { getAllPsychologists, getNearbyPsychologists, getPsychologist, getPsychologistByUserId, updatePsychologist, createProfile } = require('../controllers/psychologistController');
+const { getAllPsychologists, getNearbyPsychologists, getPsychologist, getPsychologistByUserId, updatePsychologist, createProfile, searchPsychologists } = require('../controllers/psychologistController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 
 router.post('/profile', protect, restrictTo('psychologist'), createProfile);
+router.get('/search', searchPsychologists);
 router.get('/', getAllPsychologists);
 router.get('/nearby', getNearbyPsychologists);
 router.get('/by-user/:userId', getPsychologistByUserId);

@@ -1,5 +1,5 @@
 const RiskAlert = require('../models/RiskAlert');
-const Notification = require('../models/Notification');
+const { createNotification } = require('../services/notificationService');
 const Session = require('../models/Session');
 
 // Lazy-load io to avoid circular dependency at startup
@@ -48,12 +48,14 @@ class RiskAlertService {
       });
 
       // 2. Create a persistent Notification for the psychologist
-      await Notification.create({
+      await createNotification({
         userId: psychologistId,
         title: `⚠️ Risk Alert — ${risk.severity.toUpperCase()}`,
         message: `A patient has shown signs of ${risk.category.replace(/_/g, ' ')}. Score: ${risk.score}/100.`,
         link: `/patient/${patientId}`,
-        type: 'risk_alert'
+        type: 'risk_alert',
+        channels: ['in_app', 'email'],
+        priority: 'high'
       });
 
       // 3. Emit real-time Socket.IO event to the psychologist's room

@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import { socket } from './services/socket';
 
 import HomePage from './pages/HomePage';
 import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import AssistantBot from './components/AssistantBot';
 import RiskAlertBanner from './components/RiskAlertBanner';
 // Patient pages
@@ -36,6 +40,13 @@ import CalendarPage from './pages/Calendar';
 import AdminPanel from './pages/AdminPanel';
 
 function App() {
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      socket.emit('join_user', userId);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -44,6 +55,9 @@ function App() {
         <Route path="/p/psychologist/:id" element={<PublicPsychologistProfile />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Patient routes */}
         <Route

@@ -65,6 +65,14 @@ const personaConfigSchema = new mongoose.Schema(
       type: String,
       default: '',
       maxlength: 300
+    },
+
+    // ── Preferred response language ───────────────────────────────────────────
+    language: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 40
     }
   },
   { timestamps: true }

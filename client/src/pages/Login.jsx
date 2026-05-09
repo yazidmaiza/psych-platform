@@ -2,9 +2,10 @@ import React, { useMemo, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AuthShell from '../components/auth/AuthShell';
+import { getDeviceId, storeAuth } from '../services/auth';
 
 export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', fullName: '', telephone: '', birthDate: '', rePassword: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -18,16 +19,25 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', form);
-      const { token, user } = res.data;
+      const res = await axios.post('http://localhost:5000/api/auth/login', {
+        ...form,
+        deviceId: getDeviceId()
+      });
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('role', user.role);
-      localStorage.setItem('userId', user.id);
+      storeAuth({
+        accessToken: res.data.accessToken || res.data.token,
+        refreshToken: res.data.refreshToken,
+        user: res.data.user
+      });
 
-      if (user.role === 'admin') navigate('/admin');
-      else if (user.role === 'psychologist') navigate('/psychologist/dashboard');
-      else if (user.role === 'patient') navigate('/patient/dashboard');
+      if (res.data.requiresEmailVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
+        return;
+      }
+
+      if (res.data.user.role === 'admin') navigate('/admin');
+      else if (res.data.user.role === 'psychologist') navigate('/psychologist/dashboard');
+      else if (res.data.user.role === 'patient') navigate('/patient/dashboard');
       else setError('Invalid role');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
@@ -82,6 +92,56 @@ export default function Login() {
             className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
           />
         </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Full Name</span>
+          <input
+            value={form.fullName || ''}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            placeholder="John Doe"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Telephone Number</span>
+          <input
+            type="tel"
+            value={form.telephone || ''}
+            onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+            placeholder="123-456-7890"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Birth Date</span>
+          <input
+            type="date"
+            value={form.birthDate || ''}
+            onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Re-enter Password</span>
+          <input
+            type="password"
+            value={form.rePassword || ''}
+            onChange={(e) => setForm({ ...form, rePassword: e.target.value })}
+            placeholder="********"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={() => navigate('/forgot-password')}
+          className="text-left text-xs text-white/60 hover:text-white"
+        >
+          Forgot your password?
+        </button>
 
         <button
           type="button"

@@ -31,6 +31,35 @@ const validateLogin = [
     handleValidationErrors
 ];
 
+const validateRefreshToken = [
+    body('refreshToken')
+        .notEmpty().withMessage('Refresh token is required'),
+    handleValidationErrors
+];
+
+const validatePasswordResetRequest = [
+    body('email')
+        .isEmail().withMessage('Please provide a valid email address')
+        .normalizeEmail(),
+    handleValidationErrors
+];
+
+const validatePasswordReset = [
+    body('token')
+        .notEmpty().withMessage('Reset token is required'),
+    body('password')
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+        .matches(/\d/).withMessage('Password must contain at least one number'),
+    handleValidationErrors
+];
+
+const validateResendVerification = [
+    body('email')
+        .isEmail().withMessage('Please provide a valid email address')
+        .normalizeEmail(),
+    handleValidationErrors
+];
+
 const validateSession = [
     body('psychologistId')
         .notEmpty().withMessage('Psychologist ID is required')
@@ -59,6 +88,10 @@ const validateProfile = [
 module.exports = {
     validateRegister,
     validateLogin,
+    validateRefreshToken,
+    validatePasswordResetRequest,
+    validatePasswordReset,
+    validateResendVerification,
     validateSession,
     validateRating,
     validateProfile

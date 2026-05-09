@@ -1,0 +1,39 @@
+@startuml
+actor Patient
+participant "Frontend (React)" as FE
+participant "Backend (Express)" as BE
+participant "Database (MongoDB)" as DB
+participant "Email Service" as Email
+
+== Register & Verify ==
+Patient -> FE: Fill registration form
+FE -> BE: POST /api/auth/register
+BE -> DB: Create User (hashed password)
+DB --> BE: Success
+BE -> Email: Send verification code
+Email --> Patient: Receives code
+Patient -> FE: Enter code
+FE -> BE: POST /api/auth/verify
+BE -> DB: Mark user as verified
+DB --> BE: Success
+BE --> FE: Verification result
+
+== Login ==
+Patient -> FE: Fill login form
+FE -> BE: POST /api/auth/login
+BE -> DB: Find user by email
+DB --> BE: User data
+BE: Compare password
+BE: Sign JWT
+BE --> FE: Login result + token
+FE --> Patient: Redirect to dashboard
+
+== Access Protected Route ==
+Patient -> FE: Access dashboard
+FE -> BE: GET /api/auth/me (with JWT)
+BE: Verify JWT
+BE -> DB: Get user by ID
+DB --> BE: User data
+BE --> FE: User profile
+FE --> Patient: Show dashboard
+@enduml

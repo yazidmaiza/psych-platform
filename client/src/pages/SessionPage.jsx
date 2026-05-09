@@ -245,18 +245,36 @@ export default function SessionPage() {
             <div className="h-[calc(100vh-220px)] min-h-[520px]">
               <div className="h-full transition-opacity duration-200">
                 {activeTab === 'bot' && botOpen && (
-                  <ChatBox
-                    title="Chatbot"
-                    subtitle="AI assistant for this session"
-                    messages={bot.messages}
-                    meId={null}
-                    typing={bot.typing}
-                    typingLabel="Assistant typing"
-                    onSend={bot.send}
-                    disabled={false}
-                    placeholder="Message the AI assistant..."
-                    sendLabel="Send"
-                  />
+                  <>
+                    <div className="flex justify-end mb-2">
+                      <button
+                        type="button"
+                        className="rounded-xl bg-rose-500/80 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-600 transition"
+                        onClick={async () => {
+                          try {
+                            await api.post('/api/chatbot/reset', {});
+                            bot.reload();
+                          } catch (e) {
+                            alert(e.message || 'Failed to reset chatbot');
+                          }
+                        }}
+                      >
+                        Reset Chatbot
+                      </button>
+                    </div>
+                    <ChatBox
+                      title="Chatbot"
+                      subtitle="AI assistant for this session"
+                      messages={bot.messages}
+                      meId={null}
+                      typing={bot.typing}
+                      typingLabel="Assistant typing"
+                      onSend={bot.send}
+                      disabled={false}
+                      placeholder="Message the AI assistant..."
+                      sendLabel="Send"
+                    />
+                  </>
                 )}
 
                 {activeTab === 'psychologist' && psychologistOpen && (

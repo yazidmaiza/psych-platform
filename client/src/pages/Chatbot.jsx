@@ -21,6 +21,7 @@ export default function Chatbot() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [stage, setStage] = useState(1);
   const [isComplete, setIsComplete] = useState(false);
   const [initLoading, setInitLoading] = useState(true);
@@ -92,6 +93,30 @@ export default function Chatbot() {
     }
   };
 
+  const resetConversation = async () => {
+    if (resetLoading) return;
+
+    const confirmed = window.confirm('Reset the conversation for testing? This clears the current chat, summary, and intake progress.');
+    if (!confirmed) return;
+
+    setResetLoading(true);
+    setLoading(false);
+    setInput('');
+
+    try {
+      await api.post('/api/chatbot/reset');
+      await initSession();
+    } catch (e) {
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: e.message || 'Failed to reset the conversation.' }
+      ]);
+    } finally {
+      setResetLoading(false);
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -121,6 +146,14 @@ export default function Chatbot() {
               </div>
             </div>
             <div className="header-actions">
+              <button
+                className="btn-ghost"
+                onClick={resetConversation}
+                disabled={resetLoading || initLoading || loading}
+                title="Reset conversation"
+              >
+                {resetLoading ? 'Resetting…' : 'Reset'}
+              </button>
               <button
                 className="btn-ghost"
                 onClick={() => setShowSafety(s => !s)}

@@ -37,6 +37,10 @@ const intakeSessionSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    lastRiskAt: {
+      type: Date,
+      default: null
+    },
     startedAt: {
       type: Date,
       default: Date.now

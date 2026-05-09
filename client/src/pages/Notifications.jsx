@@ -5,6 +5,8 @@ import { api } from '../services/api';
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [preferences, setPreferences] = useState(null);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
   const fetchNotifications = async () => {
@@ -23,6 +25,18 @@ export default function Notifications() {
     fetchNotifications();
   }, []);
 
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const data = await api.get('/api/notifications/preferences');
+        setPreferences(data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadPrefs();
+  }, []);
+
   const openNotification = async (n) => {
     try {
       if (!n.isRead) await api.put('/api/notifications/' + n._id + '/read', {});
@@ -37,6 +51,19 @@ export default function Notifications() {
       fetchNotifications();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const updatePreferences = async (next) => {
+    if (!next) return;
+    setSaving(true);
+    try {
+      const data = await api.put('/api/notifications/preferences', next);
+      setPreferences(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -78,6 +105,40 @@ export default function Notifications() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-3">
+        {preferences && (
+          <div className="bg-white rounded-2xl shadow p-5">
+            <div className="text-sm font-semibold text-gray-800">Notification preferences</div>
+            <div className="mt-4 grid gap-3">
+              <label className="flex items-center justify-between text-sm text-gray-600">
+                <span>In-app notifications</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.inAppEnabled}
+                  onChange={(e) => updatePreferences({ inAppEnabled: e.target.checked })}
+                />
+              </label>
+              <label className="flex items-center justify-between text-sm text-gray-600">
+                <span>Email notifications</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.emailEnabled}
+                  onChange={(e) => updatePreferences({ emailEnabled: e.target.checked })}
+                />
+              </label>
+              <label className="flex items-center justify-between text-sm text-gray-600">
+                <span>Push notifications</span>
+                <input
+                  type="checkbox"
+                  checked={preferences.pushEnabled}
+                  onChange={(e) => updatePreferences({ pushEnabled: e.target.checked })}
+                />
+              </label>
+              {saving && (
+                <div className="text-xs text-gray-400">Saving...</div>
+              )}
+            </div>
+          </div>
+        )}
         {notifications.length === 0 && (
           <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
             No notifications yet.

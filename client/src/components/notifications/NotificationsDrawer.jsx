@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
+import { socket } from '../../services/socket';
 
 const formatDateTime = (value) => {
   try {
@@ -39,6 +40,15 @@ export default function NotificationsDrawer({ open, onClose }) {
     if (!open) return;
     fetchNotifications();
   }, [fetchNotifications, open]);
+
+  useEffect(() => {
+    const handleNewNotification = (payload) => {
+      setNotifications((prev) => [payload, ...(prev || [])].slice(0, 100));
+    };
+
+    socket.on('notification:new', handleNewNotification);
+    return () => socket.off('notification:new', handleNewNotification);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
