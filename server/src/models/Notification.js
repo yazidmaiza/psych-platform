@@ -22,9 +22,26 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     default: 'generic'
   },
+  channels: {
+    type: [String],
+    default: ['in_app']
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'normal', 'high'],
+    default: 'normal'
+  },
+  data: {
+    type: Object,
+    default: null
+  },
   isRead: {
     type: Boolean,
     default: false
+  },
+  readAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

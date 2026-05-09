@@ -24,6 +24,7 @@ const DEFAULT_PERSONA = {
   directiveness: 'low',
   verbosity: 'medium',
   pacing: 'moderate',
+  language: 'auto',
   customGreeting: ''
 };
 
@@ -53,7 +54,14 @@ class BuildPersonaInstructions {
 === STRUCTURE PRESERVATION (persona CANNOT override these) ===
 - ALWAYS begin your response with emotional acknowledgment before anything else
 - ALWAYS ask EXACTLY ONE question — never two, never zero
+  - ALWAYS keep the final response within 2-3 sentences total
 - Persona may modify the tone and phrasing of these elements, but NEVER skip them`);
+
+    lines.push(`
+  === LANGUAGE ALIGNMENT ===
+  - If a language is configured, answer in that language unless the patient's message clearly requires a different language
+  - If no language is configured, mirror the patient's language exactly
+  - Preserve Tunisian Darija when the patient writes in Darija or Arabic script`);
 
     // ── 3. PERSONA STYLE CONFIGURATION ─────────────────────────────────────
     lines.push(`
@@ -148,8 +156,8 @@ class BuildPersonaInstructions {
     // ── Verbosity ─────────────────────────────────────────────────────────────
     const verbosityInstructions = {
       short:    ['Respond in 2 sentences maximum', 'Be concise and purposeful — every word must earn its place'],
-      medium:   ['Respond in 3–4 sentences', 'Balance emotional presence with brevity'],
-      detailed: ['Allow up to 5 sentences when emotional depth warrants it', 'Never over-explain — depth should serve the patient, not fill space']
+      medium:   ['Respond in up to 3 sentences', 'Balance emotional presence with brevity'],
+      detailed: ['Still do not exceed 3 sentences', 'Use richer reflection, not extra length']
     };
     lines.push(`Verbosity (${p.verbosity}):\n${(verbosityInstructions[p.verbosity] || verbosityInstructions.medium).map(i => `  • ${i}`).join('\n')}`);
 

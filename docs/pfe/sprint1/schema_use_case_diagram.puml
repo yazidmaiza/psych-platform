@@ -1,0 +1,116 @@
+@startuml
+left to right direction
+actor Patient
+actor Psychologist
+actor Administrator
+actor "Email Service" as Email
+actor "Groq API" as Groq
+actor "Gemini Embeddings API" as Gemini
+actor "MongoDB Atlas" as Mongo
+actor "Socket.IO" as Socket
+actor "File Storage" as Storage
+
+rectangle "Psych Platform" {
+  usecase "Register account" as UC1
+  usecase "Login / Logout" as UC2
+  usecase "View psychologist directory" as UC3
+  usecase "Search psychologists" as UC4
+  usecase "Find nearby psychologists" as UC5
+  usecase "View psychologist profile" as UC6
+  usecase "Request booking" as UC7
+  usecase "Cancel booking" as UC8
+  usecase "Confirm payment" as UC9
+  usecase "Receive session code" as UC10
+  usecase "Verify session code and start session" as UC11
+  usecase "Use intake chatbot" as UC12
+  usecase "Use free-expression chatbot" as UC13
+  usecase "View chatbot messages and summary" as UC14
+  usecase "Message psychologist" as UC15
+  usecase "Send voice message" as UC16
+  usecase "View session history" as UC17
+  usecase "Rate psychologist" as UC18
+  usecase "View notifications" as UC19
+  usecase "Create/Update profile" as UC20
+  usecase "Submit verification documents" as UC21
+  usecase "Manage availability slots" as UC22
+  usecase "Review/Confirm/Reject booking" as UC23
+  usecase "View dashboard stats" as UC24
+  usecase "View patients list/details/history" as UC25
+  usecase "View risk alerts" as UC26
+  usecase "Message patient" as UC27
+  usecase "End session" as UC28
+  usecase "Add private notes/emotional indicators/history" as UC29
+  usecase "Upload/query patient document" as UC30
+  usecase "Generate patient report PDF" as UC31
+  usecase "Configure chatbot persona" as UC32
+  usecase "Receive real-time risk alerts" as UC33
+  usecase "View platform stats/users" as UC34
+  usecase "Update/Delete user role" as UC35
+  usecase "View/Approve/Reject psychologist verifications" as UC36
+  usecase "Access verification files/assets" as UC37
+  usecase "Run face-match verification" as UC38
+}
+
+' Patient use cases
+Patient -- UC1
+Patient -- UC2
+Patient -- UC3
+Patient -- UC4
+Patient -- UC5
+Patient -- UC6
+Patient -- UC7
+Patient -- UC8
+Patient -- UC9
+Patient -- UC10
+Patient -- UC11
+Patient -- UC12
+Patient -- UC13
+Patient -- UC14
+Patient -- UC15
+Patient -- UC16
+Patient -- UC17
+Patient -- UC18
+Patient -- UC19
+
+' Psychologist use cases
+Psychologist -- UC2
+Psychologist -- UC20
+Psychologist -- UC21
+Psychologist -- UC22
+Psychologist -- UC23
+Psychologist -- UC24
+Psychologist -- UC25
+Psychologist -- UC26
+Psychologist -- UC27
+Psychologist -- UC28
+Psychologist -- UC29
+Psychologist -- UC30
+Psychologist -- UC31
+Psychologist -- UC32
+Psychologist -- UC33
+
+' Administrator use cases
+Administrator -- UC2
+Administrator -- UC34
+Administrator -- UC35
+Administrator -- UC36
+Administrator -- UC37
+Administrator -- UC38
+
+' External systems
+UC10 -- Email
+UC12 -- Gemini
+UC13 -- Groq
+UC14 -- Mongo
+UC15 -- Socket
+UC16 -- Groq
+UC19 -- Socket
+UC21 -- Storage
+UC30 -- Storage
+UC31 -- Groq
+UC32 -- Mongo
+UC33 -- Socket
+UC36 -- Storage
+UC38 -- Storage
+
+@enduml

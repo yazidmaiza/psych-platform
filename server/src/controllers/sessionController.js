@@ -4,7 +4,7 @@ const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 const CalendarSlot = require('../models/CalendarSlot');
-const Notification = require('../models/Notification');
+const { createNotification } = require('../services/notificationService');
 
 const getDefaultSessionTypeForPatient = async (patientId) => {
   const hasCompleted = await Session.exists({ patientId, status: 'completed' });
@@ -30,12 +30,13 @@ const cancelSessionAndFreeSlot = async (session, reason) => {
   }
 
   try {
-    await Notification.create({
+    await createNotification({
       userId: session.patientId,
       title: 'Booking canceled',
       message: reason || 'Your booking was canceled.',
       link: '/patient/dashboard',
-      type: 'booking_canceled'
+      type: 'booking_canceled',
+      channels: ['in_app', 'email']
     });
   } catch {}
 };
@@ -94,6 +95,17 @@ exports.confirmPayment = async (req, res) => {
     session.status = 'paid';
     await session.save();
 
+    try {
+      await createNotification({
+        userId: session.psychologistId,
+        title: 'Payment confirmed',
+        message: 'A patient completed payment for a session.',
+        link: '/calendar',
+        type: 'payment_confirmed',
+        channels: ['in_app', 'email']
+      });
+    } catch {}
+
     const code = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const sessionCode = new SessionCode({ sessionId: session._id, code, expiresAt });
@@ -129,6 +141,17 @@ exports.verifyCode = async (req, res) => {
     sessionCode.used = true;
     await sessionCode.save();
     await Session.findByIdAndUpdate(req.params.id, { status: 'active' });
+
+    try {
+      await createNotification({
+        userId: session.psychologistId,
+        title: 'Session started',
+        message: 'Your patient has started the session.',
+        link: '/calendar',
+        type: 'session_started',
+        channels: ['in_app', 'email']
+      });
+    } catch {}
     res.status(200).json({ success: true, sessionId: req.params.id });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -174,12 +197,13 @@ exports.cancelSession = async (req, res) => {
     await cancelSessionAndFreeSlot(session, 'Canceled by patient.');
 
     try {
-      await Notification.create({
+      await createNotification({
         userId: session.psychologistId,
         title: 'Booking canceled',
         message: 'A patient canceled their booking.',
         link: '/calendar',
-        type: 'booking_canceled'
+        type: 'booking_canceled',
+        channels: ['in_app', 'email']
       });
     } catch {}
 
@@ -223,12 +247,13 @@ exports.endSession = async (req, res) => {
     await session.save();
 
     try {
-      await Notification.create({
+      await createNotification({
         userId: session.patientId,
         title: 'Session completed',
         message: 'Your session has ended. Please rate your consultation.',
         link: `/rate/${session.psychologistId}`,
-        type: 'session_completed'
+        type: 'session_completed',
+        channels: ['in_app', 'email']
       });
     } catch {}
 

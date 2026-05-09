@@ -16,6 +16,7 @@ const AnalyzeRiskBehavior = require('../skills/AnalyzeRiskBehavior');
 const AnalyzeManipulation = require('../skills/AnalyzeManipulation');
 const LoadPersonaConfig = require('../skills/LoadPersonaConfig');
 const BuildPersonaInstructions = require('../skills/BuildPersonaInstructions');
+const GenerateHighRiskResponse = require('../skills/GenerateHighRiskResponse');
 
 // Services
 const RiskAlertService = require('../services/RiskAlertService');
@@ -24,62 +25,73 @@ const RiskAlertService = require('../services/RiskAlertService');
 const ChatbotMessage = require('../models/ChatbotMessage');
 const IntakeSession = require('../models/IntakeSession');
 
-/**
- * Workflow Route: RAG-Powered Intake Chat Pipeline
- * Endpoint: POST /api/chat
- */
-router.post('/', protect, async (req, res) => {
-  try {
-    const { message } = req.body;
-    const userId = req.user.id;
+async function runChatTurn({ userId, message }) {
+  if (!userId) {
+    throw new Error('runChatTurn requires a userId.');
+  }
 
-    if (!message) {
-      return res.status(400).json({ status: 'error', message: 'Message is required' });
-    }
+  if (!message || !String(message).trim()) {
+    throw new Error('Message is required');
+  }
 
-    // ── Step 1: Load Intake Protocol & Session State ─────────────────────
-    const { session, stageConfig } = await LoadIntakeProtocol.execute(userId);
+  // ── Step 1: Load Intake Protocol & Session State ─────────────────────
+  const { session, stageConfig } = await LoadIntakeProtocol.execute(userId);
 
-    // ── Step 2, 3 & Persona: Risk, Manipulation and Persona load (parallel) ──
-    const [riskPayload, manipulationPayload, personaConfig] = await Promise.all([
-      AnalyzeRiskBehavior.execute(message, userId, session),
-      AnalyzeManipulation.execute(message, userId),
-      LoadPersonaConfig.execute(userId)
-    ]);
+  // ── Step 2: Risk analysis happens before any prompt work ─────────────
+  const riskPayload = await AnalyzeRiskBehavior.execute(message, userId, session);
 
-    // Build persona instruction string (safe default if none configured)
-    // isFirstTurn = true when the patient has no prior messages in this session
-    const conversationCount = await ChatbotMessage.countDocuments({ userId });
-    const isFirstTurn = conversationCount === 0;
-    const personaInstructions = BuildPersonaInstructions.execute(personaConfig, isFirstTurn);
+  if (riskPayload && riskPayload.risk_level === 'HIGH') {
+    const alertTriggered = await RiskAlertService.trigger({
+      patientId: userId,
+      intakeSessionId: session._id,
+      risk: riskPayload
+    });
 
-    let alertTriggered = false;
-    // Override Flow if HIGH RISK (Trigger alert but let LLM generate the dynamic safety response)
-    if (riskPayload && riskPayload.risk_level === 'HIGH') {
-      await RiskAlertService.trigger({
-        patientId: userId,
-        intakeSessionId: session._id,
-        risk: riskPayload
-      });
-      alertTriggered = true;
-    }
+    const highRiskReply = await GenerateHighRiskResponse.execute(message);
 
-    // ── Step 4: Advance Stage if Turn Limit Reached ──────────────────────
-    const { session: updatedSession, stageConfig: activeStageConfig } =
-      await AdvanceIntakeStage.execute(session, stageConfig);
+    await PersistIntakeTurn.execute({
+      userId,
+      userMessage: message,
+      assistantReply: highRiskReply,
+      intakeStage: session.currentStage,
+      session
+    });
 
-    // ── Step 5: Retrieve RAG Context (Darija + LangChain PDF Chunks) ─────
-    const normalizedMessage = NormalizeDarijaText.execute(message);
-    const vector = await ExtractVectorEmbedding.execute(normalizedMessage);
-    
-    let darijaContext = await RetrievePsychologicalContext.execute(vector);
-    if (!darijaContext) {
-      darijaContext = await EnrichDarijaVocabulary.execute(normalizedMessage);
-    }
+    return {
+      reply: highRiskReply,
+      stage: session.currentStage,
+      stageName: stageConfig?.nameEn || '',
+      isComplete: session.isComplete,
+      ...(alertTriggered && { alertTriggered: true })
+    };
+  }
 
-    const pdfKnowledgeContext = await RetrieveKnowledgeChunks.execute(message);
+  // ── Step 3: Load persona and manipulation context only for non-high turns ──
+  const [manipulationPayload, personaConfig] = await Promise.all([
+    AnalyzeManipulation.execute(message, userId),
+    LoadPersonaConfig.execute(userId)
+  ]);
 
-    const combinedContext = `
+  const conversationCount = await ChatbotMessage.countDocuments({ userId });
+  const isFirstTurn = conversationCount === 0;
+  const personaInstructions = BuildPersonaInstructions.execute(personaConfig, isFirstTurn);
+
+  // ── Step 4: Advance Stage if Turn Limit Reached ──────────────────────
+  const { session: updatedSession, stageConfig: activeStageConfig } =
+    await AdvanceIntakeStage.execute(session, stageConfig);
+
+  // ── Step 5: Retrieve RAG Context ─────────────────────────────────────
+  const normalizedMessage = NormalizeDarijaText.execute(message);
+  const vector = await ExtractVectorEmbedding.execute(normalizedMessage);
+
+  let darijaContext = await RetrievePsychologicalContext.execute(vector);
+  if (!darijaContext) {
+    darijaContext = await EnrichDarijaVocabulary.execute(normalizedMessage);
+  }
+
+  const pdfKnowledgeContext = await RetrieveKnowledgeChunks.execute(message);
+
+  const combinedContext = `
 === DARIJA DIALECT CONTEXT ===
 ${darijaContext || 'None'}
 
@@ -88,45 +100,57 @@ ${pdfKnowledgeContext || 'None'}
 
 === MANIPULATION FLAG ===
 ${manipulationPayload ? 'Note: User may be testing boundaries or using emotional coercion. Maintain a firm, neutral, and highly professional therapeutic boundary.' : 'None'}
-    `.trim();
+  `.trim();
 
-    // ── Step 6: Fetch Recent Conversation History ────────────────────────
-    const conversationHistory = await ChatbotMessage.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(8)
-      .lean();
-    conversationHistory.reverse();
+  // ── Step 6: Fetch Recent Conversation History ────────────────────────
+  const conversationHistory = await ChatbotMessage.find({ userId })
+    .sort({ createdAt: -1 })
+    .limit(8)
+    .lean();
+  conversationHistory.reverse();
 
-    // ── Step 7: Generate Stage-Aware Intake Response ─────────────────────
-    const currentRiskLevel = riskPayload?.risk_level || 'LOW';
-    const reply = await GenerateIntakeResponse.execute(
-      message,
-      combinedContext,
-      activeStageConfig,
-      conversationHistory,
-      currentRiskLevel,
-      personaInstructions
-    );
+  // ── Step 7: Generate Stage-Aware Intake Response ─────────────────────
+  const currentRiskLevel = riskPayload?.risk_level || 'LOW';
+  const reply = await GenerateIntakeResponse.execute(
+    message,
+    combinedContext,
+    activeStageConfig,
+    conversationHistory,
+    currentRiskLevel,
+    personaInstructions
+  );
 
-    // ── Step 8: Persist Turn & Store Response ─────────────────────────────
-    await PersistIntakeTurn.execute({
-      userId,
-      userMessage: message,
-      assistantReply: reply,
-      intakeStage: updatedSession.currentStage,
-      session: updatedSession
-    });
+  // ── Step 8: Persist Turn & Store Response ─────────────────────────────
+  await PersistIntakeTurn.execute({
+    userId,
+    userMessage: message,
+    assistantReply: reply,
+    intakeStage: updatedSession.currentStage,
+    session: updatedSession
+  });
 
-    res.json({
-      reply,
-      stage: updatedSession.currentStage,
-      stageName: activeStageConfig?.nameEn || '',
-      isComplete: updatedSession.isComplete,
-      ...(alertTriggered && { alertTriggered: true })
-    });
+  return {
+    reply,
+    stage: updatedSession.currentStage,
+    stageName: activeStageConfig?.nameEn || '',
+    isComplete: updatedSession.isComplete
+  };
+}
+
+/**
+ * Workflow Route: RAG-Powered Intake Chat Pipeline
+ * Endpoint: POST /api/chat
+ */
+router.post('/', protect, async (req, res) => {
+  try {
+    const result = await runChatTurn({ userId: req.user.id, message: req.body.message });
+    res.json(result);
 
   } catch (error) {
     console.error('[Chat Workflow] Error:', error.message);
+    if (error.message === 'Message is required') {
+      return res.status(400).json({ status: 'error', message: error.message });
+    }
     res.status(500).json({ status: 'error', message: 'An internal AI processing error occurred.' });
   }
 });
@@ -154,3 +178,4 @@ router.get('/init', protect, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.runChatTurn = runChatTurn;

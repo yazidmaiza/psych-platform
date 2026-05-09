@@ -21,7 +21,25 @@ const patientDocumentSchema = new mongoose.Schema({
   },
   extractedText: {
     type: String,
-    required: true
+    required: false,
+    default: ''
+  },
+  textPreview: {
+    type: String,
+    default: ''
+  },
+  textLength: {
+    type: Number,
+    default: 0
+  },
+  chunkCount: {
+    type: Number,
+    default: 0
+  },
+  embeddingStatus: {
+    type: String,
+    enum: ['pending', 'ready', 'skipped', 'failed'],
+    default: 'pending'
   }
 }, { timestamps: true });
 

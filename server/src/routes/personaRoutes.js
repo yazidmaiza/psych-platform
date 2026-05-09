@@ -35,7 +35,8 @@ router.get('/', protect, async (req, res) => {
         directiveness: 'low',
         verbosity: 'medium',
         pacing: 'moderate',
-        customGreeting: ''
+        customGreeting: '',
+        language: ''
       },
       isDefault: !config
     });
@@ -59,7 +60,7 @@ router.put('/', protect, async (req, res) => {
 
     const {
       tone, reflectionLevel, questionStyle,
-      directiveness, verbosity, pacing, customGreeting
+      directiveness, verbosity, pacing, customGreeting, language
     } = req.body;
 
     // ── Validation ─────────────────────────────────────────────────────────
@@ -71,6 +72,8 @@ router.put('/', protect, async (req, res) => {
     if (verbosity       && !VALID.verbosity.includes(verbosity))            errors.push(`Invalid verbosity. Allowed: ${VALID.verbosity.join(', ')}`);
     if (pacing          && !VALID.pacing.includes(pacing))                  errors.push(`Invalid pacing. Allowed: ${VALID.pacing.join(', ')}`);
     if (customGreeting  && customGreeting.length > 300)                     errors.push('customGreeting must be 300 characters or fewer.');
+    if (language        && typeof language !== 'string')                    errors.push('language must be a string.');
+    if (language        && String(language).length > 40)                    errors.push('language must be 40 characters or fewer.');
 
     if (errors.length > 0) {
       return res.status(400).json({ message: 'Validation failed.', errors });
@@ -85,6 +88,7 @@ router.put('/', protect, async (req, res) => {
     if (verbosity)       update.verbosity        = verbosity;
     if (pacing)          update.pacing           = pacing;
     if (customGreeting !== undefined) update.customGreeting = customGreeting;
+    if (language !== undefined) update.language = language;
 
     const persona = await PersonaConfig.findOneAndUpdate(
       { psychologistId: psychologist._id },

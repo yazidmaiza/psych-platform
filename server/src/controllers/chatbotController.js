@@ -1,7 +1,9 @@
 const axios = require('axios');
 const ChatbotMessage = require('../models/ChatbotMessage');
 const ChatbotSummary = require('../models/ChatbotSummary');
+const IntakeSession = require('../models/IntakeSession');
 const Session = require('../models/Session');
+const chatWorkflow = require('../workflows/chatRoute');
 
 const parseJsonFromModel = (rawContent) => {
   if (typeof rawContent !== 'string') throw new Error('Invalid model response');
@@ -111,35 +113,52 @@ exports.sendMessage = async (req, res) => {
     if (req.user.role !== 'patient') {
       return res.status(403).json({ message: 'Access denied' });
     }
+
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
     
     const patientId = req.user.id;
 
-    const systemPrompt = `You are a compassionate listening assistant. The patient wants to express themselves freely.
-Let them lead the conversation. Ask gentle follow-up questions to help them explore their feelings more deeply.
-Be fully present and non-judgmental. Never provide medical diagnoses or suggest medications.
-Never rush the patient or redirect them unless they ask for guidance.
-IMPORTANT: Always detect the language the patient is writing in and respond in the SAME language. If the patient writes in Arabic, respond in Arabic. If in French, respond in French. If in English, respond in English. Never switch languages unless the patient does.`;
-
-    const history = await ChatbotMessage.find({ userId: patientId }).sort({ createdAt: 1 }).limit(100);
-
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.map(msg => ({ role: msg.role, content: msg.content })),
-      { role: 'user', content: message }
-    ];
-
-    await ChatbotMessage.create({ userId: patientId, role: 'user', content: message });
-
-    const groqResponse = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
-      { model: 'llama-3.3-70b-versatile', messages, temperature: 0.7, max_tokens: 300 },
-      { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' } }
-    );
-    const reply = groqResponse.data.choices[0].message.content;
-    
-    await ChatbotMessage.create({ userId: patientId, role: 'assistant', content: reply });
-    res.status(200).json({ reply });
+    const result = await chatWorkflow.runChatTurn({ userId: patientId, message });
+    res.status(200).json(result);
   } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.resetConversation = async (req, res) => {
+  try {
+    if (req.user.role !== 'patient') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const patientId = req.user.id;
+
+    await Promise.all([
+      ChatbotMessage.deleteMany({ userId: patientId }),
+      ChatbotSummary.deleteOne({ patientId }),
+      IntakeSession.findOneAndUpdate(
+        { userId: patientId },
+        {
+          $set: {
+            currentStage: 1,
+            stageTurnCounts: new Map([['1', 0], ['2', 0], ['3', 0], ['4', 0], ['5', 0]]),
+            isComplete: false,
+            consecutiveRiskCount: 0,
+            lastRiskCategory: null,
+            lastRiskAt: null,
+            startedAt: new Date(),
+            completedAt: null
+          }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      )
+    ]);
+
+    res.status(200).json({ message: 'Conversation reset successfully.' });
+  } catch (err) {
+    console.error('resetConversation error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };

@@ -36,7 +36,23 @@ const calendarSlotSchema = new mongoose.Schema({
     pendingAt: {
         type: Date,
         default: null
+    },
+    source: {
+        type: String,
+        enum: ['manual', 'recurring', 'booking'],
+        default: 'manual'
+    },
+    timezone: {
+        type: String,
+        default: 'UTC'
+    },
+    recurrenceRuleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AvailabilityRule',
+        default: null
     }
 }, { timestamps: true });
+
+calendarSlotSchema.index({ psychologistId: 1, start: 1 });
 
 module.exports = mongoose.model('CalendarSlot', calendarSlotSchema);

@@ -1,8 +1,32 @@
 // Get current logged in user info from localStorage
+const DEVICE_ID_KEY = 'deviceId';
+
+export const getDeviceId = () => {
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!deviceId) {
+        const randomPart = Math.random().toString(36).slice(2);
+        deviceId = `device_${Date.now()}_${randomPart}`;
+        localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+    return deviceId;
+};
+
+export const storeAuth = ({ accessToken, refreshToken, user }) => {
+    if (accessToken) localStorage.setItem('token', accessToken);
+    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+    if (user?.role) localStorage.setItem('role', user.role);
+    if (user?.id) localStorage.setItem('userId', user.id);
+    if (typeof user?.isVerified !== 'undefined') {
+        localStorage.setItem('isVerified', String(user.isVerified));
+    }
+};
+
 export const getUser = () => ({
     userId: localStorage.getItem('userId'),
     role: localStorage.getItem('role'),
     token: localStorage.getItem('token'),
+    refreshToken: localStorage.getItem('refreshToken'),
+    isVerified: localStorage.getItem('isVerified') === 'true'
 });
 
 // Check if user is logged in
@@ -35,9 +59,26 @@ export const logout = async () => {
         }
     }
 
+    if (token) {
+        try {
+            await fetch('http://localhost:5000/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+        } catch (err) {
+            // ignore logout errors
+        }
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('isVerified');
     window.location.href = '/login';
 };
 
@@ -47,3 +88,32 @@ export const authHeader = () => ({
         Authorization: `Bearer ${localStorage.getItem('token')}`
     }
 });
+
+export const refreshSession = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) return null;
+
+    const res = await fetch('http://localhost:5000/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            refreshToken,
+            deviceId: getDeviceId()
+        })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data.message || 'Refresh failed');
+    }
+
+    storeAuth({
+        accessToken: data.accessToken || data.token,
+        refreshToken: data.refreshToken,
+        user: data.user
+    });
+
+    return data;
+};

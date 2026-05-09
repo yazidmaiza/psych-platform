@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const CalendarSlot = require('../models/CalendarSlot');
 const Session = require('../models/Session');
-const Notification = require('../models/Notification');
+const { createNotification } = require('../services/notificationService');
+const AvailabilityRule = require('../models/AvailabilityRule');
+const AvailabilityException = require('../models/AvailabilityException');
+const { generateRecurringSlots } = require('../services/availabilityService');
 const { protect } = require('../middleware/authMiddleware');
 
 const cancelSessionAndFreeSlot = async (session, reason) => {
@@ -24,12 +27,13 @@ const cancelSessionAndFreeSlot = async (session, reason) => {
     }
 
     try {
-        await Notification.create({
+        await createNotification({
             userId: session.patientId,
             title: 'Booking canceled',
             message: reason || 'Your booking was canceled.',
             link: '/patient/dashboard',
-            type: 'booking_canceled'
+            type: 'booking_canceled',
+            channels: ['in_app', 'email']
         });
     } catch {}
 };
@@ -47,6 +51,15 @@ const getDefaultSessionTypeForPatient = async (patientId) => {
     return hasCompleted ? 'followup' : 'preparation';
 };
 
+const hasOverlap = async ({ psychologistId, start, end }) => {
+    return CalendarSlot.exists({
+        psychologistId,
+        isBooked: true,
+        start: { $lt: end },
+        end: { $gt: start }
+    });
+};
+
 const expireOverduePayments = async (psychologistId) => {
     const now = new Date();
     const query = {
@@ -62,9 +75,105 @@ const expireOverduePayments = async (psychologistId) => {
     }
 };
 
+// Psychologist recurring rules
+router.get('/recurring/rules', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+        const rules = await AvailabilityRule.find({ psychologistId: req.user.id, isActive: true }).sort({ dayOfWeek: 1, startTime: 1 });
+        res.json(rules);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/recurring/rules', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+        const { dayOfWeek, startTime, endTime, timezone, tzOffsetMinutes } = req.body;
+        if (dayOfWeek === undefined || !startTime || !endTime) {
+            return res.status(400).json({ message: 'dayOfWeek, startTime, and endTime are required' });
+        }
+
+        const rule = await AvailabilityRule.findOneAndUpdate(
+            { psychologistId: req.user.id, dayOfWeek, startTime, endTime },
+            {
+                psychologistId: req.user.id,
+                dayOfWeek,
+                startTime,
+                endTime,
+                timezone: timezone || 'UTC',
+                tzOffsetMinutes: Number(tzOffsetMinutes || 0),
+                isActive: true
+            },
+            { upsert: true, new: true }
+        );
+
+        res.status(201).json(rule);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.delete('/recurring/rules/:id', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+        await AvailabilityRule.deleteOne({ _id: req.params.id, psychologistId: req.user.id });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/recurring/exceptions', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+        const { date, startTime, endTime, isAvailable, reason } = req.body;
+        if (!date) return res.status(400).json({ message: 'date is required' });
+
+        const exception = await AvailabilityException.create({
+            psychologistId: req.user.id,
+            date,
+            startTime: startTime || null,
+            endTime: endTime || null,
+            isAvailable: Boolean(isAvailable),
+            reason: reason || ''
+        });
+
+        res.status(201).json(exception);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/recurring/generate', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+        const { rangeStart, rangeEnd } = req.body;
+        if (!rangeStart || !rangeEnd) return res.status(400).json({ message: 'rangeStart and rangeEnd are required' });
+
+        const result = await generateRecurringSlots({
+            psychologistId: req.user.id,
+            rangeStart: new Date(rangeStart),
+            rangeEnd: new Date(rangeEnd)
+        });
+
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Get all slots for a psychologist
 router.get('/slots/:psychologistId', protect, async (req, res) => {
     try {
+        const now = new Date();
+        const horizon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        await generateRecurringSlots({
+            psychologistId: req.params.psychologistId,
+            rangeStart: now,
+            rangeEnd: horizon
+        });
+
         await expireOverduePayments(req.params.psychologistId);
 
         const baseQuery = { psychologistId: req.params.psychologistId };
@@ -109,7 +218,8 @@ router.post('/slots', protect, async (req, res) => {
         const slot = new CalendarSlot({
             psychologistId: req.user.id,
             start: startDate,
-            end: endDate
+            end: endDate,
+            source: 'manual'
         });
         await slot.save();
         res.status(201).json(slot);
@@ -144,20 +254,31 @@ router.post('/slots/:id/book', protect, async (req, res) => {
             scheduledEnd: slot.end
         });
 
-        slot.pendingPatientId = req.user.id;
-        slot.pendingSessionId = session._id;
-        slot.pendingAt = new Date();
-        await slot.save();
+        const updated = await CalendarSlot.findOneAndUpdate(
+            { _id: slot._id, isBooked: false, pendingSessionId: null },
+            {
+                pendingPatientId: req.user.id,
+                pendingSessionId: session._id,
+                pendingAt: new Date()
+            },
+            { new: true }
+        );
 
-        await Notification.create({
+        if (!updated) {
+            await Session.findByIdAndDelete(session._id);
+            return res.status(409).json({ message: 'Slot is no longer available' });
+        }
+
+        await createNotification({
             userId: slot.psychologistId,
             title: 'New booking request',
             message: 'A patient requested a session on ' + new Date(slot.start).toLocaleString(),
             link: '/calendar',
-            type: 'booking_request'
+            type: 'booking_request',
+            channels: ['in_app']
         });
 
-        res.json({ slot, sessionId: session._id });
+        res.json({ slot: updated, sessionId: session._id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -211,20 +332,31 @@ router.post('/slots/:id/request', protect, async (req, res) => {
             scheduledEnd
         });
 
-        slot.pendingPatientId = req.user.id;
-        slot.pendingSessionId = session._id;
-        slot.pendingAt = new Date();
-        await slot.save();
+        const updated = await CalendarSlot.findOneAndUpdate(
+            { _id: slot._id, isBooked: false, pendingSessionId: null },
+            {
+                pendingPatientId: req.user.id,
+                pendingSessionId: session._id,
+                pendingAt: new Date()
+            },
+            { new: true }
+        );
 
-        await Notification.create({
+        if (!updated) {
+            await Session.findByIdAndDelete(session._id);
+            return res.status(409).json({ message: 'Slot is no longer available' });
+        }
+
+        await createNotification({
             userId: slot.psychologistId,
             title: 'New booking request',
             message: 'A patient requested a session on ' + new Date(scheduledStart).toLocaleString(),
             link: '/calendar',
-            type: 'booking_request'
+            type: 'booking_request',
+            channels: ['in_app']
         });
 
-        res.status(201).json({ slot, sessionId: session._id });
+        res.status(201).json({ slot: updated, sessionId: session._id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -249,6 +381,11 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
         const bookedStart = session.scheduledStart || slot.start;
         const bookedEnd   = session.scheduledEnd   || slot.end;
 
+        const overlap = await hasOverlap({ psychologistId: slot.psychologistId, start: bookedStart, end: bookedEnd });
+        if (overlap) {
+            return res.status(409).json({ message: 'This time overlaps another confirmed booking.' });
+        }
+
         const MIN_SLOT_MS = 60 * 60 * 1000; // 1 hour minimum for remaining sub-slots
 
         // 1 — Create the booked sub-slot (patient's chosen window)
@@ -257,7 +394,8 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
             patientId: slot.pendingPatientId,
             start: bookedStart,
             end: bookedEnd,
-            isBooked: true
+            isBooked: true,
+            source: 'booking'
         });
 
         // 2 — Update the session to point to the new booked sub-slot
@@ -292,12 +430,13 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
         // 4 — Delete the original parent slot
         await CalendarSlot.findByIdAndDelete(slot._id);
 
-        await Notification.create({
+        await createNotification({
             userId: session.patientId,
             title: 'Booking confirmed',
             message: 'Your psychologist confirmed your booking. Please complete payment within 24 hours.',
             link: '/payment/' + session._id,
-            type: 'booking_confirmed'
+            type: 'booking_confirmed',
+            channels: ['in_app', 'email']
         });
 
         res.status(200).json({ slot: bookedSlot, sessionId: session._id });
@@ -322,12 +461,13 @@ router.post('/slots/:id/reject', protect, async (req, res) => {
             session.canceledAt = new Date();
             await session.save();
 
-            await Notification.create({
+            await createNotification({
                 userId: session.patientId,
                 title: 'Booking rejected',
                 message: 'Your booking request was rejected. Please choose another time slot.',
                 link: '/calendar/' + slot.psychologistId,
-                type: 'booking_rejected'
+                type: 'booking_rejected',
+                channels: ['in_app', 'email']
             });
         }
 

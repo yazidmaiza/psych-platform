@@ -23,6 +23,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(false);
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [error, setError] = useState('');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatUntil, setRepeatUntil] = useState('');
 
   const navigate = useNavigate();
   const { role, userId } = getUser();
@@ -177,16 +179,49 @@ export default function CalendarPage() {
     setSelectedSlot(null);
     setSessionDetails(null);
     setSelectedBooking(null);
+    setRepeatWeekly(false);
+    setRepeatUntil('');
   };
+
+  useEffect(() => {
+    if (!selectedSlot?.start) return;
+    const defaultEnd = new Date(selectedSlot.start.getTime() + 28 * 24 * 60 * 60 * 1000);
+    const iso = defaultEnd.toISOString().slice(0, 10);
+    setRepeatUntil(iso);
+  }, [selectedSlot]);
 
   const addAvailability = async () => {
     if (!selectedSlot) return;
     setLoading(true);
     try {
-      await api.post('/api/calendar/slots', {
-        start: selectedSlot.start,
-        end: selectedSlot.end
-      });
+      if (repeatWeekly) {
+        const startDate = new Date(selectedSlot.start);
+        const endDate = new Date(selectedSlot.end);
+        const dayOfWeek = startDate.getDay();
+        const startTime = moment(startDate).format('HH:mm');
+        const endTime = moment(endDate).format('HH:mm');
+        const tzOffsetMinutes = new Date().getTimezoneOffset();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+        await api.post('/api/calendar/recurring/rules', {
+          dayOfWeek,
+          startTime,
+          endTime,
+          tzOffsetMinutes,
+          timezone
+        });
+
+        if (repeatUntil) {
+          const rangeStart = startDate.toISOString();
+          const rangeEnd = new Date(`${repeatUntil}T23:59:00`).toISOString();
+          await api.post('/api/calendar/recurring/generate', { rangeStart, rangeEnd });
+        }
+      } else {
+        await api.post('/api/calendar/slots', {
+          start: selectedSlot.start,
+          end: selectedSlot.end
+        });
+      }
       closeModal();
       fetchSlots();
     } catch (e) {
@@ -577,6 +612,28 @@ export default function CalendarPage() {
                       <span className="font-semibold text-white">To:</span>{' '}
                       {moment(selectedSlot?.end).format('MMMM Do YYYY, h:mm a')}
                     </div>
+                    <div className="mt-4 flex items-center gap-3 text-xs text-white/70">
+                      <input
+                        id="repeat-weekly"
+                        type="checkbox"
+                        checked={repeatWeekly}
+                        onChange={(e) => setRepeatWeekly(e.target.checked)}
+                        className="h-4 w-4 accent-indigo-500"
+                      />
+                      <label htmlFor="repeat-weekly" className="cursor-pointer">Repeat weekly</label>
+                    </div>
+                    {repeatWeekly && (
+                      <div className="mt-3">
+                        <label className="text-xs text-white/60" htmlFor="repeat-until">Repeat until</label>
+                        <input
+                          id="repeat-until"
+                          type="date"
+                          value={repeatUntil}
+                          onChange={(e) => setRepeatUntil(e.target.value)}
+                          className="mt-1 h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 flex gap-3">

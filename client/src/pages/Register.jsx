@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AuthShell from '../components/auth/AuthShell';
+import { getDeviceId, storeAuth } from '../services/auth';
 
 const RoleCard = ({ active, label, description, onClick }) => (
   <button
@@ -37,10 +38,21 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/register', form);
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('role', res.data.user.role);
-      localStorage.setItem('userId', res.data.user.id);
+      const res = await axios.post('http://localhost:5000/api/auth/register', {
+        ...form,
+        deviceId: getDeviceId()
+      });
+
+      storeAuth({
+        accessToken: res.data.accessToken || res.data.token,
+        refreshToken: res.data.refreshToken,
+        user: res.data.user
+      });
+
+      if (res.data.requiresEmailVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
+        return;
+      }
 
       if (form.role === 'psychologist') navigate('/setup');
       else navigate('/patient/dashboard');
