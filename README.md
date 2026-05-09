@@ -33,6 +33,7 @@ A sophisticated Agent Operating System designed to understand context and Tunisi
 Built with modern security best practices:
 - **Authentication**: JWT-based auth with robust email verification flows.
 - **Protection Measures**: HTTP headers (`helmet`), Rate Limiting (`express-rate-limit`), NoSQL injection protection (`express-mongo-sanitize`), and XSS cleaning (`xss-clean`).
+- **Private verification uploads**: Psychologist ID card images and intro videos are stored under `server/private_uploads/` by default (override with `PRIVATE_UPLOADS_DIR`) and are only served via authenticated admin endpoints.
 
 ---
 

@@ -44,6 +44,8 @@ const createNotification = async ({
   data,
   priority
 }) => {
+  if (!userId) return null;
+
   const pref = await getPreferences(userId);
   if (isMuted(pref, type)) return null;
 
@@ -60,6 +62,7 @@ const createNotification = async ({
     priority: priority || 'normal'
   });
 
+  // In-app real-time notification
   if (channelList.includes('in_app') && pref.inAppEnabled) {
     try {
       const io = getIo();
@@ -69,21 +72,36 @@ const createNotification = async ({
     } catch {}
   }
 
+  // Email delivery queue
   if (channelList.includes('email') && shouldSendEmail(pref)) {
     await NotificationDelivery.create({
       notificationId: notification._id,
       userId,
       channel: 'email',
       status: 'pending',
-      nextAttemptAt: new Date()
+      nextAttemptAt: new Date(),
+      attempts: 0
     });
   }
 
   return notification;
 };
 
+// Backward compatibility alias (old main version)
+const notifyUser = async ({ userId, title, message, link = '', type = 'generic' }) => {
+  return createNotification({
+    userId,
+    title,
+    message,
+    link,
+    type,
+    channels: ['in_app']
+  });
+};
+
 const processPendingEmailDeliveries = async ({ limit = 20 } = {}) => {
   const now = new Date();
+
   const deliveries = await NotificationDelivery.find({
     channel: 'email',
     status: { $in: ['pending', 'retry'] },
@@ -130,11 +148,13 @@ const processPendingEmailDeliveries = async ({ limit = 20 } = {}) => {
     } catch (err) {
       const backoffMinutes = [2, 5, 15, 60];
       const attemptIndex = Math.min(delivery.attempts - 1, backoffMinutes.length - 1);
-      const nextAttemptAt = new Date(Date.now() + backoffMinutes[attemptIndex] * 60 * 1000);
 
       delivery.status = delivery.attempts >= 5 ? 'failed' : 'retry';
       delivery.lastError = err.message || 'Delivery failed';
-      delivery.nextAttemptAt = nextAttemptAt;
+      delivery.nextAttemptAt = new Date(
+        Date.now() + backoffMinutes[attemptIndex] * 60 * 1000
+      );
+
       await delivery.save();
     }
   }
@@ -144,6 +164,7 @@ const processPendingEmailDeliveries = async ({ limit = 20 } = {}) => {
 
 module.exports = {
   createNotification,
+  notifyUser,
   getPreferences,
   processPendingEmailDeliveries
 };

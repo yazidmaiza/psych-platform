@@ -1,4 +1,5 @@
 const Psychologist = require('../models/Psychologist');
+const ProfilePhotoModerationRequest = require('../models/ProfilePhotoModerationRequest');
 const axios = require('axios');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
@@ -45,8 +46,20 @@ const extractPDFText = async (filePath) => {
   }
 };
 
+const truncateText = (value, maxChars) => {
+  const text = String(value || '');
+  if (!maxChars || text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + `\n\n[Truncated to ${maxChars} characters]`;
+};
+
 // Helper: analyze documents with Groq
 const analyzeWithGroq = async (cvText, diplomaText) => {
+  // Groq can return 413 if the prompt payload is too large.
+  // Keep inputs bounded to avoid breaking onboarding for long PDFs.
+  const MAX_DOC_CHARS = 12000;
+  const safeCvText = truncateText(cvText, MAX_DOC_CHARS);
+  const safeDiplomaText = truncateText(diplomaText, MAX_DOC_CHARS);
+
   const response = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
@@ -58,7 +71,7 @@ const analyzeWithGroq = async (cvText, diplomaText) => {
         },
         {
           role: 'user',
-          content: 'CV:\n' + cvText + '\n\nDIPLOMA:\n' + diplomaText + '\n\nPlease provide: 1) A summary of qualifications 2) Years of experience 3) Specializations mentioned 4) Whether the diploma appears legitimate 5) Overall recommendation (Approve/Review/Reject) with reason.'
+          content: 'CV:\n' + safeCvText + '\n\nDIPLOMA:\n' + safeDiplomaText + '\n\nPlease provide: 1) A summary of qualifications 2) Years of experience 3) Specializations mentioned 4) Whether the diploma appears legitimate 5) Overall recommendation (Approve/Review/Reject) with reason.'
         }
       ],
       temperature: 0.3,
@@ -179,6 +192,21 @@ exports.getPendingVerifications = async (req, res) => {
 // @PUT /api/verification/:id/approve
 exports.approvePsychologist = async (req, res) => {
   try {
+    if (String(process.env.REQUIRE_PROFILE_PHOTO_APPROVAL_FOR_ACTIVATION || '').toLowerCase() === 'true') {
+      const candidate = await Psychologist.findById(req.params.id).select('userId');
+      if (!candidate) return res.status(404).json({ message: 'Psychologist not found' });
+
+      const latestPhotoReq = await ProfilePhotoModerationRequest.findOne({ userId: candidate.userId })
+        .sort({ createdAt: -1 })
+        .select('status');
+
+      if (!latestPhotoReq || latestPhotoReq.status !== 'approved') {
+        return res.status(400).json({
+          message: 'Profile photo moderation must be approved before activating this profile.'
+        });
+      }
+    }
+
     const psychologist = await Psychologist.findByIdAndUpdate(
       req.params.id,
       { isApproved: true },

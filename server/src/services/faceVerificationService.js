@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { getPublicUploadsRoot, getPrivateUploadsRoot } = require('../utils/uploadRoots');
 
 let modelsLoadedPromise = null;
 
@@ -31,7 +32,8 @@ const hasRequiredModels = (modelPath) => {
 exports.getFaceCheckDiagnostics = () => {
   const repoRoot = path.resolve(__dirname, '../../..');
   const modelPath = path.join(repoRoot, 'models');
-  const uploadsRoot = path.resolve(__dirname, '../../uploads');
+  const publicUploadsRoot = getPublicUploadsRoot();
+  const privateUploadsRoot = getPrivateUploadsRoot();
 
   const nodeVersion = (typeof process !== 'undefined' && process.version) ? process.version : 'unknown';
 
@@ -47,7 +49,8 @@ exports.getFaceCheckDiagnostics = () => {
 
   return {
     nodeVersion,
-    uploadsRoot,
+    publicUploadsRoot,
+    privateUploadsRoot,
     modelPath,
     modelsPresent: fs.existsSync(modelPath),
     modelsComplete: fs.existsSync(modelPath) && hasRequiredModels(modelPath),
@@ -170,19 +173,29 @@ exports.verifyFaceMatch = async (userId) => {
   try {
     if (!userId) return safeResult({ match: false, confidence: 0, error: 'userId is required' });
 
-    // Uploads are stored relative to the server runtime (server/uploads/...)
-    const uploadsRoot = path.resolve(__dirname, '../../uploads');
-    const idDir = path.join(uploadsRoot, 'verification', String(userId), 'id');
-    let idFrontPath = path.join(idDir, 'front.jpg');
+    const uploadRoots = [getPrivateUploadsRoot(), getPublicUploadsRoot()];
+
+    const findExistingPath = (segments) => {
+      for (const root of uploadRoots) {
+        const candidate = path.join(root, ...segments);
+        if (fs.existsSync(candidate)) return candidate;
+      }
+      return null;
+    };
+
+    const idDirSegments = ['verification', String(userId), 'id'];
+    let idFrontPath = findExistingPath([...idDirSegments, 'front.jpg']);
 
     // Prefer mp4 but allow any intro.* extension.
-    const videoDir = path.join(uploadsRoot, 'verification', String(userId), 'video');
-    const candidateVideos = ['intro.mp4', 'intro.mov', 'intro.webm'].map((f) => path.join(videoDir, f));
-    const introVideoPath = candidateVideos.find((p) => fs.existsSync(p));
+    const videoDirSegments = ['verification', String(userId), 'video'];
+    const introVideoPath = ['intro.mp4', 'intro.mov', 'intro.webm']
+      .map((f) => findExistingPath([...videoDirSegments, f]))
+      .find(Boolean);
 
-    if (!fs.existsSync(idFrontPath)) {
-      const candidates = ['front.jpg', 'front.jpeg', 'front.png'].map((f) => path.join(idDir, f));
-      const alt = candidates.find((p) => fs.existsSync(p));
+    if (!idFrontPath) {
+      const alt = ['front.jpg', 'front.jpeg', 'front.png']
+        .map((f) => findExistingPath([...idDirSegments, f]))
+        .find(Boolean);
       if (!alt) return safeResult({ match: false, confidence: 0, error: 'ID front image not found' });
       idFrontPath = alt;
     }
