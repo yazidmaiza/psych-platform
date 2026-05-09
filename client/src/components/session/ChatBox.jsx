@@ -1,17 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import TypingIndicator from './TypingIndicator';
 
 const EmptyState = ({ title, description, actionLabel, onAction }) => (
   <div className="grid place-items-center rounded-3xl border border-white/10 bg-white/5 px-6 py-16 text-center">
     <div className="max-w-md">
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      {description && <p className="mt-2 text-sm text-white/70">{description}</p>}
+      <h3 className="text-base font-semibold text-[color:var(--app-fg)]">{title}</h3>
+      {description && <p className="mt-2 text-sm text-[color:var(--muted)]">{description}</p>}
       {actionLabel && (
         <button
           type="button"
           onClick={onAction}
-          className="mt-6 rounded-xl bg-indigo-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+          className="mt-6 rounded-xl bg-[color:var(--accent-90)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition"
         >
           {actionLabel}
         </button>
@@ -37,7 +37,8 @@ export default function ChatBox({
   isRecording,
   onRecordToggle,
   isMuted,
-  onMuteToggle
+  onMuteToggle,
+  presence = null
 }) {
   const [draft, setDraft] = useState('');
   const scrollerRef = useRef(null);
@@ -52,20 +53,42 @@ export default function ChatBox({
 
   const canSend = !disabled && draft.trim().length > 0;
 
-  const submit = () => {
+  const submit = useCallback(() => {
     const text = draft.trim();
     if (!text || disabled) return;
     setDraft('');
     onSend?.(text);
-  };
+  }, [draft, disabled, onSend]);
+
+  // Keyboard shortcuts (accessibility / power users):
+  // - Ctrl+Enter: send message
+  // - Ctrl+Shift+R: toggle voice recording (if available)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (disabled) return;
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      }
+      if (showVoiceOptions && e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+        e.preventDefault();
+        onRecordToggle?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [disabled, showVoiceOptions, onRecordToggle, submit]);
 
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-white">{title}</div>
-            {subtitle && <div className="mt-1 truncate text-xs text-white/60">{subtitle}</div>}
+            <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">{title}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {subtitle && <div className="truncate text-xs text-[color:var(--muted)]">{subtitle}</div>}
+              {presence}
+            </div>
           </div>
           {disabled && disabledReason && (
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
@@ -97,7 +120,10 @@ export default function ChatBox({
                   key={id}
                   isMe={isMe}
                   content={content}
+                  kind={m.kind || 'text'}
+                  voice={m.voice || null}
                   timestamp={m.createdAt}
+                  isRead={Boolean(m.isRead)}
                 />
               );
             })}
@@ -126,7 +152,7 @@ export default function ChatBox({
             rows={2}
             placeholder={placeholder}
             disabled={disabled}
-            className="min-h-[44px] flex-1 resize-none rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+            className="min-h-[44px] flex-1 resize-none rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm text-[color:var(--app-fg)] placeholder:text-[color:var(--muted)] outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)] disabled:opacity-50"
           />
           {showVoiceOptions && !disabled && (
             <>

@@ -117,3 +117,85 @@ POST /api/dashboard/patients/:patientId/notes
 Protected: yes
 Body: { content }
 Response: { id, content, createdAt }
+
+---
+
+## Credential Documents (UC-03 / UC-04)
+
+These endpoints implement secure credential document upload, versioning, and short-lived scoped access URLs.
+
+### Upload Credential Document (single type)
+POST /api/credential-documents/upload  
+Protected: yes (role: psychologist)  
+Content-Type: multipart/form-data  
+Fields:
+- `type`: `cv | diploma | idFront | idBack | introVideo`
+- `file`: the uploaded file
+
+Validation:
+- CV/Diploma: PDF, max 10MB each
+- ID images: JPG/JPEG/PNG, max 5MB each
+- Intro video: MP4/WEBM/MOV, max 100MB
+
+Response: `{ message, document }`
+
+### Generate Short-Lived Access URL
+GET /api/credential-documents/:id/access-url?ttlSeconds=300  
+Protected: yes (role: psychologist (own docs only) or admin (all docs))  
+Response: `{ url, expiresAt }` where `url` is a short-lived download link.
+
+### Download via Signed Token
+GET /api/credential-documents/download?token=...  
+Protected: no (token is the authorization)  
+Response: file stream
+
+### List My Current Credential Documents
+GET /api/credential-documents/my  
+Protected: yes (role: psychologist)  
+Response: `CredentialDocument[]` (current versions)
+
+### Checklist Summary
+GET /api/credential-documents/checklist  
+Protected: yes (role: psychologist)  
+Response: `{ profileStatus, checklist, allComplete }`
+
+---
+
+## Verification Routes (Psychologist onboarding)
+
+### Submit Verification Bundle (CV + Diploma + ID + Intro Video)
+POST /api/verification/upload  
+Protected: yes (role: psychologist)  
+Content-Type: multipart/form-data  
+Fields: `cv`, `diploma`, `idFront`, `idBack`, `introVideo`
+
+Notes:
+- Stores documents in private storage and persists metadata in `CredentialDocument` (with version history).
+- Sets `Psychologist.profileStatus = Submitted`.
+
+### List Pending Verifications
+GET /api/verification/pending  
+Protected: yes (role: admin)  
+Response: Psychologist profiles with populated `credentialDocs` refs.
+
+### Approve / Reject
+PUT /api/verification/:id/approve  
+PUT /api/verification/:id/reject  
+Protected: yes (role: admin)
+
+---
+
+## Onboarding (UC-05 / UC-06)
+
+### View My Onboarding Status
+GET /api/onboarding/me  
+Protected: yes (role: psychologist)  
+Response: `{ profileStatus, submittedAt, rejectedAt, rejectionReason, rejectionDetails, onboardingHistory, ... }`
+
+### Submit / Resubmit Onboarding
+POST /api/onboarding/submit  
+Protected: yes (role: psychologist)  
+Behavior:
+- If `profileStatus=Draft`, performs completeness validation and transitions to `Submitted`.
+- If `profileStatus=Rejected`, performs completeness validation and transitions back to `Submitted` (resubmission), preserving history.
+On failure returns `{ missingFields, missingDocuments }`.

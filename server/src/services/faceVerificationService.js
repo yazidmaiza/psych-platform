@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { getPublicUploadsRoot, getPrivateUploadsRoot } = require('../utils/uploadRoots');
+const Psychologist = require('../models/Psychologist');
+const CredentialDocument = require('../models/CredentialDocument');
+const { resolvePrivatePath } = require('./credentialDocumentStorage');
 
 let modelsLoadedPromise = null;
 
@@ -31,7 +35,8 @@ const hasRequiredModels = (modelPath) => {
 exports.getFaceCheckDiagnostics = () => {
   const repoRoot = path.resolve(__dirname, '../../..');
   const modelPath = path.join(repoRoot, 'models');
-  const uploadsRoot = path.resolve(__dirname, '../../uploads');
+  const publicUploadsRoot = getPublicUploadsRoot();
+  const privateUploadsRoot = getPrivateUploadsRoot();
 
   const nodeVersion = (typeof process !== 'undefined' && process.version) ? process.version : 'unknown';
 
@@ -47,7 +52,8 @@ exports.getFaceCheckDiagnostics = () => {
 
   return {
     nodeVersion,
-    uploadsRoot,
+    publicUploadsRoot,
+    privateUploadsRoot,
     modelPath,
     modelsPresent: fs.existsSync(modelPath),
     modelsComplete: fs.existsSync(modelPath) && hasRequiredModels(modelPath),
@@ -170,23 +176,74 @@ exports.verifyFaceMatch = async (userId) => {
   try {
     if (!userId) return safeResult({ match: false, confidence: 0, error: 'userId is required' });
 
-    // Uploads are stored relative to the server runtime (server/uploads/...)
-    const uploadsRoot = path.resolve(__dirname, '../../uploads');
-    const idDir = path.join(uploadsRoot, 'verification', String(userId), 'id');
-    let idFrontPath = path.join(idDir, 'front.jpg');
+    const uploadRoots = [getPrivateUploadsRoot(), getPublicUploadsRoot()];
 
-    // Prefer mp4 but allow any intro.* extension.
-    const videoDir = path.join(uploadsRoot, 'verification', String(userId), 'video');
-    const candidateVideos = ['intro.mp4', 'intro.mov', 'intro.webm'].map((f) => path.join(videoDir, f));
-    const introVideoPath = candidateVideos.find((p) => fs.existsSync(p));
+    const findExistingPath = (segments) => {
+      for (const root of uploadRoots) {
+        const candidate = path.join(root, ...segments);
+        if (fs.existsSync(candidate)) return candidate;
+      }
+      return null;
+    };
 
-    if (!fs.existsSync(idFrontPath)) {
-      const candidates = ['front.jpg', 'front.jpeg', 'front.png'].map((f) => path.join(idDir, f));
-      const alt = candidates.find((p) => fs.existsSync(p));
-      if (!alt) return safeResult({ match: false, confidence: 0, error: 'ID front image not found' });
-      idFrontPath = alt;
+    const resolveCredentialDocAbsolutePath = async (docOrId) => {
+      const doc =
+        docOrId && typeof docOrId === 'object' && docOrId.storagePath
+          ? docOrId
+          : docOrId
+            ? await CredentialDocument.findById(docOrId).select('storagePath originalName mimeType')
+            : null;
+      if (!doc?.storagePath) return null;
+      try {
+        const { absolute } = resolvePrivatePath(doc.storagePath);
+        if (fs.existsSync(absolute)) return absolute;
+        return null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    // Current system: CredentialDocument storage (private).
+    const psychologist = await Psychologist.findOne({ userId: String(userId) })
+      .select('_id userId credentialDocs')
+      .lean();
+
+    let idFrontPath = null;
+    let introVideoPath = null;
+
+    if (psychologist?.credentialDocs?.idFront || psychologist?.credentialDocs?.introVideo) {
+      idFrontPath = await resolveCredentialDocAbsolutePath(psychologist?.credentialDocs?.idFront);
+      introVideoPath = await resolveCredentialDocAbsolutePath(psychologist?.credentialDocs?.introVideo);
+    }
+
+    // Fallback: older deployments wrote to `uploads/(private|public)/verification/<userId>/...`
+    if (!idFrontPath) {
+      const idDirSegments = ['verification', String(userId), 'id'];
+      idFrontPath =
+        findExistingPath([...idDirSegments, 'front.jpg']) ||
+        ['front.jpeg', 'front.png']
+          .map((f) => findExistingPath([...idDirSegments, f]))
+          .find(Boolean) ||
+        null;
+    }
+
+    if (!introVideoPath) {
+      const videoDirSegments = ['verification', String(userId), 'video'];
+      introVideoPath = ['intro.mp4', 'intro.mov', 'intro.webm']
+        .map((f) => findExistingPath([...videoDirSegments, f]))
+        .find(Boolean) || null;
+    }
+
+    if (!idFrontPath) {
+      if (psychologist?.credentialDocs?.idFront) {
+        return safeResult({ match: false, confidence: 0, error: 'ID front document is linked but file is missing on disk' });
+      }
+      return safeResult({ match: false, confidence: 0, error: 'ID front image not found' });
     }
     if (!introVideoPath) {
+      if (psychologist?.credentialDocs?.introVideo) {
+        return safeResult({ match: false, confidence: 0, error: 'Intro video document is linked but file is missing on disk' });
+      }
       return safeResult({ match: false, confidence: 0, error: 'Intro video not found' });
     }
 

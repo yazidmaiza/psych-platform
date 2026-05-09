@@ -8,7 +8,7 @@ The Psych Platform is a comprehensive web application designed to bridge the gap
 ### 👥 User Roles & Portals
 - **Patients**: Find therapists, book sessions, upload intake documents, view session history, and track emotional indicators.
 - **Psychologists**: Manage availability via an intuitive calendar, track patient histories, write private clinical notes, and review statistics.
-- **Administrators**: Dedicated admin panel for platform oversight.
+- **Administrators**: Dedicated admin panel for platform oversight, including a paginated onboarding review queue (`docs/review-queue.md`).
 
 ### 📅 Advanced Scheduling & Calendar
 - Psychologists can configure and set their available time slots.
@@ -33,6 +33,7 @@ A sophisticated Agent Operating System designed to understand context and Tunisi
 Built with modern security best practices:
 - **Authentication**: JWT-based auth with robust email verification flows.
 - **Protection Measures**: HTTP headers (`helmet`), Rate Limiting (`express-rate-limit`), NoSQL injection protection (`express-mongo-sanitize`), and XSS cleaning (`xss-clean`).
+- **Private verification uploads**: Psychologist ID card images and intro videos are stored under `server/private_uploads/` by default (override with `PRIVATE_UPLOADS_DIR`) and are only served via authenticated admin endpoints.
 
 ---
 

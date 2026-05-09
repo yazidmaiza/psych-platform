@@ -1,0 +1,461 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+  citecolor=blue
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{Sprint 4 Documentation\\\large PsychPlatform}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introduction}
+Sprint 4 consolidates the core operational loop of the platform: patients can activate sessions after payment, patients and psychologists can communicate in real time (text and voice), and the platform provides AI-assisted pre-session analysis to support clinical preparation. This sprint is intentionally designed as an integration sprint: its backlog items span multiple subsystems (payments, email, sessions, WebSocket messaging, media upload, PDF generation, and AI pipelines) and therefore requires strict adherence to the MERN-stack layering principles already used in the project (React UI $\rightarrow$ Express routes/controllers $\rightarrow$ service layer $\rightarrow$ MongoDB models).
+
+The scope described in this document is limited to Sprint 4 deliverables and associated engineering tasks required to ensure the features operate safely and consistently within the existing architecture.
+
+\section{Sprint Objectives and Scope}
+Sprint 4 has three primary objectives:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Session activation after payment (PB-10):} enable a patient-facing flow where payment confirmation triggers an email containing an access code that is later used to activate/enter the session. This objective establishes transactional integrity, auditability (code issuance), and minimal operational friction for patients.
+  \item \textbf{Clinical session closure and reporting (PB-11):} allow psychologists to terminate a session and generate a PDF report that can be archived for clinical record-keeping. This objective focuses on correctness, traceability, and document integrity.
+  \item \textbf{Real-time communication and AI-assisted preparation (PB-12 to PB-15):} deliver real-time text chat, voice messaging, patient chatbot interaction, and system-generated clinical summaries based on chatbot history. This objective focuses on latency, reliability, privacy boundaries, and deterministic data handling.
+\end{enumerate}
+
+\subsection*{In scope}
+\begin{itemize}[leftmargin=*]
+  \item Payment confirmation and access code issuance by email (including code persistence and validation).
+  \item Session activation using the code (authorization and session state transitions).
+  \item Session termination by the psychologist and PDF report generation.
+  \item Real-time text messaging within a shared interface (WebSocket-based).
+  \item Voice message capture in the UI and upload/playback in the session interface.
+  \item Patient AI chatbot interaction prior to the session.
+  \item Clinical summary generation from chatbot history (system-driven pipeline).
+\end{itemize}
+
+\subsection*{Out of scope (explicitly deferred)}
+\begin{itemize}[leftmargin=*]
+  \item Complex payment provider integrations beyond the minimal confirmation flow described here (e.g., full card processing, refunds, chargebacks).
+  \item Human moderation workflows for clinical summaries (summaries are system-generated and can be revised in later sprints).
+  \item Long-term media CDN integration (audio storage is handled within the server-managed upload strategy for now).
+\end{itemize}
+
+\section{Sprint Planning}
+Sprint 4 is planned as a multi-track sprint with synchronized integration checkpoints:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Track A --- Session/Payment:} implement code generation, email delivery, and activation state machine updates.
+  \item \textbf{Track B --- Communication:} implement/validate WebSocket event contracts, persistence of chat messages, and UI binding.
+  \item \textbf{Track C --- AI Pipeline:} implement chatbot interaction endpoints, safe history persistence, and clinical summarization pipeline.
+  \item \textbf{Track D --- Reporting \& Compliance:} implement session termination semantics, PDF generation, and artifact access control.
+\end{itemize}
+
+Given the cross-cutting nature of these changes, the sprint plan emphasizes shared API contracts between frontend and backend, explicit state transitions (session status, payment status, message status), deterministic persistence behavior in MongoDB, and strict authorization checks at all sensitive endpoints.
+
+\section{Assumptions}
+Sprint 4 is based on the following assumptions:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{MERN stack baseline is available:} MongoDB Atlas is configured, Express APIs are accessible at \texttt{http://localhost:5000}, and the React client runs at \texttt{http://localhost:3000}.
+  \item \textbf{Role-based access control is enforced:} JWT authentication and role restrictions (\texttt{patient}, \texttt{psychologist}, \texttt{admin}) are already implemented and applied consistently through middleware.
+  \item \textbf{Email delivery is available:} the server is configured with an email provider (e.g., Nodemailer with SMTP credentials in \texttt{.env}) capable of sending transactional messages (access codes).
+  \item \textbf{WebSocket infrastructure exists:} Socket.io is configured on the backend and the frontend can connect to it; rooms can be used to scope real-time events to a session or a conversation.
+  \item \textbf{PDF generation dependencies exist:} PDF generation libraries (e.g., PDFKit) are available server-side; PDF artifacts can be stored and retrieved securely.
+  \item \textbf{AI provider connectivity is available:} the platform has credentials and network access to an AI provider (e.g., Groq / Google Generative AI) and can tolerate transient failures using timeouts/retries/fallback messaging.
+\end{enumerate}
+
+\section{Deliverables}
+Sprint 4 deliverables include:
+\begin{itemize}[leftmargin=*]
+  \item Patient payment confirmation workflow and access code delivery by email (PB-10).
+  \item Session activation endpoints and client UI flows (PB-10).
+  \item Psychologist session termination and PDF report generation (PB-11).
+  \item Real-time text messaging (PB-12) and message persistence.
+  \item Voice message recording/uploading/playback within the session interface (PB-13).
+  \item Patient AI chatbot interaction UI and backend endpoints (PB-14).
+  \item System-generated structured clinical summary from chatbot history (PB-15).
+  \item Documentation updates and validation strategy for integrated features.
+\end{itemize}
+
+\section{Stakeholders and Roles}
+\begin{longtable}{L{0.26\linewidth} L{0.34\linewidth} L{0.34\linewidth}}
+\toprule
+\textbf{Stakeholder / Role} & \textbf{Responsibility} & \textbf{Interests} \\
+\midrule
+\endhead
+Patient & Confirms payment, activates session, exchanges messages, uses AI chatbot & Rapid activation, privacy, usability \\
+Psychologist & Conducts session, sends/receives messages, ends session, generates report & Reliable comms, clinical context, record integrity \\
+System (Backend Services) & Enforces business rules, state transitions, persistence, notifications & Security, correctness, auditability \\
+AI Service & Generates chatbot responses and clinical summaries & Safe prompting, bounded inputs, consistent outputs \\
+Admin (Operational) & Monitoring, dispute handling, compliance & Traceability, access control, observability \\
+\bottomrule
+\end{longtable}
+
+\section{Sprint Backlog}
+The following table summarizes the sprint backlog in terms of product backlog items and their primary implementation scope.
+
+\begin{longtable}{L{0.08\linewidth} L{0.18\linewidth} L{0.32\linewidth} L{0.10\linewidth} L{0.10\linewidth} L{0.18\linewidth}}
+\toprule
+\textbf{ID} & \textbf{Title} & \textbf{User Story Summary} & \textbf{Priority} & \textbf{SP} & \textbf{Primary Components} \\
+\midrule
+\endhead
+PB-10 & Session Payment Confirmation \& Access Code & Patient confirms payment and receives an email access code to activate session & High & 8 & React UI, Express routes, Email service, Session model \\
+PB-11 & Session Termination \& PDF Report & Psychologist ends a session and generates a PDF report for clinical records & Medium & 5 & Express routes, PDF generation service, Storage, Authorization \\
+PB-12 & Real-Time Text Messaging & Session participants exchange real-time text messages in the shared interface & High & 8 & Socket.io, Message model, React chat UI \\
+PB-13 & Voice Messaging & Participants send voice messages using a microphone interface & Medium & 5 & Media capture UI, Upload endpoint, Audio storage, Playback \\
+PB-14 & AI Chatbot Interaction & Patient interacts with AI chatbot to express mental state before session & High & 8 & React chatbot UI, Chatbot routes, AI provider integration \\
+PB-15 & Clinical Summary Generation & System generates structured clinical summary from chatbot history & High & 8 & Summarization service, Prompt templates, Storage, Retrieval \\
+\bottomrule
+\end{longtable}
+
+\subsection{User Stories (Session Flow)}
+Sprint 4 introduces an explicit session lifecycle with \textbf{payment confirmation}, \textbf{code issuance}, \textbf{session activation}, and \textbf{session termination}. The session lifecycle is treated as a state machine to prevent ambiguous transitions (e.g., activating a session without a valid code, or generating a report without a completed session).
+
+\subsection{Messaging System}
+Real-time messaging is treated as a first-class capability of the platform, with the following non-negotiable properties: messages are scoped to a session/conversation channel; messages are persisted for auditability and continuity; WebSocket events are acknowledgable (client can reconcile with server persistence); and access control is enforced at both the API and socket layer.
+
+\subsection{AI Chatbot Workflow}
+The AI chatbot is a pre-session intake mechanism. It must ensure a clean separation between the chatbot history and session chat; storage of conversational turns as structured data; bounded prompt sizes to avoid provider payload limits; and deterministic clinical summary generation in a structured format.
+
+\subsection{Technical Tasks}
+Sprint 4 includes supporting engineering tasks necessary for reliability: defining stable event contracts for Socket.io; creating a consistent media upload strategy for voice messages; implementing safe file storage boundaries for generated PDF reports; and adding observability hooks (logs and error reporting) for AI and messaging pipelines.
+
+\section{Functional Specification}
+
+\subsection{Session Activation and Payment}
+\subsubsection*{Use Case Diagram --- Session Activation}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 1 --- Use Case Diagram: Session Activation \vspace{2em}}}
+  \caption{Figure 1 --- Use Case Diagram: Session Activation}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- Session Activation}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-10 --- Confirm Payment \& Receive Access Code} \\
+\midrule
+\endhead
+Primary Actor & Patient \\
+Supporting Actors & System (Payment/Session Service), Email Service \\
+Goal & Confirm payment, generate an access code, and deliver it to patient by email \\
+Preconditions & Patient is authenticated; session request exists; session is in \texttt{pending\_payment} state \\
+Trigger & Patient clicks ``Confirm Payment'' in the UI \\
+Main Success Scenario & (1) Patient submits confirmation $\rightarrow$ (2) System validates session eligibility $\rightarrow$ (3) System generates access code $\rightarrow$ (4) System persists code with TTL/expiry $\rightarrow$ (5) System sends code via email $\rightarrow$ (6) UI displays ``Code sent'' state \\
+Extensions / Alternate Flows & A1: Email service failure $\rightarrow$ system retains code and retries; UI displays a recoverable error. A2: Session not eligible $\rightarrow$ UI displays reason and prevents confirmation \\
+Postconditions & Access code exists and is associated with the session; patient is notified; session remains inactive until code is validated \\
+Non-Functional Notes & Code must be unpredictable (cryptographically random); logs must not store the full code; rate-limit confirmation to prevent abuse \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-10b --- Activate Session Using Access Code} \\
+\midrule
+\endhead
+Primary Actor & Patient \\
+Supporting Actors & System (Session Service) \\
+Goal & Validate access code and transition session to active state \\
+Preconditions & Patient is authenticated; patient possesses the code; session is \texttt{pending\_activation} or \texttt{pending\_payment\_confirmed} \\
+Trigger & Patient submits the code in the activation UI \\
+Main Success Scenario & (1) Patient submits code $\rightarrow$ (2) System validates code, expiry, and session association $\rightarrow$ (3) System transitions session to \texttt{active} $\rightarrow$ (4) System grants access to session interface \\
+Extensions / Alternate Flows & A1: Invalid/expired code $\rightarrow$ UI shows error and allows retry; rate-limited. A2: Session already active/completed $\rightarrow$ UI shows status and redirects appropriately \\
+Postconditions & Session becomes active; session participants can exchange messages \\
+Non-Functional Notes & Prevent brute force via rate limiting and attempt counters; store hashed code if required by compliance policy \\
+\bottomrule
+\end{longtable}
+
+\subsection{Session Management and Reporting}
+\subsubsection*{Use Case Diagram --- Session Termination \& Report Generation}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 2 --- Use Case Diagram: Session Termination \& Report Generation \vspace{2em}}}
+  \caption{Figure 2 --- Use Case Diagram: Session Termination \& Report Generation}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- Session Termination \& Report Generation}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-11 --- End Session \& Generate PDF Report} \\
+\midrule
+\endhead
+Primary Actor & Psychologist \\
+Supporting Actors & System (Session Service), PDF Generation Service \\
+Goal & Close a session and generate a clinical PDF report \\
+Preconditions & Psychologist is authenticated; session is \texttt{active}; psychologist is assigned to the session \\
+Trigger & Psychologist clicks ``End Session'' in the session interface \\
+Main Success Scenario & (1) Psychologist ends session $\rightarrow$ (2) System validates permissions $\rightarrow$ (3) System transitions session to \texttt{completed} $\rightarrow$ (4) System generates PDF report (metadata + structured content) $\rightarrow$ (5) System stores report artifact securely $\rightarrow$ (6) UI provides link/download \\
+Extensions / Alternate Flows & A1: PDF generation failure $\rightarrow$ session still completes, report generation can be retried. A2: Unauthorized attempt $\rightarrow$ 403 and audit log \\
+Postconditions & Session is completed; report artifact is available to authorized users (psychologist/admin) \\
+Non-Functional Notes & PDF must not leak sensitive data to public endpoints; store with access control and predictable retention \\
+\bottomrule
+\end{longtable}
+
+\subsection{Real-Time Messaging System}
+\subsubsection*{Use Case Diagram --- Messaging}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 3 --- Use Case Diagram: Real-Time Messaging \vspace{2em}}}
+  \caption{Figure 3 --- Use Case Diagram: Real-Time Messaging}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- Messaging}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-12 --- Real-Time Chat} \\
+\midrule
+\endhead
+Primary Actors & Patient, Psychologist \\
+Supporting Actors & System (Socket Service, Message Persistence Service) \\
+Goal & Exchange real-time text messages within a session \\
+Preconditions & Participants are authenticated; session is active; both users are authorized for the session room \\
+Trigger & User types a message and presses ``Send'' \\
+Main Success Scenario & (1) Client emits \texttt{send\_message} $\rightarrow$ (2) Server validates membership $\rightarrow$ (3) Server persists message to MongoDB $\rightarrow$ (4) Server broadcasts \texttt{receive\_message} to room $\rightarrow$ (5) Clients render message and update unread indicators \\
+Extensions / Alternate Flows & A1: Temporary disconnect $\rightarrow$ client queues message and retries; server idempotently handles duplicates. A2: Session not active $\rightarrow$ server rejects event \\
+Postconditions & Message is persisted and visible to both participants \\
+Non-Functional Notes & Low latency; ordering preserved per room; enforce payload size limits; sanitize content to prevent XSS \\
+\bottomrule
+\end{longtable}
+
+\subsection{Voice Messaging}
+\subsubsection*{Use Case Diagram --- Voice Messaging}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 4 --- Use Case Diagram: Voice Messaging \vspace{2em}}}
+  \caption{Figure 4 --- Use Case Diagram: Voice Messaging}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- Voice Messaging}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-13 --- Voice Messaging} \\
+\midrule
+\endhead
+Primary Actors & Patient, Psychologist \\
+Supporting Actors & System (Upload Service, Message Service) \\
+Goal & Record and exchange short voice messages during an active session \\
+Preconditions & Browser supports microphone access; participant is authenticated and authorized; session is active \\
+Trigger & User presses microphone button and confirms upload \\
+Main Success Scenario & (1) Client records audio $\rightarrow$ (2) Client uploads audio blob to backend $\rightarrow$ (3) Backend validates mime/size, stores audio file $\rightarrow$ (4) Backend creates a message record of type \texttt{voice} $\rightarrow$ (5) Backend broadcasts message event $\rightarrow$ (6) Recipients can play audio in UI \\
+Extensions / Alternate Flows & A1: Microphone denied $\rightarrow$ UI provides guidance and fallback. A2: Upload too large $\rightarrow$ UI requests shorter recording \\
+Postconditions & Voice message is stored and playable by authorized participants \\
+Non-Functional Notes & Enforce strict size limits; do not expose private storage paths; prefer streaming-safe formats \\
+\bottomrule
+\end{longtable}
+
+\subsection{AI Chatbot Interaction}
+\subsubsection*{Use Case Diagram --- AI Chatbot}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 5 --- Use Case Diagram: AI Chatbot Interaction \vspace{2em}}}
+  \caption{Figure 5 --- Use Case Diagram: AI Chatbot Interaction}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- AI Chatbot}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-14 --- Patient Chatbot Interaction} \\
+\midrule
+\endhead
+Primary Actor & Patient \\
+Supporting Actors & System (Chatbot Service), AI Service \\
+Goal & Allow patient to express mental state before a session through a guided chatbot \\
+Preconditions & Patient is authenticated; chatbot module is available; user consent to use AI features is acknowledged (policy-dependent) \\
+Trigger & Patient opens chatbot UI and submits a message \\
+Main Success Scenario & (1) Patient sends message $\rightarrow$ (2) System appends to history $\rightarrow$ (3) System calls AI provider with bounded context $\rightarrow$ (4) System stores response $\rightarrow$ (5) UI renders response and updates history \\
+Extensions / Alternate Flows & A1: AI provider error/timeout $\rightarrow$ UI shows ``temporary unavailable'' and retains patient message. A2: Content policy violation $\rightarrow$ response is refused and user guided \\
+Postconditions & Chatbot history is persisted as structured turns for later analysis \\
+Non-Functional Notes & Strict prompt size bounding; do not log sensitive content; enforce per-user isolation \\
+\bottomrule
+\end{longtable}
+
+\subsection{Clinical Summary Generation}
+\subsubsection*{Use Case Diagram --- Clinical Summary}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 6 --- Use Case Diagram: Clinical Summary Generation \vspace{2em}}}
+  \caption{Figure 6 --- Use Case Diagram: Clinical Summary Generation}
+\end{figure}
+
+\subsubsection*{Use Case Descriptions --- Clinical Summary}
+\begin{longtable}{L{0.28\linewidth} L{0.68\linewidth}}
+\toprule
+\textbf{Field} & \textbf{UC-15 --- Clinical Summary Generation} \\
+\midrule
+\endhead
+Primary Actor & System \\
+Supporting Actors & AI Service, Psychologist (consumer) \\
+Goal & Generate a structured clinical summary from patient chatbot history \\
+Preconditions & Patient chatbot history exists; system is authorized to process it; session context exists or is linkable \\
+Trigger & Automatic job at session creation/activation, or explicit ``Generate Summary'' action (implementation-dependent) \\
+Main Success Scenario & (1) System fetches recent chatbot turns $\rightarrow$ (2) System normalizes/filters content $\rightarrow$ (3) System calls AI provider with summary prompt $\rightarrow$ (4) System validates output structure $\rightarrow$ (5) System stores summary in MongoDB $\rightarrow$ (6) Psychologist can view summary in patient/session UI \\
+Extensions / Alternate Flows & A1: Token/payload overflow $\rightarrow$ system truncates and retries. A2: AI returns malformed output $\rightarrow$ system stores safe fallback and flags for regeneration \\
+Postconditions & Structured clinical summary is available to authorized psychologists \\
+Non-Functional Notes & Output must be clearly labeled as AI-generated; adopt defensive parsing; store versioned prompt metadata for traceability \\
+\bottomrule
+\end{longtable}
+
+\section{System Design}
+This sprint follows a modular MERN architecture with explicit layers:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{React Client:} UI state, microphone capture, WebSocket client, form validation, and view rendering.
+  \item \textbf{Express Backend:} API endpoints, authorization middleware, file upload handling, and route grouping.
+  \item \textbf{Services Layer:} payment code issuance, email delivery, WebSocket event validation, AI prompts and summarization, PDF generation.
+  \item \textbf{MongoDB Models:} sessions, messages, notifications, chatbot history, clinical summaries, reports.
+\end{itemize}
+
+\subsection*{Class Diagram}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 7 --- Class Diagram (Domain Model) \vspace{2em}}}
+  \caption{Figure 7 --- Class Diagram (Domain Model)}
+\end{figure}
+
+Recommended domain entities (conceptual):
+\begin{itemize}[leftmargin=*]
+  \item \texttt{Session}: \texttt{patientId}, \texttt{psychologistId}, \texttt{status}, \texttt{accessCode}, \texttt{accessCodeExpiresAt}, timestamps
+  \item \texttt{Message}: \texttt{sessionId}, \texttt{senderId}, \texttt{type} (\texttt{text|voice}), \texttt{content}, \texttt{assetPath}, timestamps
+  \item \texttt{ChatbotTurn}: \texttt{userId}, \texttt{role} (\texttt{user|assistant}), \texttt{content}, timestamps
+  \item \texttt{ClinicalSummary}: \texttt{userId}, \texttt{sessionId}, \texttt{summaryJson}, \texttt{model}, \texttt{promptVersion}, timestamps
+  \item \texttt{ReportArtifact}: \texttt{sessionId}, \texttt{createdBy}, \texttt{pdfPath}, \texttt{hash}, timestamps
+\end{itemize}
+
+\subsection*{Sequence Diagram}
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\linewidth}{\vspace{2em}\centering Placeholder: Figure 8 --- Sequence Diagram: Activate Session and Start Messaging \vspace{2em}}}
+  \caption{Figure 8 --- Sequence Diagram: ``Activate Session and Start Messaging''}
+\end{figure}
+
+\section{Testing and Validation Strategy}
+Sprint 4 introduces stateful and real-time behavior, therefore validation must cover both synchronous API calls and asynchronous event flows.
+
+\subsection{Unit Testing}
+Unit tests focus on deterministic business logic in isolation:
+\begin{itemize}[leftmargin=*]
+  \item Access code generation: entropy, format validation, expiry handling.
+  \item Session state transitions: allowed transitions only, invalid transition rejection.
+  \item AI prompt bounding: truncation logic and structural validation for summary outputs.
+  \item PDF generation: deterministic rendering for minimal input; hash computation validation.
+\end{itemize}
+
+\subsection{Integration Testing}
+Integration tests validate communication across modules:
+\begin{itemize}[leftmargin=*]
+  \item API + MongoDB: persistence of sessions, codes, messages, chatbot turns, summaries, and reports.
+  \item Email service integration: use a test SMTP server or provider sandbox; assert message is queued and contains expected placeholders (without logging sensitive codes).
+  \item Upload pipeline: voice message upload endpoint validates mime/size and produces a message event.
+\end{itemize}
+
+\subsection{End-to-End Testing}
+E2E tests validate full user journeys:
+\begin{itemize}[leftmargin=*]
+  \item Patient confirms payment $\rightarrow$ receives code (mock email) $\rightarrow$ activates session $\rightarrow$ sends a message $\rightarrow$ psychologist receives it.
+  \item Psychologist ends session $\rightarrow$ PDF report is generated $\rightarrow$ report can be downloaded/viewed with proper authorization.
+  \item Patient interacts with chatbot $\rightarrow$ system generates summary $\rightarrow$ psychologist can view summary.
+\end{itemize}
+
+\subsection{Test Environment}
+Recommended test environment configuration:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{MongoDB:} dedicated test database (separate connection string).
+  \item \textbf{Email:} sandbox SMTP (e.g., MailHog) or provider sandbox credentials.
+  \item \textbf{AI Provider:} mock responses for determinism in CI; live provider only in staging.
+  \item \textbf{WebSocket:} local server with Socket.io; tests must validate join/leave logic and room scoping.
+  \item \textbf{Storage:} local filesystem storage for media/PDF artifacts with test cleanup.
+\end{itemize}
+
+\section{Sprint Review and Retrospective}
+Sprint 4 success is evaluated according to:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Functional completeness:} all PB-10 to PB-15 flows are demonstrable in an integrated environment.
+  \item \textbf{Reliability and correctness:} no session activation without a valid code; no messaging without authorization; report generation occurs only when session is completed.
+  \item \textbf{Performance:} real-time messaging latency is acceptable for clinical interaction; AI interactions are bounded and do not block the UI indefinitely.
+  \item \textbf{Security and privacy:} media/PDF endpoints enforce access control; logs do not expose sensitive content; AI processing respects isolation boundaries.
+\end{itemize}
+
+Retrospective focus areas include whether WebSocket contracts were stable and well-documented, whether the AI prompt bounding strategy avoided provider errors, and whether report generation/storage is maintainable for future compliance needs.
+
+\section{UI Demonstration}
+This section enumerates the primary UI demonstrations expected in Sprint 4. Screenshots can be inserted once the UI is finalized.
+
+\subsection{Session Interfaces}
+\subsubsection*{UC-10 --- Confirm Payment \& Receive Access Code}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item Patient opens session payment screen and confirms payment.
+  \item UI displays success state: ``Access code sent by email''.
+  \item Patient enters code in activation screen.
+  \item Session becomes active and session interface is accessible.
+\end{enumerate}
+
+\subsubsection*{UC-11 --- End Session \& Generate PDF Report}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item Psychologist opens an active session.
+  \item Psychologist clicks ``End session''.
+  \item UI confirms session completion and provides ``Generate/Download report''.
+  \item PDF report is generated and can be downloaded/viewed.
+\end{enumerate}
+
+\subsection{Messaging Interfaces}
+\subsubsection*{UC-12 --- Real-Time Chat}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item Patient and psychologist open the shared session interface.
+  \item Messages sent by one participant appear in real time for the other.
+  \item Chat history persists across refresh (reloaded from MongoDB).
+\end{enumerate}
+
+\subsubsection*{UC-13 --- Voice Messaging}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item User records voice message via microphone UI.
+  \item User uploads the recording.
+  \item Recipient sees voice message and can play it inline.
+\end{enumerate}
+
+\subsection{AI Interfaces}
+\subsubsection*{UC-14 --- Patient Chatbot Interaction}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item Patient opens chatbot page.
+  \item Patient interacts with AI assistant and receives responses.
+  \item Chatbot history is persisted and viewable across refresh.
+\end{enumerate}
+
+\subsubsection*{UC-15 --- Clinical Summary Generation}
+\textit{Demonstration checklist:}
+\begin{enumerate}[leftmargin=*]
+  \item System generates clinical summary from chatbot history (automatic or manual trigger).
+  \item Psychologist views structured summary prior to the session.
+  \item Summary is clearly labeled as AI-generated and stored for traceability.
+\end{enumerate}
+
+\section{Conclusion}
+Sprint 4 establishes the platform's operational readiness for real clinical interaction by implementing the session activation lifecycle, real-time communication (text and voice), and AI-assisted pre-session analysis. The sprint's design treats the \textbf{System} and \textbf{AI Service} as explicit actors responsible for deterministic and auditable processing, while preserving strict authorization boundaries for sensitive operations such as session activation, media exchange, and PDF report generation.
+
+The documented architecture is consistent with a MERN stack implementation and emphasizes separation of concerns, state machine rigor, and secure handling of communications and artifacts. Subsequent sprints can build upon this foundation to enhance payment provider integrations, improve media scaling (e.g., CDN), and enrich clinical workflows (e.g., clinician annotations over AI summaries).
+
+\end{document}
+

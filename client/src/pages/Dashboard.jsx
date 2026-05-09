@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import { logout } from '../services/auth';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
@@ -8,6 +8,8 @@ import GlassPanel from '../components/dashboard/GlassPanel';
 import PsychologistProfileDrawer from '../components/profile/PsychologistProfileDrawer';
 import AreaLineChart from '../components/charts/AreaLineChart';
 import StackedBar from '../components/charts/StackedBar';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 
 const StatCard = ({ label, value, hint }) => (
   <GlassPanel className="p-5">
@@ -25,6 +27,21 @@ function Dashboard() {
   const [patients, setPatients] = useState([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsError, setPatientsError] = useState('');
+
+  const [credentialDocs, setCredentialDocs] = useState([]);
+  const [credentialDocsLoading, setCredentialDocsLoading] = useState(false);
+  const [credentialDocsError, setCredentialDocsError] = useState('');
+  const [credentialUploadType, setCredentialUploadType] = useState('');
+  const [credentialUploadLoading, setCredentialUploadLoading] = useState(false);
+  const [credentialUploadFiles, setCredentialUploadFiles] = useState({
+    cv: null,
+    diploma: null,
+    idFront: null,
+    idBack: null,
+    introVideo: null
+  });
+  const [onboarding, setOnboarding] = useState(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -63,6 +80,53 @@ function Dashboard() {
     }
   }, []);
 
+  const fetchCredentialDocs = useCallback(async () => {
+    setCredentialDocsLoading(true);
+    setCredentialDocsError('');
+    try {
+      const data = await api.get('/api/credential-documents/my');
+      setCredentialDocs(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setCredentialDocs([]);
+      setCredentialDocsError(e.message || 'Failed to load credential documents');
+    } finally {
+      setCredentialDocsLoading(false);
+    }
+  }, []);
+
+  const fetchOnboarding = useCallback(async () => {
+    setOnboardingLoading(true);
+    try {
+      const data = await api.get('/api/onboarding/me');
+      setOnboarding(data || null);
+    } catch {
+      setOnboarding(null);
+    } finally {
+      setOnboardingLoading(false);
+    }
+  }, []);
+
+  const uploadCredentialDoc = useCallback(async (type) => {
+    const file = credentialUploadFiles?.[type] || null;
+    if (!file) return;
+    setCredentialUploadType(type);
+    setCredentialUploadLoading(true);
+    setCredentialDocsError('');
+    try {
+      const formData = new FormData();
+      formData.append('type', type);
+      formData.append('file', file);
+      await api.postForm('/api/credential-documents/upload', formData);
+      setCredentialUploadFiles((prev) => ({ ...prev, [type]: null }));
+      await Promise.all([fetchCredentialDocs(), fetchOnboarding()]);
+    } catch (e) {
+      setCredentialDocsError(e.message || 'Failed to upload document');
+    } finally {
+      setCredentialUploadLoading(false);
+      setCredentialUploadType('');
+    }
+  }, [credentialUploadFiles, fetchCredentialDocs, fetchOnboarding]);
+
   const refreshUnreadNotifications = useCallback(async () => {
     try {
       const data = await api.get('/api/notifications');
@@ -84,6 +148,40 @@ function Dashboard() {
     fetchStats();
   }, [fetchStats, section, stats, statsLoading]);
 
+  useEffect(() => {
+    if (section !== 'documents') return;
+    fetchCredentialDocs();
+    fetchOnboarding();
+    // Important: do NOT depend on `credentialDocsLoading` here.
+    // Depending on loading state creates a fetch loop (loading false -> fetch -> false -> fetch ...),
+    // which quickly hits the API rate limiter (429).
+  }, [fetchCredentialDocs, fetchOnboarding, section]);
+
+  const openCredentialDoc = useCallback(async (doc) => {
+    try {
+      const data = await api.get(`/api/credential-documents/${doc._id}/access-url`);
+      const url = toAbsoluteUrl(data?.url);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to download document');
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      window.open(objectUrl);
+    } catch (e) {
+      setCredentialDocsError(e.message || 'Could not open document');
+    }
+  }, []);
+
+  const submitOnboarding = useCallback(async () => {
+    try {
+      setCredentialDocsError('');
+      await api.post('/api/onboarding/submit', {});
+      await fetchOnboarding();
+      setCredentialDocsError('Submitted for review.');
+    } catch (e) {
+      setCredentialDocsError(e.message || 'Submission failed');
+    }
+  }, [fetchOnboarding]);
+
   const statusBadge = useCallback((status) => {
     const s = String(status || '').toLowerCase();
     if (s === 'accepted' || s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-50';
@@ -100,30 +198,34 @@ function Dashboard() {
   }, [stats?.activeSessions, stats?.completedSessions, stats?.pendingSessions]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       {/* Background (match Session page look) */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/40 backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">Dashboard</h1>
-                <div className="mt-1 text-xs text-white/60">
-                  {section === 'patients' ? 'Manage patients and consultations' : 'Your performance at a glance'}
+              <div className="flex min-w-0 items-center gap-3">
+                <PlatformLogo size={36} />
+                <div className="min-w-0">
+                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">Dashboard</h1>
+                  <div className="mt-1 text-xs text-[color:var(--muted)]">
+                    {section === 'patients' ? 'Manage patients and consultations' : 'Your performance at a glance'}
+                  </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                <ThemeToggleButton />
                 <button
                   type="button"
                   onClick={() => setNotificationsOpen(true)}
-                  className="relative rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                  className="relative rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
                 >
                   Notifications
                   {unreadNotifications > 0 && (
@@ -135,7 +237,7 @@ function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setProfileOpen(true)}
-                  className="rounded-2xl bg-indigo-500/90 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                  className="rounded-2xl bg-[color:var(--accent-90)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
                 >
                   Edit profile
                 </button>
@@ -302,6 +404,142 @@ function Dashboard() {
                       </GlassPanel>
                     </>
                   )}
+                </>
+              )}
+
+              {section === 'documents' && (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-white">Credential documents</div>
+                    <button
+                      type="button"
+                      onClick={fetchCredentialDocs}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      disabled={credentialDocsLoading}
+                    >
+                      {credentialDocsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  {credentialDocsError && (
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                      {credentialDocsError}
+                    </div>
+                  )}
+
+                  <GlassPanel className="p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Onboarding status</div>
+                        <div className="mt-1 text-xs text-white/60">
+                          {onboardingLoading ? 'Loading...' : onboarding?.profileStatus || '—'}
+                        </div>
+                        {onboarding?.profileStatus === 'Rejected' && onboarding?.rejectionReason && (
+                          <div className="mt-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-50">
+                            Rejected: {onboarding.rejectionReason}
+                          </div>
+                        )}
+                        {onboarding?.profileStatus === 'Submitted' && (
+                          <div className="mt-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-50">
+                            Application submitted and locked for review.
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {(onboarding?.profileStatus === 'Draft' || onboarding?.profileStatus === 'Rejected') && (
+                          <button
+                            type="button"
+                            onClick={submitOnboarding}
+                            className="h-10 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white hover:bg-emerald-500 transition"
+                          >
+                            {onboarding?.profileStatus === 'Rejected' ? 'Resubmit' : 'Submit'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </GlassPanel>
+
+                  {(onboarding?.profileStatus === 'Draft' || onboarding?.profileStatus === 'Rejected') && (
+                    <GlassPanel className="p-5">
+                      <div className="text-sm font-semibold text-white">Upload replacements</div>
+                      <div className="mt-1 text-xs text-white/60">
+                        After admin rejection, upload updated documents here, then click <span className="font-semibold">Resubmit</span>.
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        {[
+                          { type: 'cv', label: 'CV (PDF)' , accept: 'application/pdf' },
+                          { type: 'diploma', label: 'Diploma (PDF)' , accept: 'application/pdf' },
+                          { type: 'idFront', label: 'ID Front (JPG/PNG)', accept: 'image/jpeg,image/png' },
+                          { type: 'idBack', label: 'ID Back (JPG/PNG)', accept: 'image/jpeg,image/png' },
+                          { type: 'introVideo', label: 'Intro Video (MP4/MOV/WEBM)', accept: 'video/mp4,video/webm,video/quicktime,.mov' }
+                        ].map((item) => (
+                          <div key={item.type} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-white">{item.label}</div>
+                              <div className="mt-1 break-all text-xs text-white/50">
+                                {credentialUploadFiles?.[item.type]?.name || 'No file selected'}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <input
+                                type="file"
+                                accept={item.accept}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0] || null;
+                                  setCredentialUploadFiles((prev) => ({ ...prev, [item.type]: f }));
+                                }}
+                                className="block w-full sm:w-auto text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => uploadCredentialDoc(item.type)}
+                                disabled={!credentialUploadFiles?.[item.type] || credentialUploadLoading}
+                                className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition disabled:opacity-50"
+                              >
+                                {credentialUploadLoading && credentialUploadType === item.type ? 'Uploading...' : 'Upload'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </GlassPanel>
+                  )}
+
+                  {!credentialDocsLoading && credentialDocs.length === 0 && (
+                    <GlassPanel className="p-10 text-center">
+                      <div className="text-sm font-semibold">No documents yet</div>
+                      <div className="mt-2 text-sm text-white/60">
+                        Upload your documents during onboarding to submit for verification.
+                      </div>
+                    </GlassPanel>
+                  )}
+
+                  <div className="grid gap-3">
+                    {credentialDocs.map((doc) => (
+                      <GlassPanel key={doc._id} className="p-5">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white">
+                              {String(doc.type || '').toUpperCase()} <span className="text-white/50">·</span> v{doc.version}
+                            </div>
+                            <div className="mt-1 break-all text-xs text-white/60">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-white/50">
+                              Uploaded: {doc.createdAt ? new Date(doc.createdAt).toLocaleString() : '—'}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openCredentialDoc(doc)}
+                              className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+                            >
+                              Open
+                            </button>
+                          </div>
+                        </div>
+                      </GlassPanel>
+                    ))}
+                  </div>
                 </>
               )}
             </div>

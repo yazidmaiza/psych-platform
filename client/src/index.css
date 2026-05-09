@@ -2,6 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-bg: #020617; /* slate-950 */
+  --app-bg-70: rgba(2, 6, 23, 0.7);
+  --app-bg-85: rgba(2, 6, 23, 0.85);
+  --app-fg: #ffffff;
+  --muted: rgba(255, 255, 255, 0.6);
+  --panel-bg: rgba(255, 255, 255, 0.08);
+  --panel-border: rgba(255, 255, 255, 0.14);
+  --accent: #6366f1; /* indigo-500 */
+  --accent-90: rgba(99, 102, 241, 0.9);
+  --accent-50: rgba(99, 102, 241, 0.5);
+  --accent-25: rgba(99, 102, 241, 0.25);
+  --accent-20: rgba(99, 102, 241, 0.2);
+  --accent-15: rgba(99, 102, 241, 0.15);
+  --accent-12: rgba(99, 102, 241, 0.12);
+  --accent-10: rgba(99, 102, 241, 0.1);
+  --accent-08: rgba(99, 102, 241, 0.08);
+}
+
+:root[data-theme='light'] {
+  --app-bg: #f8fafc; /* slate-50 */
+  --app-bg-70: rgba(248, 250, 252, 0.7);
+  --app-bg-85: rgba(248, 250, 252, 0.85);
+  --app-fg: #0f172a; /* slate-900 */
+  --muted: rgba(15, 23, 42, 0.6);
+  --panel-bg: rgba(15, 23, 42, 0.04);
+  --panel-border: rgba(15, 23, 42, 0.12);
+  --accent: #14b8a6; /* requested light primary */
+  --accent-90: rgba(20, 184, 166, 0.9);
+  --accent-50: rgba(20, 184, 166, 0.5);
+  --accent-25: rgba(20, 184, 166, 0.25);
+  --accent-20: rgba(20, 184, 166, 0.2);
+  --accent-15: rgba(20, 184, 166, 0.15);
+  --accent-12: rgba(20, 184, 166, 0.12);
+  --accent-10: rgba(20, 184, 166, 0.1);
+  --accent-08: rgba(20, 184, 166, 0.08);
+}
+
+/* Minimal compatibility layer: existing UI uses Tailwind "text-white" heavily. */
+:root[data-theme='light'] .text-white {
+  color: var(--app-fg) !important;
+}
+:root[data-theme='light'] .text-white\/80 {
+  color: rgba(15, 23, 42, 0.8) !important;
+}
+:root[data-theme='light'] .text-white\/90 {
+  color: rgba(15, 23, 42, 0.9) !important;
+}
+:root[data-theme='light'] .text-white\/70 {
+  color: rgba(15, 23, 42, 0.7) !important;
+}
+:root[data-theme='light'] .text-white\/60 {
+  color: rgba(15, 23, 42, 0.6) !important;
+}
+:root[data-theme='light'] .text-white\/50 {
+  color: rgba(15, 23, 42, 0.5) !important;
+}
+:root[data-theme='light'] .text-white\/40 {
+  color: rgba(15, 23, 42, 0.4) !important;
+}
+:root[data-theme='light'] .text-white\/20 {
+  color: rgba(15, 23, 42, 0.2) !important;
+}
+
+:root[data-theme='light'] .bg-slate-950 {
+  background-color: var(--app-bg) !important;
+}
+:root[data-theme='light'] .bg-slate-950\/90 {
+  background-color: rgba(248, 250, 252, 0.9) !important;
+}
+:root[data-theme='light'] .bg-slate-950\/50 {
+  background-color: rgba(248, 250, 252, 0.5) !important;
+}
+:root[data-theme='light'] .bg-slate-950\/40 {
+  background-color: rgba(248, 250, 252, 0.4) !important;
+}
+:root[data-theme='light'] .bg-slate-950\/70 {
+  background-color: rgba(248, 250, 252, 0.7) !important;
+}
+:root[data-theme='light'] .bg-slate-950\/30 {
+  background-color: rgba(248, 250, 252, 0.3) !important;
+}
+:root[data-theme='light'] .bg-slate-900\/90 {
+  background-color: rgba(248, 250, 252, 0.9) !important;
+}
+:root[data-theme='light'] .bg-slate-800 {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+:root[data-theme='light'] .border-white\/10 {
+  border-color: var(--panel-border) !important;
+}
+:root[data-theme='light'] .bg-white\/5 {
+  background-color: var(--panel-bg) !important;
+}
+:root[data-theme='light'] .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Placeholder readability for Tailwind placeholder:text-white/* utilities */
+:root[data-theme='light'] .placeholder\:text-white\/40::placeholder {
+  color: rgba(15, 23, 42, 0.45) !important;
+}
+:root[data-theme='light'] .placeholder\:text-white\/50::placeholder {
+  color: rgba(15, 23, 42, 0.5) !important;
+}
+:root[data-theme='light'] .placeholder\:text-white\/60::placeholder {
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+:root[data-theme='light'] .placeholder\:text-white\/70::placeholder {
+  color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Map indigo accents to the configured --accent in light mode */
+:root[data-theme='light'] .bg-indigo-500 {
+  background-color: var(--accent) !important;
+}
+:root[data-theme='light'] .bg-indigo-500\/90 {
+  background-color: rgba(20, 184, 166, 0.9) !important;
+}
+:root[data-theme='light'] .bg-indigo-500\/20 {
+  background-color: rgba(20, 184, 166, 0.18) !important;
+}
+:root[data-theme='light'] .bg-indigo-500\/10 {
+  background-color: rgba(20, 184, 166, 0.1) !important;
+}
+:root[data-theme='light'] .hover\:bg-indigo-500:hover {
+  background-color: var(--accent) !important;
+}
+:root[data-theme='light'] .text-indigo-200 {
+  color: rgba(15, 23, 42, 0.75) !important;
+}
+:root[data-theme='light'] .text-indigo-100 {
+  color: rgba(15, 23, 42, 0.85) !important;
+}
+
 @layer components {
   /* Dark theme overrides for react-big-calendar (scoped to .rbc-dark wrapper) */
   .rbc-dark .rbc-toolbar {
@@ -79,5 +215,94 @@
 
   .rbc-dark .rbc-overlay-header {
     @apply border-b border-white/10 text-sm font-semibold text-white;
+  }
+
+  /* Light theme overrides for react-big-calendar (scoped to .rbc-light wrapper) */
+  .rbc-light .rbc-toolbar {
+    @apply mb-4 flex flex-wrap items-center gap-2;
+  }
+
+  .rbc-light .rbc-toolbar button {
+    @apply rounded-xl border px-3 py-2 text-xs font-semibold transition;
+    border-color: var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--app-fg);
+  }
+
+  .rbc-light .rbc-toolbar button.rbc-active {
+    border-color: rgba(20, 184, 166, 0.35);
+    background: rgba(20, 184, 166, 0.12);
+    color: var(--app-fg);
+  }
+
+  .rbc-light .rbc-toolbar-label {
+    @apply text-sm font-semibold;
+    color: var(--app-fg);
+  }
+
+  .rbc-light .rbc-month-view,
+  .rbc-light .rbc-time-view,
+  .rbc-light .rbc-agenda-view {
+    @apply rounded-3xl border shadow-inner overflow-hidden;
+    border-color: var(--panel-border);
+    background: var(--panel-bg);
+  }
+
+  .rbc-light .rbc-header,
+  .rbc-light .rbc-time-header-content,
+  .rbc-light .rbc-day-bg + .rbc-day-bg,
+  .rbc-light .rbc-time-slot-group,
+  .rbc-light .rbc-timeslot-group,
+  .rbc-light .rbc-time-content > * + * > *,
+  .rbc-light .rbc-time-gutter,
+  .rbc-light .rbc-time-column {
+    border-color: var(--panel-border);
+  }
+
+  .rbc-light .rbc-header {
+    @apply py-2 text-xs font-semibold;
+    color: rgba(15, 23, 42, 0.7);
+  }
+
+  .rbc-light .rbc-label,
+  .rbc-light .rbc-time-gutter .rbc-timeslot-group,
+  .rbc-light .rbc-time-gutter .rbc-label {
+    @apply text-[11px];
+    color: rgba(15, 23, 42, 0.55);
+  }
+
+  .rbc-light .rbc-off-range-bg {
+    background: rgba(15, 23, 42, 0.04);
+  }
+
+  .rbc-light .rbc-today {
+    background: rgba(20, 184, 166, 0.08);
+  }
+
+  .rbc-light .rbc-event {
+    @apply rounded-xl border shadow-sm;
+    border-color: rgba(15, 23, 42, 0.12);
+  }
+
+  .rbc-light .rbc-event-content {
+    @apply text-xs font-semibold;
+  }
+
+  .rbc-light .rbc-show-more {
+    @apply text-xs font-semibold;
+    color: rgba(15, 23, 42, 0.75);
+  }
+
+  .rbc-light .rbc-overlay {
+    @apply rounded-2xl border shadow-2xl backdrop-blur-xl;
+    border-color: var(--panel-border);
+    background: rgba(248, 250, 252, 0.95);
+    color: var(--app-fg);
+  }
+
+  .rbc-light .rbc-overlay-header {
+    border-bottom-color: var(--panel-border);
+    @apply text-sm font-semibold;
+    color: var(--app-fg);
   }
 }
