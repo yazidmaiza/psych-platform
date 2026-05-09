@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const Session = require('../models/Session');
 const { protect } = require('../middleware/authMiddleware');
+const { streamVoiceMessage, getVoiceAccessUrl, downloadVoiceByToken, retryVoiceTranscription } = require('../controllers/voiceMessageController');
 
 const hasBookedConsultation = async ({ patientId, psychologistUserId }) => {
   return await Session.exists({
@@ -71,6 +72,12 @@ router.get('/unread', protect, async (req, res) => {
   }
 });
 
+// Voice media (UC-13) — keep before `/:otherUserId` route to avoid conflicts
+router.get('/voice-download', downloadVoiceByToken);
+router.get('/:id/voice-access-url', protect, getVoiceAccessUrl);
+router.get('/:id/voice', protect, streamVoiceMessage);
+router.post('/:id/voice-transcribe', protect, retryVoiceTranscription);
+
 // US-25 - Get conversation
 router.get('/:otherUserId', protect, async (req, res) => {
   try {
@@ -91,7 +98,21 @@ router.get('/:otherUserId', protect, async (req, res) => {
       ]
     }).sort({ createdAt: 1 });
 
-    res.json(messages);
+    res.json(messages.map((m) => {
+      const obj = m.toObject ? m.toObject() : m;
+      if (String(obj.kind) === 'voice') {
+        return {
+          ...obj,
+          voice: obj.voice ? {
+            mimeType: obj.voice.mimeType || '',
+            sizeBytes: obj.voice.sizeBytes || 0,
+            durationMs: obj.voice.durationMs || 0,
+            url: `/api/messages/${obj._id}/voice`
+          } : { url: `/api/messages/${obj._id}/voice` }
+        };
+      }
+      return obj;
+    }));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

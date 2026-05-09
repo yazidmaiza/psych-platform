@@ -4,6 +4,7 @@ import PlatformLogo from '../components/branding/PlatformLogo';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 
 const API = 'http://localhost:5000';
+const REVIEW_QUEUE_FILTERS_KEY = 'admin_review_queue_filters_v1';
 
 const getHeaders = () => ({
   Authorization: 'Bearer ' + localStorage.getItem('token'),
@@ -15,6 +16,37 @@ export default function AdminPanel() {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [queuePage, setQueuePage] = useState(1);
+  const [queueLimit, setQueueLimit] = useState(20);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueFilters, setQueueFilters] = useState(() => {
+    try {
+      const raw = localStorage.getItem(REVIEW_QUEUE_FILTERS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return {
+        status: parsed?.status || 'Submitted',
+        rejected: typeof parsed?.rejected === 'boolean' ? parsed.rejected : null,
+        completeness: parsed?.completeness || '',
+        dateFrom: parsed?.dateFrom || '',
+        dateTo: parsed?.dateTo || '',
+        sortBy: parsed?.sortBy || 'submittedAt',
+        order: parsed?.order || 'desc',
+        search: parsed?.search || ''
+      };
+    } catch {
+      return {
+        status: 'Submitted',
+        rejected: null,
+        completeness: '',
+        dateFrom: '',
+        dateTo: '',
+        sortBy: 'submittedAt',
+        order: 'desc',
+        search: ''
+      };
+    }
+  });
   const [assetUrls, setAssetUrls] = useState({});
   const [faceChecks, setFaceChecks] = useState({});
   const [faceDiag, setFaceDiag] = useState(null);
@@ -31,6 +63,14 @@ export default function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(REVIEW_QUEUE_FILTERS_KEY, JSON.stringify(queueFilters));
+    } catch {
+      // ignore
+    }
+  }, [queueFilters]);
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -39,21 +79,66 @@ export default function AdminPanel() {
       const [statsRes, usersRes, verifyRes] = await Promise.all([
         fetch(API + '/api/admin/stats', { headers: getHeaders() }),
         fetch(API + '/api/admin/users', { headers: getHeaders() }),
-        fetch(API + '/api/verification/pending', { headers: getHeaders() })
+        fetchReviewQueue({ page: 1, limit: queueLimit, filters: queueFilters })
       ]);
 
       const statsData = await statsRes.json();
       const usersData = await usersRes.json();
-      const verifyData = await verifyRes.json();
+      const verifyData = verifyRes;
 
       setStats(statsData);
       setUsers(Array.isArray(usersData) ? usersData : []);
-      setPendingVerifications(Array.isArray(verifyData) ? verifyData : []);
+      setPendingVerifications(Array.isArray(verifyData?.items) ? verifyData.items : []);
+      setQueuePage(verifyData?.page || 1);
+      setQueueLimit(verifyData?.limit || queueLimit);
+      setQueueTotal(verifyData?.total || 0);
     } catch (err) {
       setError('Failed to load data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchReviewQueue = async ({ page, limit, filters }) => {
+    const params = new URLSearchParams();
+    params.set('page', String(page || 1));
+    params.set('limit', String(limit || 20));
+    if (filters?.status) params.set('status', filters.status);
+    if (typeof filters?.rejected === 'boolean') params.set('rejected', String(filters.rejected));
+    if (filters?.completeness) params.set('completeness', filters.completeness);
+    if (filters?.dateFrom) params.set('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.set('dateTo', filters.dateTo);
+    if (filters?.sortBy) params.set('sortBy', filters.sortBy);
+    if (filters?.order) params.set('order', filters.order);
+    if (filters?.search) params.set('search', filters.search);
+
+    const res = await fetch(API + `/api/review-queue/applications?${params.toString()}`, { headers: getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to load review queue');
+    return data;
+  };
+
+  const refreshPendingVerifications = async (overrides = {}) => {
+    setQueueLoading(true);
+    try {
+      const data = await fetchReviewQueue({
+        page: overrides.page || queuePage || 1,
+        limit: overrides.limit || queueLimit || 20,
+        filters: overrides.filters || queueFilters
+      });
+      setPendingVerifications(Array.isArray(data?.items) ? data.items : []);
+      setQueuePage(data?.page || 1);
+      setQueueLimit(data?.limit || queueLimit);
+      setQueueTotal(data?.total || 0);
+      return Array.isArray(data?.items) ? data.items : [];
+    } finally {
+      setQueueLoading(false);
+    }
+  };
+
+  const getLatestPendingPsychologist = async (psychologistId) => {
+    const refreshed = await refreshPendingVerifications();
+    return refreshed.find((p) => String(p._id) === String(psychologistId)) || null;
   };
 
   const deleteUser = async (id) => {
@@ -105,9 +190,14 @@ export default function AdminPanel() {
 
   const rejectPsy = async (id) => {
     try {
+      const reason = window.prompt('Rejection reason (required):');
+      if (!reason || !String(reason).trim()) {
+        return setError('Rejection reason is required.');
+      }
       const res = await fetch(API + '/api/verification/' + id + '/reject', {
         method: 'PUT',
-        headers: getHeaders()
+        headers: getHeaders(),
+        body: JSON.stringify({ reason: String(reason).trim() })
       });
       const data = await res.json();
       if (!res.ok) return setError(data.message || 'Failed to reject');
@@ -123,34 +213,78 @@ export default function AdminPanel() {
     navigate('/login');
   };
 
-  const viewFile = async (filename) => {
+  const goToAuditLog = () => navigate('/admin/audit');
+
+  const fetchCredentialAccessUrl = async (docId, ttlSeconds = 300) => {
+    const res = await fetch(API + `/api/credential-documents/${docId}/access-url?ttlSeconds=${ttlSeconds}`, {
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to get access URL');
+    const url = String(data.url || '');
+    if (!url.startsWith('/')) return url;
+    return API + url;
+  };
+
+  const openCredentialDocument = async (credentialDoc) => {
     try {
-      const res = await fetch(API + '/api/verification/file/' + filename, {
-        headers: getHeaders()
-      });
-      if (!res.ok) throw new Error('Failed to load file');
+      if (!credentialDoc?._id) throw new Error('Missing document id');
+      const signedUrl = await fetchCredentialAccessUrl(credentialDoc._id, 300);
+      const res = await fetch(signedUrl);
+      if (!res.ok) throw new Error('Failed to load document');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url);
     } catch (err) {
-      setError('Could not open file');
+      setError(err.message || 'Could not open document');
     }
   };
 
-  const loadAssetPreview = async (key, assetPath) => {
+  const loadCredentialPreview = async (key, credentialDoc) => {
     try {
       const existingUrl = assetUrls[key];
       if (existingUrl) return;
 
-      const res = await fetch(API + '/api/verification/asset?path=' + encodeURIComponent(assetPath), {
-        headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
-      });
-      if (!res.ok) throw new Error('Failed to load asset');
+      if (!credentialDoc?._id) throw new Error('Missing document id');
+      const signedUrl = await fetchCredentialAccessUrl(credentialDoc._id, 300);
+      const res = await fetch(signedUrl);
+      if (!res.ok) throw new Error('Failed to load document');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       setAssetUrls((prev) => ({ ...prev, [key]: url }));
     } catch (err) {
-      setError('Could not load asset preview');
+      setError(err.message || 'Could not load preview');
+    }
+  };
+
+  const resolveCredentialDocFromPsy = (psy, type) => {
+    const candidate = psy?.credentialDocs?.[type];
+    if (!candidate || !candidate._id) return null;
+    return candidate;
+  };
+
+  const openLatestCredentialDocument = async (psychologistId, type) => {
+    try {
+      const latest = await getLatestPendingPsychologist(psychologistId);
+      if (!latest) throw new Error('Psychologist is not in the pending list (refresh the page).');
+      const doc = resolveCredentialDocFromPsy(latest, type);
+      if (!doc) throw new Error('Document not found for this psychologist.');
+      await openCredentialDocument(doc);
+    } catch (err) {
+      setError(err.message || 'Could not open document');
+    }
+  };
+
+  const loadLatestCredentialPreview = async (psychologistId, type) => {
+    try {
+      const latest = await getLatestPendingPsychologist(psychologistId);
+      if (!latest) throw new Error('Psychologist is not in the pending list (refresh the page).');
+      const doc = resolveCredentialDocFromPsy(latest, type);
+      if (!doc) throw new Error('Document not found for this psychologist.');
+      const key = `${type}:${psychologistId}:${doc._id}`;
+      await loadCredentialPreview(key, doc);
+    } catch (err) {
+      setError(err.message || 'Could not load preview');
     }
   };
 
@@ -238,6 +372,12 @@ export default function AdminPanel() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggleButton />
+            <button
+              onClick={goToAuditLog}
+              className="h-10 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+            >
+              Audit Log
+            </button>
             <button
               onClick={fetchData}
               className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition"
@@ -335,12 +475,178 @@ export default function AdminPanel() {
               <h2 className="text-lg font-bold">Pending Verifications</h2>
               <p className="text-sm text-white/60">Review uploaded documents, intro video, and face check.</p>
             </div>
-            <div className="text-sm text-white/60">{pendingVerifications.length} pending</div>
+            <div className="text-sm text-white/60">
+              {queueLoading ? 'Loading…' : `${pendingVerifications.length} shown`} <span className="text-white/30">·</span> Total: {queueTotal}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Status</div>
+                <select
+                  value={queueFilters.status}
+                  onChange={(e) => {
+                    setQueuePage(1);
+                    setQueueFilters((prev) => ({ ...prev, status: e.target.value }));
+                    refreshPendingVerifications({ page: 1, filters: { ...queueFilters, status: e.target.value } });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                >
+                  <option value="Submitted">Submitted</option>
+                  <option value="Rejected">Rejected</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Draft">Draft</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Rejected</div>
+                <select
+                  value={queueFilters.rejected === null ? '' : String(queueFilters.rejected)}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? null : e.target.value === 'true';
+                    setQueuePage(1);
+                    setQueueFilters((prev) => ({ ...prev, rejected: v }));
+                    refreshPendingVerifications({ page: 1, filters: { ...queueFilters, rejected: v } });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                >
+                  <option value="">All</option>
+                  <option value="false">Not rejected</option>
+                  <option value="true">Rejected</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Completeness</div>
+                <select
+                  value={queueFilters.completeness}
+                  onChange={(e) => {
+                    setQueuePage(1);
+                    setQueueFilters((prev) => ({ ...prev, completeness: e.target.value }));
+                    refreshPendingVerifications({ page: 1, filters: { ...queueFilters, completeness: e.target.value } });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                >
+                  <option value="">All</option>
+                  <option value="complete">Complete</option>
+                  <option value="docs_only">Docs only</option>
+                  <option value="incomplete">Incomplete</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Submitted from</div>
+                <input
+                  type="date"
+                  value={queueFilters.dateFrom}
+                  onChange={(e) => setQueueFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                  onBlur={() => {
+                    setQueuePage(1);
+                    refreshPendingVerifications({ page: 1, filters: queueFilters });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Submitted to</div>
+                <input
+                  type="date"
+                  value={queueFilters.dateTo}
+                  onChange={(e) => setQueueFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+                  onBlur={() => {
+                    setQueuePage(1);
+                    refreshPendingVerifications({ page: 1, filters: queueFilters });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
+              <div className="md:col-span-3">
+                <div className="text-xs font-semibold text-white/60">Search (name, email, city)</div>
+                <input
+                  value={queueFilters.search}
+                  onChange={(e) => setQueueFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setQueuePage(1);
+                      refreshPendingVerifications({ page: 1, filters: queueFilters });
+                    }
+                  }}
+                  placeholder="Search…"
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                <div className="text-xs font-semibold text-white/60">Sort</div>
+                <select
+                  value={`${queueFilters.sortBy}:${queueFilters.order}`}
+                  onChange={(e) => {
+                    const [sortBy, order] = String(e.target.value).split(':');
+                    const next = { ...queueFilters, sortBy, order };
+                    setQueuePage(1);
+                    setQueueFilters(next);
+                    refreshPendingVerifications({ page: 1, filters: next });
+                  }}
+                  className="mt-1 h-10 w-full rounded-2xl border border-white/10 bg-slate-950/40 px-3 text-sm text-white/80"
+                >
+                  <option value="submittedAt:desc">Submitted (newest)</option>
+                  <option value="submittedAt:asc">Submitted (oldest)</option>
+                  <option value="createdAt:desc">Created (newest)</option>
+                  <option value="createdAt:asc">Created (oldest)</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1 flex items-end gap-2">
+                <button
+                  onClick={() => refreshPendingVerifications({ page: 1 })}
+                  className="h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-white/50">
+                Page {queuePage} <span className="text-white/30">·</span> {queueLimit}/page
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const next = Math.max(1, queuePage - 1);
+                    setQueuePage(next);
+                    refreshPendingVerifications({ page: next });
+                  }}
+                  disabled={queuePage <= 1 || queueLoading}
+                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 hover:bg-white/10 transition disabled:opacity-60"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => {
+                    const maxPage = Math.max(1, Math.ceil((queueTotal || 0) / (queueLimit || 20)));
+                    const next = Math.min(maxPage, queuePage + 1);
+                    setQueuePage(next);
+                    refreshPendingVerifications({ page: next });
+                  }}
+                  disabled={queueLoading}
+                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 hover:bg-white/10 transition disabled:opacity-60"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
 
           {pendingVerifications.length === 0 && (
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
-              No pending verifications.
+              No applications match the current filters.
             </div>
           )}
 
@@ -358,25 +664,25 @@ export default function AdminPanel() {
                     <p className="mt-1 text-sm text-white/60 break-all">{psy.userId?.email}</p>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {psy.cvUrl && (
+                      {psy.credentialDocs?.cv && (
                         <button
-                          onClick={() => viewFile(psy.cvUrl)}
+                          onClick={() => openLatestCredentialDocument(psy._id, 'cv')}
                           className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition"
                         >
                           View CV
                         </button>
                       )}
-                      {psy.diplomaUrl && (
+                      {psy.credentialDocs?.diploma && (
                         <button
-                          onClick={() => viewFile(psy.diplomaUrl)}
+                          onClick={() => openLatestCredentialDocument(psy._id, 'diploma')}
                           className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition"
                         >
                           View Diploma
                         </button>
                       )}
-                      {psy.introVideo && (
+                      {psy.credentialDocs?.introVideo && (
                         <button
-                          onClick={() => loadAssetPreview(`introVideo:${psy._id}`, psy.introVideo)}
+                          onClick={() => loadLatestCredentialPreview(psy._id, 'introVideo')}
                           className="h-9 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
                         >
                           Load Intro Video
@@ -410,11 +716,11 @@ export default function AdminPanel() {
                   </details>
                 )}
 
-                {assetUrls[`introVideo:${psy._id}`] && (
+                {Object.keys(assetUrls).some((k) => k.startsWith(`introVideo:${psy._id}:`)) && (
                   <div className="mt-4 rounded-3xl border border-white/10 bg-slate-950/30 p-4">
                     <p className="text-sm font-semibold text-white/80">Introduction Video</p>
                     <video
-                      src={assetUrls[`introVideo:${psy._id}`]}
+                      src={assetUrls[Object.keys(assetUrls).find((k) => k.startsWith(`introVideo:${psy._id}:`))]}
                       controls
                       className="mt-3 w-full max-h-80 rounded-2xl bg-black/40"
                     />

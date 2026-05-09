@@ -11,10 +11,23 @@ const dns = require('dns');
 const path = require('path');
 const multer = require('multer');
 const { getPublicUploadsRoot } = require('./utils/uploadRoots');
+const { correlationMiddleware } = require('./middleware/correlationMiddleware');
   // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
 dotenv.config();
+
+// Log unexpected failures early so we can diagnose production crashes.
+// Prefer keeping the process alive for unhandled rejections; for uncaught exceptions,
+// we log and allow the process to exit (so a process manager can restart it).
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED_REJECTION:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT_EXCEPTION:', err);
+  // Avoid hard exit here; if you run under a supervisor (pm2/systemd), you may want:
+  // process.exit(1);
+});
 
 // Optional: force DNS resolvers (fixes SRV lookup failures on some Windows/VPN setups)
 if (process.env.DNS_SERVERS) {
@@ -56,6 +69,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
+
+// Correlation IDs for traceability (UC-11/UC-12)
+app.use(correlationMiddleware);
 
 // Set security HTTP headers
 app.use(helmet({
@@ -99,13 +115,27 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  const joinedRooms = new Set();
+
   socket.on('join_room', (roomId) => {
     socket.join(roomId);
+    joinedRooms.add(roomId);
     console.log(`User joined room: ${roomId}`);
+    socket.to(roomId).emit('presence', { roomId, socketId: socket.id, online: true, at: new Date().toISOString() });
   });
 
   socket.on('send_message', (data) => {
     io.to(data.roomId).emit('receive_message', data);
+  });
+
+  // Read receipts (best-effort UI signal; DB source of truth is Message.isRead)
+  socket.on('messages_read', (data) => {
+    if (!data?.roomId) return;
+    socket.to(data.roomId).emit('messages_read', {
+      roomId: data.roomId,
+      readerId: data.readerId || null,
+      at: new Date().toISOString()
+    });
   });
 
   // Psychologist joins their private room for real-time risk alerts
@@ -117,6 +147,9 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    for (const roomId of joinedRooms) {
+      socket.to(roomId).emit('presence', { roomId, socketId: socket.id, online: false, at: new Date().toISOString() });
+    }
   });
 });
 
@@ -139,6 +172,11 @@ app.use('/api/sessions', apiLimiter, require('./routes/voiceRoutes'));
 app.use('/api/ratings', apiLimiter, require('./routes/ratingRoutes'));
 app.use('/api/verification', apiLimiter, require('./routes/verificationRoutes'));
 app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
+app.use('/api/credential-documents', apiLimiter, require('./routes/credentialDocumentRoutes'));
+app.use('/api/onboarding', apiLimiter, require('./routes/onboardingRoutes'));
+app.use('/api/review-queue', apiLimiter, require('./routes/reviewQueueRoutes'));
+app.use('/api/audit-events', apiLimiter, require('./routes/auditEventRoutes'));
+app.use('/api/tts', apiLimiter, require('./routes/ttsRoutes'));
 app.use('/api/calendar', apiLimiter, calendarRoutes);
 app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import TypingIndicator from './TypingIndicator';
 
@@ -37,7 +37,8 @@ export default function ChatBox({
   isRecording,
   onRecordToggle,
   isMuted,
-  onMuteToggle
+  onMuteToggle,
+  presence = null
 }) {
   const [draft, setDraft] = useState('');
   const scrollerRef = useRef(null);
@@ -52,12 +53,31 @@ export default function ChatBox({
 
   const canSend = !disabled && draft.trim().length > 0;
 
-  const submit = () => {
+  const submit = useCallback(() => {
     const text = draft.trim();
     if (!text || disabled) return;
     setDraft('');
     onSend?.(text);
-  };
+  }, [draft, disabled, onSend]);
+
+  // Keyboard shortcuts (accessibility / power users):
+  // - Ctrl+Enter: send message
+  // - Ctrl+Shift+R: toggle voice recording (if available)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (disabled) return;
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      }
+      if (showVoiceOptions && e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+        e.preventDefault();
+        onRecordToggle?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [disabled, showVoiceOptions, onRecordToggle, submit]);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -65,7 +85,10 @@ export default function ChatBox({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">{title}</div>
-            {subtitle && <div className="mt-1 truncate text-xs text-[color:var(--muted)]">{subtitle}</div>}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {subtitle && <div className="truncate text-xs text-[color:var(--muted)]">{subtitle}</div>}
+              {presence}
+            </div>
           </div>
           {disabled && disabledReason && (
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
@@ -97,7 +120,10 @@ export default function ChatBox({
                   key={id}
                   isMe={isMe}
                   content={content}
+                  kind={m.kind || 'text'}
+                  voice={m.voice || null}
                   timestamp={m.createdAt}
+                  isRead={Boolean(m.isRead)}
                 />
               );
             })}

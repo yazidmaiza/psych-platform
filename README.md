@@ -8,7 +8,7 @@ The Psych Platform is a comprehensive web application designed to bridge the gap
 ### 👥 User Roles & Portals
 - **Patients**: Find therapists, book sessions, upload intake documents, view session history, and track emotional indicators.
 - **Psychologists**: Manage availability via an intuitive calendar, track patient histories, write private clinical notes, and review statistics.
-- **Administrators**: Dedicated admin panel for platform oversight.
+- **Administrators**: Dedicated admin panel for platform oversight, including a paginated onboarding review queue (`docs/review-queue.md`).
 
 ### 📅 Advanced Scheduling & Calendar
 - Psychologists can configure and set their available time slots.

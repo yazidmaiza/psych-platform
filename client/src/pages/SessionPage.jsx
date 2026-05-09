@@ -8,6 +8,7 @@ import { logout } from '../services/auth';
 import { api } from '../services/api';
 import { useChatbotThread } from '../hooks/useChatbotThread';
 import { usePsychologistThread } from '../hooks/usePsychologistThread';
+import PresencePill from '../components/session/PresencePill';
 
 const sessionTypeLabel = (t) => {
   if (t === 'preparation') return 'Preparation';
@@ -100,26 +101,11 @@ export default function SessionPage() {
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
-        const formData = new FormData();
-        formData.append('audio', blob, 'voice.webm');
-        const token = localStorage.getItem('token');
-
         try {
-          const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/voice`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData
-          });
-          const data = await res.json();
-          if (data.text) {
-            try {
-              await psychologist.send(data.text);
-            } catch (e) {
-              alert(e.message || 'Failed to send transcribed message');
-            }
-          }
+          await psychologist.sendVoice({ sessionId, blob, mimeType: 'audio/webm' });
         } catch (err) {
-          console.error('Voice transcription failed:', err);
+          console.error('Voice message upload failed:', err);
+          alert(err.message || 'Failed to send voice message');
         }
 
         stream.getTracks().forEach(track => track.stop());
@@ -136,7 +122,7 @@ export default function SessionPage() {
       }, 5000);
     } catch (err) {
       console.error('Microphone access denied:', err);
-      alert('Microphone access denied');
+      alert('Microphone access denied. Please allow microphone permissions or send a text message.');
     }
   };
 
@@ -287,6 +273,11 @@ export default function SessionPage() {
                       window.speechSynthesis.cancel();
                     }}
                     showVoiceOptions={true}
+                    presence={
+                      psychologistDisabled ? null : (
+                        <PresencePill online={psychologist.otherOnline} labelOnline="Online" labelOffline="Away" />
+                      )
+                    }
                   />
                 )}
 

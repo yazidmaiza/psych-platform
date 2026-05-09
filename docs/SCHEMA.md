@@ -426,6 +426,14 @@ Relationships:
 {
   _id: ObjectId,
   userId: ObjectId,        // ref User, unique
+  profileStatus: "Draft"|"Submitted"|"Approved"|"Rejected",
+  submittedAt: Date|null,
+  lastResubmittedAt: Date|null,
+  rejectionReason: String,
+  rejectedAt: Date|null,
+  rejectedByUserId: ObjectId|null,
+  rejectionDetails: { fields: String[], documents: String[] },
+  onboardingHistory: { status: String, at: Date, byUserId: ObjectId|null, reason: String, details: Object }[],
   firstName: String,
   lastName: String,
   photo: String,
@@ -438,10 +446,18 @@ Relationships:
   totalRatings: Number,
   availability: String,
   isApproved: Boolean,
+  credentialDocs: {
+    cv: ObjectId,           // ref CredentialDocument
+    diploma: ObjectId,      // ref CredentialDocument
+    idFront: ObjectId,      // ref CredentialDocument
+    idBack: ObjectId,       // ref CredentialDocument
+    introVideo: ObjectId    // ref CredentialDocument
+  },
+  // Deprecated legacy fields (kept for compatibility; should remain empty in production):
   cvUrl: String,
   diplomaUrl: String,
-  idCard: { front: String, back: String },            // relative paths
-  introVideo: String,       // relative path
+  idCard: { front: String, back: String },
+  introVideo: String,
   isRejected: Boolean,
   aiVerificationSummary: String,
   sessionPrice: Number,
@@ -452,6 +468,66 @@ Relationships:
 Indexes:
 - `userId` unique
 - `location` 2dsphere
+
+#### `credentialdocuments` (`CredentialDocument`)
+```js
+{
+  _id: ObjectId,
+  ownerUserId: ObjectId,     // ref User (psychologist user)
+  psychologistId: ObjectId,  // ref Psychologist profile
+  type: "cv"|"diploma"|"idFront"|"idBack"|"introVideo",
+  version: Number,           // starts at 1, increments on replacement
+  isCurrent: Boolean,
+  replacedBy: ObjectId|null, // ref CredentialDocument
+  storagePath: String,       // private storage key/path (not publicly served)
+  originalName: String,
+  mimeType: String,
+  sizeBytes: Number,
+  checksumSha256: String,
+  uploadedByUserId: ObjectId,// ref User
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+Indexes:
+- `{ ownerUserId, type, version }` unique
+- `{ expiresAt }` TTL cleanup is handled in the access-grant collection (below)
+
+#### `credentialdocumentaccessgrants` (`CredentialDocumentAccessGrant`)
+```js
+{
+  _id: ObjectId,
+  tokenHash: String,            // sha256(token), never store raw token
+  credentialDocumentId: ObjectId,// ref CredentialDocument
+  requestedByUserId: ObjectId,  // ref User
+  requestedByRole: "psychologist"|"admin",
+  expiresAt: Date,              // TTL index (auto cleanup)
+  usedAt: Date|null,
+  requestIp: String,
+  requestUserAgent: String,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+#### `auditevents` (`AuditEvent`)
+```js
+{
+  _id: ObjectId,
+  actorUserId: ObjectId|null,  // ref User (null for token-only downloads)
+  actorRole: String,
+  action: String,              // e.g. CREDENTIAL_DOC_UPLOAD, CREDENTIAL_DOC_DOWNLOAD
+  targetType: String,
+  targetId: String,
+  outcome: "success"|"failure",
+  message: String,
+  requestIp: String,
+  requestUserAgent: String,
+  metadata: Object,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
 
 #### `calendarSlots` (`CalendarSlot`)
 ```js
@@ -736,6 +812,7 @@ Class User
 Class PsychologistProfile
   +id: ObjectId
   +userId: ObjectId (User)
+  +profileStatus: Draft|Submitted|Approved|Rejected
   +firstName, lastName: string
   +bio, photo, city, availability: string
   +languages: string[]
@@ -745,7 +822,32 @@ Class PsychologistProfile
   +totalRatings: number
   +sessionPrice: number
   +isApproved: boolean
-  +verificationAssets: { cvUrl, diplomaUrl, idFrontPath, idBackPath, introVideoPath }
+  +credentialDocs: { cv, diploma, idFront, idBack, introVideo } (CredentialDocument refs)
+
+Class CredentialDocument
+  +id: ObjectId
+  +ownerUserId: ObjectId (User)
+  +psychologistId: ObjectId (PsychologistProfile)
+  +type: CredentialDocType
+  +version: number
+  +isCurrent: boolean
+  +storagePath: string (private)
+  +checksumSha256: string
+
+Class CredentialDocumentAccessGrant
+  +id: ObjectId
+  +tokenHash: string
+  +credentialDocumentId: ObjectId (CredentialDocument)
+  +requestedByUserId: ObjectId (User)
+  +expiresAt: Date
+
+Class AuditEvent
+  +id: ObjectId
+  +actorUserId?: ObjectId (User)
+  +action: string
+  +outcome: success|failure
+  +targetType: string
+  +targetId: string
 
 Class CalendarSlot
   +id: ObjectId

@@ -34,6 +34,7 @@ import CalendarPage from './pages/Calendar';
 
 // Admin
 import AdminPanel from './pages/AdminPanel';
+import AuditLog from './pages/AuditLog';
 import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
@@ -219,6 +220,14 @@ function App() {
           element={
             <ProtectedRoute role="admin">
               <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <ProtectedRoute role="admin">
+              <AuditLog />
             </ProtectedRoute>
           }
         />

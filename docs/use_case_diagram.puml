@@ -52,7 +52,10 @@ rectangle "Authentication & Account" as AUTH {
 rectangle "Psychologist Profile & Verification" as VERIF {
     usecase "Create Psychologist Profile"  as UC_CREATE_PROF
     usecase "Update Profile"               as UC_UPD_PROF
-    usecase "Upload CV & Diploma"          as UC_UPLOAD_DOCS
+    usecase "Upload Credential Document"   as UC_UPLOAD_CRED
+    usecase "Access Credential Document\n(Signed URL)" as UC_ACCESS_CRED
+    usecase "Submit Onboarding Application" as UC_SUBMIT_ONB
+    usecase "Resubmit After Rejection" as UC_RESUBMIT_ONB
     usecase "AI Verification Summary"      as UC_AI_VERIF
     usecase "View Pending Verifications"   as UC_PEND_VERIF
     usecase "Approve Psychologist"         as UC_APPROVE
@@ -194,7 +197,10 @@ PSY --> UC_ME
 
 PSY --> UC_CREATE_PROF
 PSY --> UC_UPD_PROF
-PSY --> UC_UPLOAD_DOCS
+PSY --> UC_UPLOAD_CRED
+PSY --> UC_ACCESS_CRED
+PSY --> UC_SUBMIT_ONB
+PSY --> UC_RESUBMIT_ONB
 
 PSY --> UC_ADD_SLOT
 PSY --> UC_VIEW_SLOTS
@@ -241,6 +247,7 @@ ADM --> UC_ME
 ADM --> UC_PEND_VERIF
 ADM --> UC_APPROVE
 ADM --> UC_REJECT
+ADM --> UC_ACCESS_CRED
 
 ADM --> UC_PDF
 

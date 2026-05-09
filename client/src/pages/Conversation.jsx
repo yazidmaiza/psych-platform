@@ -113,20 +113,18 @@ function Conversation() {
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
-        const formData = new FormData();
-        formData.append('audio', blob, 'voice.webm');
-        const token = localStorage.getItem('token');
-
         try {
-          const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/voice`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData
+          const formData = new FormData();
+          formData.append('audio', blob, 'voice.webm');
+          const saved = await api.postForm(`/api/sessions/${sessionId}/voice-message`, formData);
+
+          setMessages((prev) => {
+            if (prev.some((m) => String(m._id) === String(saved._id))) return prev;
+            return [...prev, saved];
           });
-          const data = await res.json();
-          if (data.text) sendMessage(data.text);
+          socket.emit('send_message', { roomId, message: saved });
         } catch (err) {
-          console.error('Voice transcription failed:', err);
+          console.error('Voice message upload failed:', err);
         }
 
         stream.getTracks().forEach(track => track.stop());
@@ -197,7 +195,13 @@ function Conversation() {
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-800'
                 }`}>
-                <p className="text-sm">{msg.content}</p>
+                {msg.kind === 'voice' && msg.voice?.url ? (
+                  <audio controls preload="metadata" className="w-full">
+                    <source src={msg.voice.url} type={msg.voice.mimeType || 'audio/webm'} />
+                  </audio>
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
                 <p className={`text-xs mt-1 ${msg.senderId === userId ? 'text-blue-200' : 'text-gray-400'}`}>
                   {new Date(msg.createdAt).toLocaleTimeString()}
                 </p>

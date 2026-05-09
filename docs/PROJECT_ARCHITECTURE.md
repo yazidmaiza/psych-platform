@@ -24,6 +24,7 @@ The platform exposes several modules tailored to Patients, Psychologists, and Ad
 - **Role-Based Access Control (RBAC):** Distinct interfaces and permissions for `patient`, `psychologist`, and `admin`.
 - **JWT Authentication:** Secure token-based access with encrypted passwords (bcryptjs).
 - **Psychologist Onboarding Pipeline:** Verification workflow requiring professionals to submit identity and educational documents. Includes automated OCR checks and administrative approval processes.
+  - Credential documents are stored in private storage and accessed only via short-lived, scoped download links issued by the backend (no public URLs).
 
 ### 2.2 Patient Capabilities
 - **Geospatial Search:** Interactive map mapping (via `react-leaflet`) allowing patients to discover psychologists by location.
