@@ -4,19 +4,20 @@ import { getUser } from '../services/auth';
 import { api } from '../services/api';
 import { socket } from '../services/socket';
 
-function Conversation() {
+function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sessionId, setSessionId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const { otherUserId } = useParams();
+  const { otherUserId: otherUserIdParam } = useParams();
+  const otherUserId = otherUserIdProp || otherUserIdParam;
   const navigate = useNavigate();
   const messagesContainerRef = useRef(null);
   const recorderRef = useRef(null);
 
   const { userId, role } = getUser();
-  const roomId = [userId, otherUserId].sort().join('_');
+  const roomId = otherUserId ? [userId, otherUserId].sort().join('_') : null;
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -34,6 +35,7 @@ function Conversation() {
   };
 
   useEffect(() => {
+    if (!otherUserId) return undefined;
     const fetchMessages = async () => {
       try {
         const data = await api.get(`/api/messages/${otherUserId}`);
@@ -55,7 +57,7 @@ function Conversation() {
       }
     };
 
-    socket.emit('join_room', roomId);
+    if (roomId) socket.emit('join_room', roomId);
     fetchMessages();
     fetchSession();
 
@@ -83,6 +85,7 @@ function Conversation() {
   const sendMessage = async (content) => {
     const text = content || newMessage;
     if (!text.trim()) return;
+    if (!otherUserId) return;
     if (!content) setNewMessage('');
 
     try {
@@ -152,36 +155,44 @@ function Conversation() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-blue-600 text-sm font-semibold hover:underline"
-          >
-            Back
-          </button>
-          <h1 className="text-xl font-bold text-gray-800">Conversation</h1>
-          <span className="text-xs text-green-500 font-semibold">Live</span>
-          <button
-            onClick={() => {
-              setIsMuted(!isMuted);
-              window.speechSynthesis.cancel();
-            }}
-            className="ml-auto text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
-          >
-            {isMuted ? 'Muted' : 'Sound on'}
-          </button>
+    <div className={[embedded ? 'h-full bg-white' : 'min-h-screen bg-gray-50', 'flex flex-col'].join(' ')}>
+      {!embedded && (
+        <div className="bg-white shadow-sm">
+          <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="text-blue-600 text-sm font-semibold hover:underline"
+            >
+              Back
+            </button>
+            <h1 className="text-xl font-bold text-gray-800">Conversation</h1>
+            <span className="text-xs text-green-500 font-semibold">Live</span>
+            <button
+              onClick={() => {
+                setIsMuted(!isMuted);
+                window.speechSynthesis.cancel();
+              }}
+              className="ml-auto text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+            >
+              {isMuted ? 'Muted' : 'Sound on'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div
-        className="max-w-3xl w-full mx-auto px-6 py-6 flex flex-col"
-        style={{ height: 'calc(100vh - 80px)' }}
+        className={[
+          embedded ? 'h-full px-4 py-4' : 'max-w-3xl w-full mx-auto px-6 py-6',
+          'flex flex-col'
+        ].join(' ')}
+        style={embedded ? undefined : { height: 'calc(100vh - 80px)' }}
       >
         <div
           ref={messagesContainerRef}
-          className="flex-1 bg-white rounded-2xl shadow p-5 overflow-y-auto mb-4"
+          className={[
+            'flex-1 rounded-2xl p-5 overflow-y-auto mb-4',
+            embedded ? 'bg-gray-50 border border-gray-100' : 'bg-white shadow'
+          ].join(' ')}
         >
           {messages.length === 0 && (
             <p className="text-center text-gray-400 mt-20">No messages yet. Say hello!</p>
@@ -210,7 +221,10 @@ function Conversation() {
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl shadow px-4 py-3 flex gap-3 items-center">
+        <div className={[
+          'rounded-2xl px-4 py-3 flex gap-3 items-center',
+          embedded ? 'bg-white border border-gray-100' : 'bg-white shadow'
+        ].join(' ')}>
           <input
             className="flex-1 text-sm focus:outline-none"
             placeholder="Type a message..."
@@ -227,6 +241,19 @@ function Conversation() {
               onClick={isRecording ? stopRecording : startRecording}
             >
               {isRecording ? 'Stop' : 'Record'}
+            </button>
+          )}
+          {embedded && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMuted(!isMuted);
+                window.speechSynthesis.cancel();
+              }}
+              className="hidden sm:inline-flex px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              title={isMuted ? 'Enable text-to-speech' : 'Mute text-to-speech'}
+            >
+              {isMuted ? 'Muted' : 'Sound on'}
             </button>
           )}
           <button

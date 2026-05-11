@@ -1,664 +1,806 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { api } from '../services/api';
+import GlassPanel from '../components/dashboard/GlassPanel';
+import ConversationDrawer from '../components/conversation/ConversationDrawer';
 
-function PatientDetail() {
-    const [data, setData] = useState({ messages: [], notes: [] });
-    const [emotions, setEmotions] = useState([]);
-    const [newNote, setNewNote] = useState('');
-    const { patientId } = useParams();
-    const [sessionId, setSessionId] = useState(null);
-    const [summary, setSummary] = useState(null);
-    const navigate = useNavigate();
-    const [documents, setDocuments] = useState([]);
-    const [docFile, setDocFile] = useState(null);
-    const [uploading, setUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState('');
-    const [selectedDoc, setSelectedDoc] = useState(null);
-    const [question, setQuestion] = useState('');
-    const [answer, setAnswer] = useState('');
-    const [querySources, setQuerySources] = useState([]);
-    const [queryError, setQueryError] = useState('');
-    const [querying, setQuerying] = useState(false);
-    const [activeSessionId, setActiveSessionId] = useState(null);
-    const [endingSession, setEndingSession] = useState(false);
-    const [riskAlerts, setRiskAlerts] = useState([]);
-    const socketRef = useRef(null);
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
+const fmtDate = (d) => {
+  try {
+    return new Date(d).toLocaleDateString();
+  } catch {
+    return '';
+  }
+};
 
-    const fetchDocuments = useCallback(async () => {
+const fmtTime = (d) => {
+  try {
+    return new Date(d).toLocaleTimeString();
+  } catch {
+    return '';
+  }
+};
+
+const emotionLabel = (emotion) => {
+  if (emotion === 'anxiety') return 'Anxiety';
+  if (emotion === 'sadness') return 'Sadness';
+  if (emotion === 'anger') return 'Anger';
+  if (emotion === 'positivity') return 'Positivity';
+  return emotion;
+};
+
+const TabButton = ({ active, children, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={[
+      'h-9 rounded-2xl border px-4 text-xs font-semibold transition',
+      active ? 'border-indigo-400/30 bg-indigo-500/20 text-indigo-50' : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
+    ].join(' ')}
+  >
+    {children}
+  </button>
+);
+
+export default function PatientDetail() {
+  const { patientId } = useParams();
+  const navigate = useNavigate();
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [patientMeta, setPatientMeta] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [sessionIdForReport, setSessionIdForReport] = useState(null);
+
+  const [data, setData] = useState({ messages: [], notes: [] });
+  const [emotions, setEmotions] = useState([]);
+  const [summary, setSummary] = useState(null);
+
+  const [riskAlerts, setRiskAlerts] = useState([]);
+  const socketRef = useRef(null);
+
+  const [tab, setTab] = useState('overview'); // overview | alerts | notes | documents | chat
+
+  // Notes
+  const [newNote, setNewNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  // Documents + RAG
+  const [documents, setDocuments] = useState([]);
+  const [docFile, setDocFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [querying, setQuerying] = useState(false);
+
+  // Chat preview
+  const [chatQuery, setChatQuery] = useState('');
+
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const docs = await api.get('/api/documents/patient/' + patientId);
+      const next = Array.isArray(docs) ? docs : [];
+      setDocuments(next);
+      setSelectedDoc((current) => {
+        if (current && next.some((d) => String(d._id) === String(current))) return current;
+        return next[0]?._id || null;
+      });
+    } catch {
+      setDocuments([]);
+      setSelectedDoc(null);
+    }
+  }, [patientId]);
+
+  const fetchRiskAlerts = useCallback(async () => {
+    try {
+      const alerts = await api.get(`/api/risk-alerts/patient/${patientId}`);
+      setRiskAlerts(Array.isArray(alerts) ? alerts : []);
+    } catch {
+      setRiskAlerts([]);
+    }
+  }, [patientId]);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [patients, detail, emotionRes, sessionRes] = await Promise.all([
+        api.get('/api/dashboard/patients'),
+        api.get(`/api/dashboard/patient/${patientId}`),
+        api.get(`/api/dashboard/emotions/${patientId}`),
+        api.get(`/api/sessions/patient/${patientId}`)
+      ]);
+
+      const list = Array.isArray(patients) ? patients : [];
+      setPatientMeta(list.find((p) => String(p.patientId) === String(patientId)) || null);
+
+      setData(detail || { messages: [], notes: [] });
+      setEmotions(Array.isArray(emotionRes) ? emotionRes : []);
+
+      const sess = Array.isArray(sessionRes) ? sessionRes : [];
+      setSessions(sess);
+
+      const active = sess.find((s) => String(s.status) === 'active');
+      setActiveSessionId(active ? active._id : null);
+
+      const completed = sess.find((s) => String(s.status) === 'completed');
+      setSessionIdForReport(completed ? completed._id : null);
+
+      if (completed) {
         try {
-            const docs = await api.get('/api/documents/patient/' + patientId);
-            const nextDocuments = Array.isArray(docs) ? docs : [];
-            setDocuments(nextDocuments);
-            setSelectedDoc((currentSelectedDoc) => {
-                if (currentSelectedDoc && nextDocuments.some((doc) => doc._id === currentSelectedDoc)) {
-                    return currentSelectedDoc;
-                }
-                return nextDocuments[0]?._id || null;
-            });
-        } catch (err) {
-            console.error(err);
+          const summaryRes = await api.get(`/api/chatbot/summary?patientId=${patientId}`);
+          setSummary(summaryRes || null);
+        } catch {
+          setSummary(null);
         }
-    }, [patientId]);
+      } else {
+        setSummary(null);
+      }
+    } catch (e) {
+      setError(e?.message || 'Failed to load patient');
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
 
-    const fetchData = useCallback(async () => {
-        try {
-            const res = await api.get(`/api/dashboard/patient/${patientId}`);
-            setData(res);
+  useEffect(() => {
+    fetchAll();
+    fetchDocuments();
+    fetchRiskAlerts();
+  }, [fetchAll, fetchDocuments, fetchRiskAlerts]);
 
-            const emotionRes = await api.get(`/api/dashboard/emotions/${patientId}`);
-            setEmotions(Array.isArray(emotionRes) ? emotionRes : []);
+  // Real-time risk alert updates via Socket.IO
+  useEffect(() => {
+    const raw = localStorage.getItem('user');
+    if (!raw) return;
+    const user = JSON.parse(raw);
+    if (user.role !== 'psychologist') return;
 
-            const sessionRes = await api.get(`/api/sessions/patient/${patientId}`);
-            if (Array.isArray(sessionRes) && sessionRes.length > 0) {
-                const active = sessionRes.find(s => s.status === 'active');
-                setActiveSessionId(active ? active._id : null);
+    const socket = io('http://localhost:5000', {
+      auth: { token: localStorage.getItem('token') },
+      transports: ['websocket']
+    });
+    socketRef.current = socket;
+    socket.emit('join_psychologist_room', user.id || user._id);
 
-                const completed = sessionRes.find(s => s.status === 'completed');
-                if (completed) {
-                    setSessionId(completed._id);
-                    try {
-                        const summaryRes = await api.get(`/api/chatbot/summary?patientId=${patientId}`);
-                        setSummary(summaryRes);
-                    } catch (err) {
-                        setSummary(null);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    }, [patientId]);
+    socket.on('risk_alert', (payload) => {
+      if (String(payload.patientId) === String(patientId)) fetchRiskAlerts();
+    });
 
-    // Fetch risk alerts for this patient
-    const fetchRiskAlerts = useCallback(async () => {
-        try {
-            const alerts = await api.get(`/api/risk-alerts/patient/${patientId}`);
-            setRiskAlerts(Array.isArray(alerts) ? alerts : []);
-        } catch (err) {
-            console.error('Risk alerts fetch error:', err);
-        }
-    }, [patientId]);
-
-    useEffect(() => {
-        fetchData();
-        fetchDocuments();
-        fetchRiskAlerts();
-    }, [fetchData, fetchDocuments, fetchRiskAlerts]);
-
-    // Real-time risk alert updates via Socket.IO
-    useEffect(() => {
-        const raw = localStorage.getItem('user');
-        if (!raw) return;
-        const user = JSON.parse(raw);
-        if (user.role !== 'psychologist') return;
-
-        const socket = io('http://localhost:5000', {
-            auth: { token: localStorage.getItem('token') },
-            transports: ['websocket']
-        });
-        socketRef.current = socket;
-        socket.emit('join_psychologist_room', user.id || user._id);
-
-        socket.on('risk_alert', (payload) => {
-            if (payload.patientId === patientId) {
-                fetchRiskAlerts();
-            }
-        });
-
-        return () => { socket.disconnect(); };
-    }, [patientId, fetchRiskAlerts]);
-
-    const addNote = async () => {
-        if (!newNote.trim()) return;
-        try {
-            await api.post('/api/dashboard/notes', {
-                patientId,
-                content: newNote
-            });
-            setNewNote('');
-            fetchData();
-        } catch (err) {
-            console.error(err);
-        }
+    return () => {
+      try {
+        socket.disconnect();
+      } catch {}
     };
+  }, [fetchRiskAlerts, patientId]);
 
-    const downloadPDF = async () => {
-        const token = localStorage.getItem('token');
-        const res = await fetch(
-            `http://localhost:5000/api/sessions/${sessionId}/report/pdf`,
-            { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${sessionId}.pdf`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-    };
-    const uploadDocument = async () => {
-        if (!docFile) return;
-        setUploading(true);
-        setUploadStatus('');
-        try {
-            const token = localStorage.getItem('token');
-            const formData = new FormData();
-            formData.append('document', docFile);
-            formData.append('patientId', patientId);
-            const res = await fetch('http://localhost:5000/api/documents/upload/' + patientId, {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token },
-                body: formData
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
-            setDocFile(null);
-            setUploadStatus(`Uploaded ${data.document?.originalName || 'document'}${data.document?.embeddingStatus ? ` · ${data.document.embeddingStatus}` : ''}`);
-            setSelectedDoc(data.document?._id || null);
-            setQuestion('');
-            setAnswer('');
-            setQuerySources([]);
-            fetchDocuments();
-        } catch (err) {
-            setUploadStatus(err.message || 'Upload failed');
-            console.error(err);
-        } finally {
-            setUploading(false);
-        }
-    };
+  const downloadPDF = useCallback(async () => {
+    if (!sessionIdForReport) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`http://localhost:5000/api/sessions/${sessionIdForReport}/report/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report-${sessionIdForReport}.pdf`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }, [sessionIdForReport]);
 
-    const queryDocument = async () => {
-        if (!selectedDoc || !question.trim()) {
-            setQueryError('Select a document and enter a question.');
-            return;
-        }
-        setQuerying(true);
-        setAnswer('');
-        setQuerySources([]);
-        setQueryError('');
-        try {
-            const data = await api.post('/api/documents/query/' + selectedDoc, { question, topK: 5 });
-            setAnswer(data.answer);
-            setQuerySources(Array.isArray(data.sources) ? data.sources : []);
-        } catch (err) {
-            setQueryError(err.message || 'Could not answer that question right now.');
-            console.error(err);
-        } finally {
-            setQuerying(false);
-        }
-    };
+  const endSession = useCallback(async () => {
+    if (!activeSessionId) return;
+    if (!window.confirm('End this session? The patient will be prompted to rate you.')) return;
+    try {
+      await api.put(`/api/sessions/${activeSessionId}/end`, {});
+      setActiveSessionId(null);
+      await fetchAll();
+    } catch {
+      alert('Failed to end session. Please try again.');
+    }
+  }, [activeSessionId, fetchAll]);
 
-    const selectedDocument = documents.find(doc => doc._id === selectedDoc) || null;
-    const readyCount = documents.filter(doc => doc.embeddingStatus === 'ready').length;
-    const skippedCount = documents.filter(doc => doc.embeddingStatus === 'skipped').length;
-    const failedCount = documents.filter(doc => doc.embeddingStatus === 'failed').length;
+  const addNote = useCallback(async () => {
+    const value = String(newNote || '').trim();
+    if (!value) return;
+    setSavingNote(true);
+    try {
+      await api.post('/api/dashboard/notes', { patientId, content: value });
+      setNewNote('');
+      await fetchAll();
+    } catch (e) {
+      alert(e?.message || 'Failed to save note');
+    } finally {
+      setSavingNote(false);
+    }
+  }, [fetchAll, newNote, patientId]);
 
+  const acknowledgeAlert = useCallback(async (alertId) => {
+    try {
+      await api.put(`/api/risk-alerts/${alertId}/acknowledge`, {});
+      setRiskAlerts((prev) =>
+        prev.map((a) => (a._id === alertId ? { ...a, isAcknowledged: true, acknowledgedAt: new Date().toISOString() } : a))
+      );
+    } catch {
+      // ignore
+    }
+  }, []);
 
-    const acknowledgeAlert = async (alertId) => {
-        try {
-            await api.put(`/api/risk-alerts/${alertId}/acknowledge`, {});
-            setRiskAlerts(prev => prev.map(a =>
-                a._id === alertId ? { ...a, isAcknowledged: true, acknowledgedAt: new Date().toISOString() } : a
-            ));
-        } catch (err) {
-            console.error('Acknowledge error:', err);
-        }
-    };
+  const uploadDocument = useCallback(async () => {
+    if (!docFile) return;
+    setUploading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('document', docFile);
+      formData.append('patientId', patientId);
+      const res = await fetch(`http://localhost:5000/api/documents/upload/${patientId}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: formData
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || 'Upload failed');
+      setDocFile(null);
+      await fetchDocuments();
+    } catch (e) {
+      alert(e?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }, [docFile, fetchDocuments, patientId]);
 
-    const getSentimentColor = (trend) => {
-        if (trend === 'improving') return 'text-green-600 bg-green-50';
-        if (trend === 'declining') return 'text-red-600 bg-red-50';
-        return 'text-yellow-600 bg-yellow-50';
-    };
+  const queryDocument = useCallback(async () => {
+    if (!selectedDoc || !String(question || '').trim()) return;
+    setQuerying(true);
+    setAnswer('');
+    try {
+      const result = await api.post(`/api/documents/query/${selectedDoc}`, { question });
+      setAnswer(String(result?.answer || '').trim());
+    } catch (e) {
+      alert(e?.message || 'Query failed');
+    } finally {
+      setQuerying(false);
+    }
+  }, [question, selectedDoc]);
 
-    const getUrgencyColor = (score) => {
-        if (score >= 4) return 'text-red-600';
-        if (score >= 3) return 'text-orange-500';
-        return 'text-green-600';
-    };
+  const stats = useMemo(() => {
+    const total = sessions.length;
+    const completed = sessions.filter((s) => String(s.status) === 'completed').length;
+    const active = sessions.filter((s) => String(s.status) === 'active').length;
+    return { total, completed, active };
+  }, [sessions]);
 
+  const unackedAlerts = useMemo(() => riskAlerts.filter((a) => !a.isAcknowledged), [riskAlerts]);
+
+  const filteredMessages = useMemo(() => {
+    const q = String(chatQuery || '').trim().toLowerCase();
+    const list = Array.isArray(data?.messages) ? data.messages : [];
+    if (!q) return list.slice(-50);
+    return list.filter((m) => String(m.content || '').toLowerCase().includes(q)).slice(-50);
+  }, [chatQuery, data?.messages]);
+
+  if (loading) {
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow-sm sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/90">
-                <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4 flex-wrap">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="text-blue-600 text-sm font-semibold hover:underline"
-                    >
-                        {'<- Back to Dashboard'}
-                    </button>
-                    <h1 className="text-xl font-bold text-gray-800">Patient Detail</h1>
-                    <button
-                        onClick={() => navigate(`/conversation/${patientId}`)}
-                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
-                    >
-                        Open Chat
-                    </button>
-                    {activeSessionId && (
-                        <button
-                            onClick={async () => {
-                                if (!window.confirm('End this session? The patient will be prompted to rate you.')) return;
-                                setEndingSession(true);
-                                try {
-                                    await api.put(`/api/sessions/${activeSessionId}/end`, {});
-                                    setActiveSessionId(null);
-                                    fetchData();
-                                } catch (err) {
-                                    alert('Failed to end session. Please try again.');
-                                } finally {
-                                    setEndingSession(false);
-                                }
-                            }}
-                            disabled={endingSession}
-                            className="bg-red-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50"
-                        >
-                            {endingSession ? 'Ending...' : '⏹ End Session'}
-                        </button>
-                    )}
-                    {sessionId && (
-                        <button
-                            onClick={downloadPDF}
-                            className="bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-green-700 transition"
-                        >
-                            Download Report
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
-
-                {/* AI Chatbot Summary */}
-                {summary && (
-                    <div className="bg-white rounded-2xl shadow p-6">
-                        <h2 className="text-lg font-bold text-gray-700 mb-4">AI Session Summary</h2>
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Dominant Emotion</p>
-                                <p className="text-lg font-bold text-blue-600 capitalize">{summary.emotionalIndicators?.dominantEmotion || 'N/A'}</p>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Urgency Score</p>
-                                <p className={`text-lg font-bold ${getUrgencyColor(summary.emotionalIndicators?.urgencyScore)}`}>
-                                    {summary.emotionalIndicators?.urgencyScore || 'N/A'} / 5
-                                </p>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Sentiment Trend</p>
-                                <span className={`text-sm font-bold px-3 py-1 rounded-full capitalize ${getSentimentColor(summary.emotionalIndicators?.sentimentTrend)}`}>
-                                    {summary.emotionalIndicators?.sentimentTrend || 'N/A'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {summary.keyThemes?.length > 0 && (
-                            <div className="mb-4">
-                                <p className="text-sm font-semibold text-gray-600 mb-2">Key Themes</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {summary.keyThemes.map((theme, i) => (
-                                        <span key={i} className="bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full">
-                                            {theme}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {summary.recommendations?.length > 0 && (
-                            <div className="mt-4">
-                                <p className="text-sm font-semibold text-gray-600 mb-2">Recommended Follow-up Questions</p>
-                                <div className="flex flex-col gap-2">
-                                    {summary.recommendations.map((rec, i) => (
-                                        <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                                            <p className="text-sm text-blue-700">{i + 1}. {rec}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {summary.rawSummary && (
-                            <div className="bg-gray-50 rounded-xl p-4">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Clinical Summary</p>
-                                <p className="text-sm text-gray-700 leading-relaxed">{summary.rawSummary}</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Risk Alert History */}
-                <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
-                        🚨 Risk Alerts
-                        {riskAlerts.filter(a => !a.isAcknowledged).length > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                                {riskAlerts.filter(a => !a.isAcknowledged).length} new
-                            </span>
-                        )}
-                    </h2>
-                    {riskAlerts.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm">No risk alerts detected.</p>
-                    ) : (
-                        <div className="flex flex-col gap-3">
-                            {riskAlerts.map(alert => {
-                                const severityColors = {
-                                    low: { bg: 'bg-yellow-50', border: 'border-yellow-200', badge: 'bg-yellow-400', text: 'text-yellow-800', icon: '⚠️' },
-                                    medium: { bg: 'bg-orange-50', border: 'border-orange-200', badge: 'bg-orange-500', text: 'text-orange-800', icon: '🔶' },
-                                    high: { bg: 'bg-red-50', border: 'border-red-200', badge: 'bg-red-500', text: 'text-red-800', icon: '🚨' },
-                                    critical: { bg: 'bg-red-100', border: 'border-red-400', badge: 'bg-red-700', text: 'text-red-900', icon: '🔴' }
-                                };
-                                const s = severityColors[alert.severity] || severityColors.medium;
-                                const CATEGORY_LABELS = {
-                                    self_harm: 'Self-Harm Signal',
-                                    suicidal_ideation: 'Suicidal Ideation',
-                                    abuse_trauma: 'Abuse / Trauma Disclosure',
-                                    crisis_escalation: 'Crisis Escalation'
-                                };
-                                return (
-                                    <div key={alert._id} className={`${s.bg} border ${s.border} rounded-xl px-4 py-3 ${alert.isAcknowledged ? 'opacity-60' : ''}`}>
-                                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <span>{s.icon}</span>
-                                                <span className={`text-xs font-bold text-white ${s.badge} px-2 py-0.5 rounded`}>
-                                                    {alert.severity.toUpperCase()}
-                                                </span>
-                                                <span className={`text-sm font-semibold ${s.text}`}>
-                                                    {CATEGORY_LABELS[alert.riskCategory] || alert.riskCategory}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs text-gray-400">
-                                                    {new Date(alert.createdAt).toLocaleString()}
-                                                </span>
-                                                {!alert.isAcknowledged && (
-                                                    <button
-                                                        onClick={() => acknowledgeAlert(alert._id)}
-                                                        className="text-xs bg-white border border-gray-300 text-gray-600 px-3 py-1 rounded-lg font-semibold hover:bg-gray-50 transition"
-                                                    >
-                                                        ✓ Acknowledge
-                                                    </button>
-                                                )}
-                                                {alert.isAcknowledged && (
-                                                    <span className="text-xs text-green-600 font-semibold">✓ Acknowledged</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {alert.triggerMessage && (
-                                            <p className="text-sm text-gray-600 italic mb-1">
-                                                "{alert.triggerMessage.slice(0, 150)}{alert.triggerMessage.length > 150 ? '…' : ''}"
-                                            </p>
-                                        )}
-                                        {alert.llmReasoning && (
-                                            <p className="text-xs text-gray-500">
-                                                🤖 {alert.llmReasoning}
-                                            </p>
-                                        )}
-                                        <p className="text-xs text-gray-400 mt-1">Score: {alert.riskScore}/100</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-
-                {/* Conversation */}
-                <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">Conversation</h2>
-                    <div className="h-64 overflow-y-auto flex flex-col gap-3">
-                        {data.messages.length === 0 && (
-                            <p className="text-center text-gray-400 mt-10">No messages yet.</p>
-                        )}
-                        {data.messages.map(msg => (
-                            <div
-                                key={msg._id}
-                                className={`flex ${msg.senderId === patientId ? 'justify-start' : 'justify-end'}`}
-                            >
-                                <div className={`px-4 py-3 rounded-2xl max-w-[70%] ${msg.senderId === patientId
-                                    ? 'bg-gray-100 text-gray-800'
-                                    : 'bg-blue-600 text-white'
-                                    }`}>
-                                    <p className="text-sm">{msg.content}</p>
-                                    <p className={`text-xs mt-1 ${msg.senderId === patientId ? 'text-gray-400' : 'text-blue-200'}`}>
-                                        {new Date(msg.createdAt).toLocaleTimeString()}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Emotional Indicators */}
-                <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">Emotional Indicators</h2>
-                    {emotions.length === 0 && (
-                        <p className="text-center text-gray-400">No emotional data yet.</p>
-                    )}
-                    {emotions.slice(0, 1).map(indicator => (
-                        <div key={indicator._id} className="flex flex-col gap-4">
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">Anxiety</span>
-                                    <span className="text-gray-500">{indicator.scores.anxiety}%</span>
-                                </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div className="bg-red-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.anxiety}%` }} />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">Sadness</span>
-                                    <span className="text-gray-500">{indicator.scores.sadness}%</span>
-                                </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div className="bg-blue-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.sadness}%` }} />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">Anger</span>
-                                    <span className="text-gray-500">{indicator.scores.anger}%</span>
-                                </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div className="bg-orange-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.anger}%` }} />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="font-semibold text-gray-700">Positivity</span>
-                                    <span className="text-gray-500">{indicator.scores.positivity}%</span>
-                                </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
-                                    <div className="bg-green-400 h-3 rounded-full transition-all" style={{ width: `${indicator.scores.positivity}%` }} />
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Private Notes */}
-                <div className="bg-white rounded-2xl shadow p-6">
-                    <h2 className="text-lg font-bold text-gray-700 mb-4">Private Notes</h2>
-                    <div className="flex gap-3 mb-4">
-                        <input
-                            className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                            placeholder="Add a private note..."
-                            value={newNote}
-                            onChange={e => setNewNote(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && addNote()}
-                        />
-                        <button
-                            className="bg-yellow-400 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-yellow-500 transition"
-                            onClick={addNote}
-                        >
-                            Add Note
-                        </button>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                        {data.notes.length === 0 && (
-                            <p className="text-center text-gray-400">No notes yet.</p>
-                        )}
-                        {data.notes.map(note => (
-                            <div key={note._id} className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
-                                <p className="text-sm text-gray-700">{note.content}</p>
-                                <p className="text-xs text-gray-400 mt-1">{new Date(note.createdAt).toLocaleDateString()}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-            </div>
-            {/* Patient Documents + RAG */}
-            <div className="bg-white rounded-2xl shadow p-6 border border-gray-100">
-                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-800">Patient Documents</h2>
-                        <p className="text-sm text-gray-500 mt-1">Upload a PDF, select it, then ask for a grounded summary using the extracted chunks.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700">{documents.length} docs</span>
-                        <span className="px-3 py-1 rounded-full bg-green-50 text-green-700">{readyCount} ready</span>
-                        <span className="px-3 py-1 rounded-full bg-yellow-50 text-yellow-700">{skippedCount} skipped</span>
-                        <span className="px-3 py-1 rounded-full bg-red-50 text-red-700">{failedCount} failed</span>
-                    </div>
-                </div>
-
-                {uploadStatus && (
-                    <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                        {uploadStatus}
-                    </div>
-                )}
-
-                {/* Upload */}
-                <div className="flex gap-3 mb-3">
-                    <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={e => {
-                            setDocFile(e.target.files[0] || null);
-                            setUploadStatus('');
-                        }}
-                        className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                    />
-                    <button
-                        onClick={uploadDocument}
-                        disabled={uploading || !docFile}
-                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-                    >
-                        {uploading ? 'Uploading...' : 'Upload'}
-                    </button>
-                </div>
-                <p className="text-xs text-gray-400 mb-6">PDF upload uses the document RAG pipeline. After upload, chunking and retrieval happen automatically.</p>
-
-                {/* Document List */}
-                {documents.length === 0 && (
-                    <p className="text-center text-gray-400 text-sm mb-4">No documents yet.</p>
-                )}
-                <div className="flex flex-col gap-2 mb-6">
-                    {documents.map(doc => (
-                        <div
-                            key={doc._id}
-                            onClick={() => { setSelectedDoc(doc._id); setAnswer(''); setQuerySources([]); setQueryError(''); }}
-                            className={`flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition ${selectedDoc === doc._id
-                                ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-200 hover:border-blue-300'
-                                }`}
-                        >
-                            <div>
-                                <p className="text-sm font-semibold text-gray-700">{doc.originalName}</p>
-                                <p className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString()}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                    {doc.textLength || 0} chars · {doc.chunkCount || 0} chunks
-                                </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${doc.embeddingStatus === 'ready'
-                                    ? 'bg-green-100 text-green-700'
-                                    : doc.embeddingStatus === 'pending'
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : doc.embeddingStatus === 'failed'
-                                            ? 'bg-red-100 text-red-700'
-                                            : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                    {doc.embeddingStatus || 'unknown'}
-                                </span>
-                                {selectedDoc === doc._id && (
-                                    <span className="text-xs text-blue-600 font-semibold">Selected</span>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {selectedDocument && (
-                    <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <span className="font-semibold">Selected document:</span> {selectedDocument.originalName}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                                {selectedDocument.embeddingStatus || 'unknown'} · {selectedDocument.chunkCount || 0} chunks
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* RAG Query */}
-                {selectedDoc && (
-                    <div className="border-t border-gray-100 pt-4">
-                        <h3 className="text-sm font-bold text-gray-700 mb-3">Ask a question about this document</h3>
-                        <p className="text-xs text-gray-400 mb-3">Questions are answered only from the selected document excerpts. If nothing relevant is found, the assistant will say so.</p>
-                        <div className="flex gap-3 mb-4">
-                            <input
-                                className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                placeholder="e.g. What are the main symptoms mentioned?"
-                                value={question}
-                                onChange={e => setQuestion(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && queryDocument()}
-                            />
-                            <button
-                                onClick={queryDocument}
-                                disabled={querying || !question.trim()}
-                                className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-                            >
-                                {querying ? 'Thinking...' : 'Ask'}
-                            </button>
-                        </div>
-                        {queryError && (
-                            <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {queryError}
-                            </div>
-                        )}
-                        {answer && (
-                            <div className="bg-gray-50 rounded-xl p-4">
-                                <div className="flex items-center justify-between gap-3 mb-2">
-                                    <p className="text-xs text-gray-400 uppercase font-semibold">Answer</p>
-                                    <span className="text-xs text-gray-500 font-semibold">Grounded response</span>
-                                </div>
-                                <p className="text-sm text-gray-700 leading-relaxed">{answer}</p>
-                            </div>
-                        )}
-                        {querySources.length > 0 && (
-                            <div className="mt-4">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Sources used</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {querySources.map((source, index) => (
-                                        <span key={`${source.chunkIndex}-${index}`} className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
-                                            {source.sourceName || 'Document'} · chunk {source.chunkIndex + 1}
-                                            {typeof source.score === 'number' ? ` · ${source.score.toFixed(2)}` : ''}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
+      <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
+        <div className="pointer-events-none fixed inset-0">
+          <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+          <div className="absolute inset-0 bg-[var(--app-bg)]" />
         </div>
+        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 text-sm text-white/60">
+          Loading patient...
+        </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-[var(--app-bg)]" />
+      </div>
+
+      <div className="relative">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <button onClick={() => navigate(-1)} className="text-xs font-semibold text-white/70 hover:text-white">
+                  ← Back
+                </button>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <h1 className="truncate text-lg font-semibold tracking-tight">Patient details</h1>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
+                    {patientMeta?.email || patientId}
+                  </span>
+                  {unackedAlerts.length > 0 && (
+                    <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-100">
+                      {unackedAlerts.length} alert{unackedAlerts.length === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 text-xs text-white/50">
+                  {stats.total} sessions · {stats.completed} completed · {stats.active} active
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setChatOpen(true)}
+                  className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                >
+                  Open chat
+                </button>
+                {activeSessionId && (
+                  <button
+                    onClick={endSession}
+                    className="h-9 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 text-xs font-semibold text-rose-50 hover:bg-rose-500/15"
+                    title="End the active session"
+                  >
+                    End session
+                  </button>
+                )}
+                {sessionIdForReport && (
+                  <button
+                    onClick={downloadPDF}
+                    className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                  >
+                    Download report
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate(`/history/${patientId}`)}
+                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                >
+                  History
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
+                Overview
+              </TabButton>
+              <TabButton active={tab === 'alerts'} onClick={() => setTab('alerts')}>
+                Risk alerts
+              </TabButton>
+              <TabButton active={tab === 'notes'} onClick={() => setTab('notes')}>
+                Private notes
+              </TabButton>
+              <TabButton active={tab === 'documents'} onClick={() => setTab('documents')}>
+                Documents
+              </TabButton>
+              <TabButton active={tab === 'chat'} onClick={() => setTab('chat')}>
+                Chat preview
+              </TabButton>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+          {error && (
+            <GlassPanel className="p-5">
+              <div className="text-sm font-semibold text-rose-200/90">Could not load patient</div>
+              <div className="mt-1 text-xs text-white/60">{error}</div>
+            </GlassPanel>
+          )}
+
+          {tab === 'overview' && (
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="space-y-5 lg:col-span-2">
+                <GlassPanel className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-white/80">AI summary</div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60">Latest</span>
+                  </div>
+                  {!summary ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                      No AI summary available yet (requires at least one completed session).
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                          <div className="text-[11px] font-semibold text-white/55">Emotion</div>
+                          <div className="mt-1 text-xs font-semibold text-white/80 capitalize">
+                            {summary.emotionalIndicators?.dominantEmotion || '—'}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                          <div className="text-[11px] font-semibold text-white/55">Urgency</div>
+                          <div className="mt-1 text-xs font-semibold text-white/80">
+                            {summary.emotionalIndicators?.urgencyScore ? `${summary.emotionalIndicators.urgencyScore} / 5` : '—'}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                          <div className="text-[11px] font-semibold text-white/55">Trend</div>
+                          <div className="mt-1 text-xs font-semibold text-white/80 capitalize">
+                            {summary.emotionalIndicators?.sentimentTrend || '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {summary.keyThemes?.length > 0 && (
+                        <div className="mt-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Key themes</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {summary.keyThemes.slice(0, 12).map((t, i) => (
+                              <span
+                                key={i}
+                                className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-[11px] font-semibold text-indigo-50/90"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {summary.recommendations?.length > 0 && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Suggested follow-ups</div>
+                          <div className="mt-2 space-y-2">
+                            {summary.recommendations.slice(0, 6).map((rec, i) => (
+                              <div key={i} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70">
+                                <span className="font-semibold text-white/80">{i + 1}.</span> {rec}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {summary.rawSummary && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Clinical summary</div>
+                          <div className="mt-2 text-xs leading-relaxed text-white/70">{summary.rawSummary}</div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </GlassPanel>
+              </div>
+
+              <div className="space-y-5">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Emotional indicators</div>
+                  {emotions.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                      No emotional indicators yet.
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {Object.entries(emotions?.[0]?.scores || {}).map(([emotion, score]) => (
+                        <div key={emotion}>
+                          <div className="mb-1 flex items-center justify-between text-xs text-white/65">
+                            <span className="font-semibold text-white/75">{emotionLabel(emotion)}</span>
+                            <span>{score}%</span>
+                          </div>
+                          <div className="h-2.5 w-full rounded-full bg-white/10">
+                            <div
+                              className={[
+                                'h-2.5 rounded-full transition-all',
+                                emotion === 'anxiety'
+                                  ? 'bg-rose-400/80'
+                                  : emotion === 'sadness'
+                                    ? 'bg-sky-400/80'
+                                    : emotion === 'anger'
+                                      ? 'bg-amber-400/80'
+                                      : 'bg-emerald-400/80'
+                              ].join(' ')}
+                              style={{ width: `${clamp(Number(score) || 0, 0, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </GlassPanel>
+              </div>
+            </div>
+          )}
+
+          {tab === 'alerts' && (
+            <div className="mt-5 space-y-5">
+              <GlassPanel className="p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-white/80">Risk alerts</div>
+                  <div className="text-xs text-white/50">
+                    {unackedAlerts.length > 0 ? `${unackedAlerts.length} unacknowledged` : 'All acknowledged'}
+                  </div>
+                </div>
+
+                {riskAlerts.length === 0 ? (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                    No risk alerts detected.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {riskAlerts.map((alert) => {
+                      const severity = String(alert.severity || 'medium').toLowerCase();
+                      const theme =
+                        severity === 'low'
+                          ? { border: 'border-amber-400/20', bg: 'bg-amber-500/10', text: 'text-amber-50', dot: 'bg-amber-400/80' }
+                          : severity === 'high' || severity === 'critical'
+                            ? { border: 'border-rose-400/25', bg: 'bg-rose-500/10', text: 'text-rose-50', dot: 'bg-rose-400/80' }
+                            : { border: 'border-orange-400/20', bg: 'bg-orange-500/10', text: 'text-orange-50', dot: 'bg-orange-400/80' };
+
+                      return (
+                        <div
+                          key={alert._id}
+                          className={['rounded-2xl border p-4', theme.border, theme.bg, alert.isAcknowledged ? 'opacity-70' : ''].join(' ')}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`h-2 w-2 rounded-full ${theme.dot}`} />
+                                <div className={`text-sm font-semibold ${theme.text}`}>
+                                  {String(alert.riskCategory || 'risk').replaceAll('_', ' ')}
+                                </div>
+                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/70">
+                                  {String(alert.severity || 'medium').toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-white/55">
+                                {fmtDate(alert.createdAt)} · {fmtTime(alert.createdAt)}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {!alert.isAcknowledged ? (
+                                <button
+                                  onClick={() => acknowledgeAlert(alert._id)}
+                                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                                >
+                                  Acknowledge
+                                </button>
+                              ) : (
+                                <span className="text-xs font-semibold text-emerald-200/90">Acknowledged</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {alert.triggerMessage && (
+                            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+                              “{String(alert.triggerMessage).slice(0, 240)}
+                              {String(alert.triggerMessage).length > 240 ? '…' : ''}”
+                            </div>
+                          )}
+
+                          <div className="mt-3 text-[11px] text-white/55">Score: {alert.riskScore}/100</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </GlassPanel>
+            </div>
+          )}
+
+          {tab === 'notes' && (
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Add note</div>
+                  <div className="mt-3">
+                    <textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Write a private note for yourself (visible only to you)…"
+                      className="h-32 w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                    />
+                  </div>
+                  <button
+                    onClick={addNote}
+                    disabled={savingNote || !String(newNote || '').trim()}
+                    className="mt-3 h-10 w-full rounded-2xl bg-indigo-500/25 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {savingNote ? 'Saving...' : 'Save note'}
+                  </button>
+                </GlassPanel>
+              </div>
+
+              <div className="lg:col-span-2">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Notes</div>
+                  <div className="mt-4 space-y-3">
+                    {Array.isArray(data?.notes) && data.notes.length > 0 ? (
+                      data.notes.map((note) => (
+                        <div key={note._id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-sm text-white/80">{note.content}</div>
+                          <div className="mt-2 text-xs text-white/50">
+                            {fmtDate(note.createdAt)} · {fmtTime(note.createdAt)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">No notes yet.</div>
+                    )}
+                  </div>
+                </GlassPanel>
+              </div>
+            </div>
+          )}
+
+          {tab === 'documents' && (
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="space-y-5 lg:col-span-1">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Upload PDF</div>
+                  <div className="mt-3">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                      className="block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/80"
+                    />
+                  </div>
+                  <button
+                    onClick={uploadDocument}
+                    disabled={uploading || !docFile}
+                    className="mt-3 h-10 w-full rounded-2xl bg-indigo-500/25 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {uploading ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <div className="mt-2 text-[11px] text-white/50">Uploaded documents stay private and are only visible to authorized staff.</div>
+                </GlassPanel>
+
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Ask about a document</div>
+                  {!selectedDoc ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                      Select a document to ask questions.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-3">
+                        <input
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && queryDocument()}
+                          placeholder="e.g. What are the main symptoms mentioned?"
+                          className="h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-xs text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                        />
+                      </div>
+                      <button
+                        onClick={queryDocument}
+                        disabled={querying || !String(question || '').trim()}
+                        className="mt-3 h-10 w-full rounded-2xl border border-white/10 bg-white/5 text-xs font-semibold text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {querying ? 'Thinking...' : 'Ask'}
+                      </button>
+                      {answer && (
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Answer</div>
+                          <div className="mt-2 text-xs leading-relaxed text-white/70">{answer}</div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </GlassPanel>
+              </div>
+
+              <div className="lg:col-span-2">
+                <GlassPanel className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-white/80">Documents</div>
+                    <button
+                      onClick={fetchDocuments}
+                      className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {documents.length === 0 ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                        No documents uploaded yet.
+                      </div>
+                    ) : (
+                      documents.map((doc) => (
+                        <button
+                          key={doc._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDoc(doc._id);
+                            setAnswer('');
+                          }}
+                          className={[
+                            'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition',
+                            selectedDoc === doc._id ? 'border-indigo-400/30 bg-indigo-500/15' : 'border-white/10 bg-white/5 hover:bg-white/7'
+                          ].join(' ')}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-white/85">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-white/55">{fmtDate(doc.createdAt)}</div>
+                          </div>
+                          {selectedDoc === doc._id && (
+                            <span className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-50/90">
+                              Selected
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </GlassPanel>
+              </div>
+            </div>
+          )}
+
+          {tab === 'chat' && (
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-white/80">Search messages</div>
+                  <input
+                    value={chatQuery}
+                    onChange={(e) => setChatQuery(e.target.value)}
+                    placeholder="Type to filter..."
+                    className="mt-3 h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-xs text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                  />
+                  <div className="mt-2 text-[11px] text-white/50">Showing the most recent 50 matches.</div>
+                </GlassPanel>
+              </div>
+              <div className="lg:col-span-2">
+                <GlassPanel className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-white/80">Chat preview</div>
+                    <button
+                      onClick={() => setChatOpen(true)}
+                      className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                    >
+                      Open full chat
+                    </button>
+                  </div>
+
+                  <div className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+                    {filteredMessages.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-white/60">No messages.</div>
+                    ) : (
+                      filteredMessages.map((msg) => {
+                        const fromPatient = String(msg.senderId) === String(patientId);
+                        return (
+                          <div key={msg._id} className={`flex ${fromPatient ? 'justify-start' : 'justify-end'}`}>
+                            <div
+                              className={[
+                                'max-w-[80%] rounded-2xl px-4 py-3',
+                                fromPatient ? 'border border-white/10 bg-white/5 text-white/80' : 'bg-indigo-500/25 text-indigo-50'
+                              ].join(' ')}
+                            >
+                              <div className="text-sm leading-relaxed">{msg.content}</div>
+                              <div className="mt-1 text-[11px] text-white/50">{fmtTime(msg.createdAt)}</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </GlassPanel>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      <ConversationDrawer
+        open={chatOpen}
+        otherUserId={patientId}
+        title="Patient chat"
+        subtitle={patientMeta?.email || patientId}
+        onClose={() => setChatOpen(false)}
+      />
+    </div>
+  );
 }
 
-export default PatientDetail;

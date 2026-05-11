@@ -9,6 +9,21 @@ const getVoicesSafe = () => {
   }
 };
 
+const detectLangFromText = (value) => {
+  const s = String(value || '');
+  const arabic = (s.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || []).length;
+  const latin = (s.match(/[A-Za-z]/g) || []).length;
+  if (arabic > Math.max(2, latin)) return 'ar';
+
+  const lower = s.toLowerCase();
+  // Quick French hints: accents/ligatures + common stopwords.
+  const frenchAccents = (lower.match(/[àâçéèêëîïôœùûüÿ]/g) || []).length;
+  const frenchStops = (lower.match(/\b(le|la|les|un|une|des|de|du|au|aux|et|mais|ou|où|donc|car|je|tu|il|elle|nous|vous|ils|elles|ce|ça|c'est|est|suis|es|êtes|être|avec|pour|sur|dans)\b/g) || []).length;
+  if (frenchAccents >= 1 || frenchStops >= 2) return 'fr';
+
+  return 'en';
+};
+
 export default function TtsPlayer({ text }) {
   const [supported, setSupported] = useState(Boolean(window.speechSynthesis));
   const [voices, setVoices] = useState([]);
@@ -29,30 +44,34 @@ export default function TtsPlayer({ text }) {
     sync();
     window.speechSynthesis.onvoiceschanged = sync;
     return () => {
-      try { window.speechSynthesis.onvoiceschanged = null; } catch {}
+      try {
+        window.speechSynthesis.onvoiceschanged = null;
+      } catch {}
     };
   }, []);
 
+  const detectedLang = useMemo(() => {
+    if (langMode !== 'auto') return langMode;
+    const value = String(text || '').trim();
+    if (!value) return 'en';
+    return detectLangFromText(value);
+  }, [langMode, text]);
+
   const filteredVoices = useMemo(() => {
-    if (langMode === 'auto') return voices;
-    const prefix = langMode === 'ar' ? 'ar' : 'en';
+    const prefix = detectedLang === 'ar' ? 'ar' : detectedLang === 'fr' ? 'fr' : 'en';
     const v = voices.filter((x) => String(x.lang || '').toLowerCase().startsWith(prefix));
     return v.length ? v : voices;
-  }, [langMode, voices]);
+  }, [detectedLang, voices]);
 
-  const bestVoiceForLang = useMemo(() => {
-    const wantPrefix = langMode === 'ar' ? 'ar' : langMode === 'en' ? 'en' : '';
-    if (!wantPrefix) return null;
-    const exact = voices.find((v) => String(v.lang || '').toLowerCase().startsWith(wantPrefix));
-    return exact || null;
-  }, [langMode, voices]);
+  const bestVoiceForDetectedLang = useMemo(() => {
+    const wantPrefix = detectedLang === 'ar' ? 'ar' : detectedLang === 'fr' ? 'fr' : 'en';
+    return voices.find((v) => String(v.lang || '').toLowerCase().startsWith(wantPrefix)) || null;
+  }, [detectedLang, voices]);
 
   const selectedVoice = useMemo(() => {
     if (voiceURI) return filteredVoices.find((v) => v.voiceURI === voiceURI) || null;
-    // If user selected a language but didn't pick a specific voice, prefer the best match for that language.
-    if (langMode !== 'auto' && bestVoiceForLang) return bestVoiceForLang;
-    return null;
-  }, [voiceURI, filteredVoices, langMode, bestVoiceForLang]);
+    return bestVoiceForDetectedLang;
+  }, [voiceURI, filteredVoices, bestVoiceForDetectedLang]);
 
   const stop = () => {
     try {
@@ -75,8 +94,9 @@ export default function TtsPlayer({ text }) {
     stop();
     const u = new SpeechSynthesisUtterance(value);
     u.rate = rate;
-    if (langMode === 'ar') u.lang = 'ar-SA';
-    if (langMode === 'en') u.lang = 'en-US';
+    if (detectedLang === 'ar') u.lang = 'ar-SA';
+    if (detectedLang === 'en') u.lang = 'en-US';
+    if (detectedLang === 'fr') u.lang = 'fr-FR';
     if (selectedVoice) u.voice = selectedVoice;
     u.onend = () => setSpeaking(false);
     u.onerror = () => setSpeaking(false);
@@ -87,13 +107,17 @@ export default function TtsPlayer({ text }) {
   const speakCloud = async () => {
     const value = String(text || '').trim();
     if (!value) return;
+    if (detectedLang === 'fr') {
+      setCloudError('French cloud TTS is not available. Install a French voice on this device to use local TTS.');
+      return;
+    }
     stop();
     setCloudLoading(true);
     setCloudError('');
     try {
       const payload = {
         text: value,
-        language: langMode,
+        language: detectedLang,
         style: 'neutral',
         speed: rate
       };
@@ -118,13 +142,13 @@ export default function TtsPlayer({ text }) {
     <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
-        onClick={speaking ? stop : (langMode !== 'auto' && !bestVoiceForLang ? speakCloud : speak)}
+        onClick={speaking ? stop : (!bestVoiceForDetectedLang ? speakCloud : speak)}
         className={`h-9 rounded-2xl border border-white/10 px-3 text-xs font-semibold transition ${
-          (speaking || cloudPlaying) ? 'bg-indigo-500/25 text-indigo-50' : 'bg-white/5 text-white/80 hover:bg-white/10'
+          speaking || cloudPlaying ? 'bg-indigo-500/25 text-indigo-50' : 'bg-white/5 text-white/80 hover:bg-white/10'
         }`}
         aria-label={speaking ? 'Stop listening' : 'Listen to message'}
       >
-        {(speaking || cloudPlaying) ? 'Stop' : (cloudLoading ? 'Loading…' : 'Listen')}
+        {speaking || cloudPlaying ? 'Stop' : cloudLoading ? 'Loading…' : 'Listen'}
       </button>
       <select
         value={langMode}
@@ -138,6 +162,7 @@ export default function TtsPlayer({ text }) {
       >
         <option value="auto">Auto</option>
         <option value="en">English</option>
+        <option value="fr">French</option>
         <option value="ar">Arabic</option>
       </select>
       <select
@@ -169,9 +194,9 @@ export default function TtsPlayer({ text }) {
         </select>
       )}
 
-      {langMode !== 'auto' && !bestVoiceForLang && (
+      {!bestVoiceForDetectedLang && (
         <span className="text-[11px] text-white/50">
-          No {langMode === 'ar' ? 'Arabic' : 'English'} voice installed on this device — using cloud voice.
+          No {detectedLang === 'ar' ? 'Arabic' : detectedLang === 'fr' ? 'French' : 'English'} voice installed on this device — using cloud voice.
         </span>
       )}
       {cloudError && <span className="text-[11px] text-rose-200/80">{cloudError}</span>}

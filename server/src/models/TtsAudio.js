@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const ttsAudioSchema = new mongoose.Schema(
   {
     cacheKey: { type: String, required: true, unique: true, index: true },
-    provider: { type: String, enum: ['openai'], default: 'openai', index: true },
+    provider: { type: String, enum: ['openai', 'groq'], default: 'openai', index: true },
     model: { type: String, default: 'gpt-4o-mini-tts' },
     voice: { type: String, default: 'marin' },
     language: { type: String, default: 'auto' }, // e.g. en, ar, auto
@@ -22,4 +22,3 @@ ttsAudioSchema.index({ createdAt: -1 });
 ttsAudioSchema.index({ createdByUserId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('TtsAudio', ttsAudioSchema);
-
