@@ -16,11 +16,11 @@ The main objectives for Sprint 1 are:
 ## 3.2 Sprint Planning 1
 
 During sprint planning, the following core tasks were identified and assigned priority:
-1. **Repository Setup**: Initializing Next/React for the frontend and Express/Node.js for the backend.
-2. **Database Configuration**: Provisioning MongoDB and defining the `User` schema.
-3. **Authentication API**: Building `/api/auth/register` and `/api/auth/login` endpoints with Bcrypt password hashing.
-4. **Client Auth Flow**: Implementing Context API/Redux for state management, secure token storage, and protected React Router routes.
-5. **Basic User Interfaces**: Designing the Login, Register, and onboarding (Setup) pages using Tailwind CSS.
+1. **Repository Setup**: Initializing the React frontend and Express/Node.js backend with a shared development workflow.
+2. **Database Configuration**: Provisioning MongoDB and defining the `User` schema plus supporting auth/token models.
+3. **Authentication API**: Building `/api/auth/register`, `/api/auth/login`, `/api/auth/verify-email`, and `/api/auth/profile` with bcrypt password hashing and JWT issuance.
+4. **Client Auth Flow**: Implementing localStorage token handling, role-based routing, and protected React Router routes.
+5. **Basic User Interfaces**: Designing the Login, Register, email verification, password recovery, and onboarding pages using Tailwind CSS.
 
 ## 3.3 Sprint Backlog 1
 
@@ -62,16 +62,16 @@ Based on the project's requirement for a scalable, non-blocking, and rapid devel
 ### 3.4.2 Design (UML diagrams)
 
 #### 3.4.2.1 Overall Use Case Diagram for Sprint 1
-*[Placeholder for Overall Use Case Diagram]*
+The use case for Sprint 1 centers on account creation, login, email verification, route protection, and role-based navigation across patient, psychologist, and admin portals.
 
 #### 3.4.2.2 Detailed Use Case Specifications
-*[Placeholder for Detailed Use Case Specifications]*
+Key scenarios include account registration, credential verification, login, token persistence, and redirecting users to the appropriate dashboard or setup flow based on role.
 
 #### 3.4.2.3 Class diagram:
-*[Placeholder for Class diagram]*
+The initial class model includes `User`, token-related auth models, and the role-specific profile entities used to separate authentication from domain data.
 
 #### 3.4.2.4 Sequence diagrams:
-*[Placeholder for Sequence diagrams]*
+Typical sequences cover register → verify email → login → route guard evaluation → dashboard navigation.
 
 ### 3.4.3 Tests and Deployment
 

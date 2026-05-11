@@ -1,7 +1,7 @@
 # Psych Platform - Complete Project Documentation
 
-> **Version:** 1.0.0  
-> **Last Updated:** May 3, 2026  
+> **Version:** 1.1.0  
+> **Last Updated:** May 10, 2026  
 > **Status:** Active Development
 
 ---
@@ -31,11 +31,11 @@
 **Psych Platform** is a comprehensive, AI-assisted psychological intake and therapy management platform designed to connect mental health professionals with patients. It bridges the gap between mental health services and digital accessibility by providing:
 
 - **Secure Scheduling & Calendar Management** - For both patients and psychologists
-- **Real-Time Communication** - WebSocket-based patient-therapist chat
+- **Real-Time Communication** - WebSocket-based patient-therapist chat and notifications
 - **AI-Powered Intake Assistant** - Darija-aware (Tunisian dialect) chatbot with RAG architecture
-- **Clinical Documentation & Analytics** - Document management and therapy progress tracking
+- **Clinical Documentation & Analytics** - Document management, chunked PDF RAG, and therapy progress tracking
 - **Multilingual Support** - English, French, and Arabic (with RTL support)
-- **Enterprise-Grade Security** - HIPAA/GDPR-aligned data protection
+- **Enterprise-Grade Security** - JWT auth, route protection, and scoped data access
 
 ### Target Users
 - **Patients** - Mental health seekers finding therapists and managing sessions
@@ -77,13 +77,13 @@
 | PDF Processing | pdf-parse, pdfkit | 1.1.4, 0.17.2 | PDF parsing & generation |
 | Face Recognition | @vladmandic/face-api | 1.7.15 | Facial verification |
 | Image Processing | sharp | 0.34.4 | Image optimization |
-| Security | helmet, xss-clean | 8.1.0 | HTTP headers & XSS protection |
-| Rate Limiting | express-rate-limit | 8.3.2 | DoS protection |
-| NoSQL Injection | express-mongo-sanitize | 2.2.0 | NoSQL injection prevention |
+| Security | helmet, express-rate-limit | 8.1.0, 8.3.2 | HTTP headers & DoS protection |
 | File Upload | multer | 2.1.1 | Multipart file handling |
 | Email | nodemailer | 8.0.2 | Email service integration |
 | Environment | dotenv | 16.4.5 | Environment variable management |
 | Dev Server | nodemon | 3.1.14 | Development auto-reload |
+
+> Note: legacy `xss-clean` and `express-mongo-sanitize` middleware are present in the repository history but are currently disabled in the Express 5 runtime because they mutate read-only request fields.
 
 ---
 
@@ -543,9 +543,9 @@ Define data schemas using Mongoose:
 
 1. **Security Middleware**
    - `helmet` - Secure HTTP headers
-   - `xss-clean` - XSS attack prevention
-   - `express-mongo-sanitize` - NoSQL injection prevention
-   - CORS configuration
+  - `express-rate-limit` - Rate limiting / DoS protection
+  - CORS configuration
+  - Request validation and role-based authorization in controllers/middleware
 
 2. **Rate Limiting**
    - `express-rate-limit` for DoS protection
@@ -588,13 +588,15 @@ Create a `.env` file in the server root:
 
 ```env
 # Database
-MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/psychplatform
+MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/psychplatform
 
 # JWT
 JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRE=7d
 
-# Google Gemini AI
+# Google Gemini AI / embeddings
+GEMINI_API_KEY=your_google_gemini_api_key
+# Optional alias used by some scripts
 GOOGLE_API_KEY=your_google_gemini_api_key
 
 # Groq API (alternative LLM)
@@ -610,17 +612,26 @@ EMAIL_PASSWORD=your_app_password
 PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+DNS_SERVERS=8.8.8.8,1.1.1.1
+
+# Upload & RAG settings
+UPLOADS_DIR=./uploads
+PRIVATE_UPLOADS_DIR=./private_uploads
+PATIENT_DOC_VECTOR_INDEX=patient_doc_vector_index
+DOC_CHUNK_SIZE=800
+DOC_CHUNK_OVERLAP=100
 
 # Face Recognition Models Path
 MODELS_PATH=./models
 
 # File Upload Limits
 MAX_FILE_SIZE=10485760
-UPLOAD_DIR=./uploads
 
-# Rate Limiting
-RATE_LIMIT_WINDOW=15
-RATE_LIMIT_MAX_REQUESTS=100
+# Email Service
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
 ```
 
 ### Step-by-Step Installation
@@ -654,7 +665,8 @@ RATE_LIMIT_MAX_REQUESTS=100
 5. **Initialize Database**
    ```bash
    cd ../server
-   npm run seed  # Seed initial data
+  node src/seedDataset.js        # Optional: seed Darija/RAG dataset
+  node src/seedIntakeProtocol.js # Optional: seed intake protocol data
    ```
 
 ---
@@ -712,26 +724,26 @@ docker-compose up --build
 ### Authentication Endpoints
 
 ```
-POST /auth/register
+POST /api/auth/register
 - Register new user (patient/psychologist)
 - Body: { email, password, role, name, phone }
 - Response: { user, token }
 
-POST /auth/login
+POST /api/auth/login
 - Authenticate user
 - Body: { email, password }
 - Response: { user, token }
 
-POST /auth/verify-email
+POST /api/auth/verify-email
 - Verify email with OTP
 - Body: { email, otp }
 - Response: { success, message }
 
-POST /auth/refresh-token
+POST /api/auth/refresh-token
 - Refresh JWT token
 - Response: { token }
 
-GET /auth/profile
+GET /api/auth/profile
 - Get current user profile
 - Headers: { Authorization: Bearer <token> }
 - Response: { user }
@@ -740,22 +752,22 @@ GET /auth/profile
 ### Calendar Endpoints
 
 ```
-GET /calendar/availability/:psychologistId
+GET /api/calendar/availability/:psychologistId
 - Get psychologist available slots
 - Query: { month, year }
 - Response: [{ date, slots: [...] }]
 
-POST /calendar/book
+POST /api/calendar/book
 - Create appointment
 - Body: { psychologistId, date, time, reason }
 - Response: { appointment }
 
-PUT /calendar/appointment/:appointmentId
+PUT /api/calendar/appointment/:appointmentId
 - Update appointment status
 - Body: { status }
 - Response: { appointment }
 
-GET /calendar/my-appointments
+GET /api/calendar/my-appointments
 - Get user's appointments
 - Response: [{ appointment }]
 ```
@@ -763,16 +775,16 @@ GET /calendar/my-appointments
 ### Chatbot Endpoints
 
 ```
-POST /chatbot/message
+POST /api/chatbot/message
 - Send message to AI chatbot
 - Body: { threadId, message, userId }
 - Response: { response, threadId }
 
-GET /chatbot/thread/:threadId
+GET /api/chatbot/thread/:threadId
 - Get conversation history
 - Response: [{ message, response, timestamp }]
 
-POST /chatbot/risk-assessment
+POST /api/chatbot/risk-assessment
 - Get risk level assessment
 - Body: { threadId }
 - Response: { riskLevel, recommendations }
@@ -781,17 +793,17 @@ POST /chatbot/risk-assessment
 ### Message Endpoints
 
 ```
-POST /messages/send
+POST /api/messages/send
 - Send message (WebSocket alternative)
 - Body: { recipientId, message }
 - Response: { messageId, timestamp }
 
-GET /messages/conversation/:userId
+GET /api/messages/conversation/:userId
 - Get message history with user
 - Query: { limit, skip }
 - Response: [{ message }]
 
-PUT /messages/:messageId/read
+PUT /api/messages/:messageId/read
 - Mark message as read
 - Response: { success }
 ```
@@ -799,19 +811,19 @@ PUT /messages/:messageId/read
 ### Document Endpoints
 
 ```
-POST /documents/upload
-- Upload document (diploma, ID, etc.)
-- Multipart FormData: { file, type, userId }
-- Response: { document, extractedText }
-
-GET /documents/:documentId
-- Get document details
-- Response: { document, ocrResult }
-
-PUT /documents/:documentId/verify
-- Verify document (admin only)
-- Body: { verified, notes }
+POST /api/documents/upload/:patientId
+- Upload patient PDF document (psychologist only)
+- Multipart FormData: { document }
 - Response: { document }
+
+GET /api/documents/patient/:patientId
+- List documents uploaded for a patient
+- Response: [{ document }]
+
+POST /api/documents/query/:id
+- Ask a grounded question over a selected document
+- Body: { question, topK }
+- Response: { answer, sources }
 ```
 
 ### WebSocket Events
@@ -886,11 +898,11 @@ socket.on('notification:new', {
 
 ```javascript
 // Helmet - Secure HTTP headers
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 
 // CORS - Cross-Origin restrictions
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true
 }));
 
@@ -900,11 +912,9 @@ app.use(rateLimit({
   max: 100
 }));
 
-// NoSQL Injection Prevention
-app.use(mongoSanitize());
-
-// XSS Protection
-app.use(xss());
+// Input validation and controller-level authorization guard the request surface.
+// Legacy xss-clean / express-mongo-sanitize middleware are not enabled in the
+// current Express 5 runtime because they mutate read-only request fields.
 ```
 
 ### Compliance
@@ -919,14 +929,14 @@ app.use(xss());
 
 ### Retrieval-Augmented Generation (RAG) System
 
-The platform's AI assistant uses a sophisticated RAG architecture with final micro-optimizations for natural, direct, and human-like conversation:
+The platform's AI assistant uses a RAG architecture with grounded retrieval, scoped document access, and human-like conversation:
 
 #### Components
 
 1. **Vector Database**
-  - MongoDB with Vector Search
-  - Embedding models for semantic search
-  - Knowledge base: Psychological resources, Darija context
+  - MongoDB Atlas with Vector Search
+  - Gemini embeddings for semantic search
+  - Knowledge base: psychological resources, Darija context, and patient document chunks
 
 2. **Language Model**
   - Google Generative AI (Gemini)
@@ -936,6 +946,12 @@ The platform's AI assistant uses a sophisticated RAG architecture with final mic
 3. **MCP Servers**
   - **mongoVectorServer.js** - Manages vector embeddings & retrieval
   - **geminiLLMServer.js** - Handles LLM inference
+
+4. **Patient Document RAG**
+  - Upload patient PDFs, extract text, and chunk content for retrieval
+  - Store chunk embeddings when Gemini is available
+  - Use vector search first, then text/regex fallback if needed
+  - Scope retrieval to the psychologist and patient tied to the selected document
 
 #### RAG Skills (Atomic Operations)
 

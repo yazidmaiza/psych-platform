@@ -5,15 +5,15 @@ This document provides a comprehensive overview of the PsychPlatform's structura
 ---
 
 ## 1. System Overview
-PsychPlatform is an AI-assisted psychological intake platform connecting patients with verified psychologists. The application is built on the MERN stack (MongoDB, Express.js, React.js, Node.js) and integrates modern web technologies for real-time communication, AI-driven mental health chatbots, geospatial mapping, and multilingual support.
+PsychPlatform is an AI-assisted psychological intake platform connecting patients with verified psychologists. The application is built on the MERN stack (MongoDB, Express.js, React.js, Node.js) and integrates modern web technologies for real-time communication, AI-driven intake chat, document RAG, geospatial search, notifications, and multilingual support.
 
 ### 1.1 High-Level Tech Stack
 - **Frontend Layer:** React.js (v19), React Router DOM, Tailwind CSS.
 - **Backend Layer:** Node.js, Express.js.
 - **Database Layer:** MongoDB Atlas (Mongoose ODM).
-- **Real-time Layer:** Socket.io (for chat and notifications).
-- **Intelligence Layer:** Google Generative AI / Groq API (Chatbot, summarization, conversational history).
-- **Document Processing Pipeline:** Tesseract.js (OCR), PDF-Parse, PDF-Poppler, PDFKit (for diploma/CV verification and parsing).
+- **Real-time Layer:** Socket.io (for chat, notifications, and risk alerts).
+- **Intelligence Layer:** Google Generative AI / Groq API (Chatbot, summarization, conversational history, document Q&A).
+- **Document Processing Pipeline:** Tesseract.js (OCR), PDF-Parse, PDF-Poppler, PDFKit (for diploma/CV verification and patient document parsing).
 
 ---
 
@@ -25,6 +25,7 @@ The platform exposes several modules tailored to Patients, Psychologists, and Ad
 - **JWT Authentication:** Secure token-based access with encrypted passwords (bcryptjs).
 - **Psychologist Onboarding Pipeline:** Verification workflow requiring professionals to submit identity and educational documents. Includes automated OCR checks and administrative approval processes.
   - Credential documents are stored in private storage and accessed only via short-lived, scoped download links issued by the backend (no public URLs).
+- **Patient Document RAG:** Psychologists can upload patient PDFs, which are chunked and embedded for grounded question answering. Retrieval is scoped to the psychologist and the selected patient document.
 
 ### 2.2 Patient Capabilities
 - **Geospatial Search:** Interactive map mapping (via `react-leaflet`) allowing patients to discover psychologists by location.
@@ -42,6 +43,7 @@ The platform exposes several modules tailored to Patients, Psychologists, and Ad
 - **Real-time Chatting:** Peer-to-peer texting via Socket.io channels for live patient-psychologist interaction.
 - **Voice Capabilities:** Text-to-speech and Speech-to-text endpoints available within chat/bot interactions.
 - **Notifications Engine:** Websocket-driven alert system for appointment updates, new messages, and administrative actions.
+- **Notifications Engine:** Websocket-driven alert system for appointment updates, new messages, and administrative actions. Email delivery uses queued retries where applicable.
 
 ---
 
@@ -52,9 +54,9 @@ The platform exposes several modules tailored to Patients, Psychologists, and Ad
   - All textual history (Chatbot arrays, conversation strings) isolated strictly by user context in API scopes.
   - Express security middle-wares deployed:
     - **Helmet:** Sets secure HTTP headers.
-    - **Express-Mongo-Sanitize:** Prevent NoSQL injection attacks.
-    - **XSS-Clean:** Guards against cross-site scripting (XSS).
     - **Express-Rate-Limit:** Prevents DoS/DDoS attacks by limiting incoming request frequency.
+    - Input validation and controller-level authorization guard scoped routes.
+  - Legacy `express-mongo-sanitize` and `xss-clean` are currently disabled in the Express 5 runtime because they mutate read-only request fields.
 - **Secure Environment Variables:** Critical secrets (JWT signs, API keys, DB URIs) stored off-repository in `.env`.
 
 ### 3.2 Scalability & Performance

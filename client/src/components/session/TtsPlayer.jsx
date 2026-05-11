@@ -16,7 +16,6 @@ export default function TtsPlayer({ text }) {
   const [rate, setRate] = useState(0.95);
   const [speaking, setSpeaking] = useState(false);
   const [langMode, setLangMode] = useState('auto'); // auto | en | ar
-  const [cloudUrl, setCloudUrl] = useState('');
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState('');
   const [cloudPlaying, setCloudPlaying] = useState(false);
@@ -91,7 +90,6 @@ export default function TtsPlayer({ text }) {
     stop();
     setCloudLoading(true);
     setCloudError('');
-    setCloudUrl('');
     try {
       const payload = {
         text: value,
@@ -101,7 +99,6 @@ export default function TtsPlayer({ text }) {
       };
       const data = await api.post('/api/tts/speak', payload);
       const url = toAbsoluteUrl(data?.url);
-      setCloudUrl(url);
       const audio = new Audio(url);
       window.__ttsCloudAudio = audio;
       audio.onended = () => setCloudPlaying(false);

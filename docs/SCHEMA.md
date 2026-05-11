@@ -18,10 +18,14 @@ This document is intentionally structured so you can derive:
 Psych Platform is a web-based, role-driven psychological intake & therapy coordination platform that enables:
 - Patients to discover psychologists, request/book time slots, complete an AI-assisted intake/chat, and communicate with their psychologist.
 - Psychologists to manage availability, review patient history and AI summaries, exchange messages, upload/analyze documents, and record clinical notes.
+- Psychologists to upload patient PDFs and query grounded answers over scoped document chunks.
 - Administrators to oversee users and verify/approve psychologist credential submissions (CV/diploma/ID + intro video), including optional AI and face-match diagnostics.
+- Psychologists to upload patient PDFs and query grounded answers over scoped document chunks.
 
 It also includes an AI subsystem:
 - A RAG-powered intake chatbot pipeline (Darija-aware + PDF knowledge base retrieval + risk/manipulation analysis + persona tuning).
+- A permission-scoped patient document RAG pipeline (chunking, embeddings, vector search, fallback retrieval, grounded answers).
+- A permission-scoped patient document RAG pipeline (chunking, embeddings, vector search, fallback retrieval, grounded answers).
 - A “platform assistant” chatbot limited to navigation/help (not therapy) via Groq.
 
 ### 2) Main Actors (Users + External Systems)
@@ -32,7 +36,7 @@ It also includes an AI subsystem:
 - **Administrator** (`User.role=admin`)
 
 **External / system actors**
-- **MongoDB Atlas** (primary DB + Vector Search for RAG chunks)
+- **MongoDB Atlas** (primary DB + Vector Search for RAG chunks and patient documents)
 - **Groq API** (chat completions + Whisper transcription)
 - **Google Gemini Embeddings API** (vector embeddings via LangChain)
 - **Email (Gmail SMTP via Nodemailer)** (session code + notifications)
@@ -50,6 +54,7 @@ It also includes an AI subsystem:
   - Payment confirmation starts a 24h code validity window; patient verifies a 6-digit code to activate the session.
 - Session lifecycle tracking (pending → pending_payment → paid → active → completed/canceled).
 - Real-time messaging (patient ↔ psychologist), gated by “has booked consultation”.
+- Notification preferences, queued delivery, and retryable email processing.
 - AI intake chatbot:
   - Stage-based intake protocol (stages 1–5).
   - Darija normalization + embedding + Darija context retrieval.
@@ -62,7 +67,7 @@ It also includes an AI subsystem:
   - Psychologist private notes (per session/patient).
   - Emotional indicators scoring per session.
   - Patient history entries.
-  - Patient document upload (PDF) + text extraction + Q&A over extracted text.
+  - Patient document upload (PDF) + text extraction + chunked Q&A over extracted text.
 - Admin verification workflow:
   - Psychologist uploads CV/diploma + ID images + intro video.
   - AI summary over CV/diploma via Groq.
@@ -75,8 +80,8 @@ It also includes an AI subsystem:
    - a `User` document (role=psychologist) for authentication and ID references in Sessions, CalendarSlots, etc.
    - a `Psychologist` profile document keyed by `userId`.
 3) **ChatbotSummary linkage**: `ChatbotSummary` is stored by `patientId` only, but `reportController` queries it by `sessionId`. To derive diagrams, assume either:
-   - `ChatbotSummary` should include `sessionId`, or
-   - PDF report should be generated from `patientId` instead of `sessionId`.
+  - `ChatbotSummary` should include `sessionId`, or
+  - PDF report should be generated from `patientId` instead of `sessionId`.
 4) **User “name” fields**: `User` schema has `email/password/role/isVerified`, but some code populates `patientId` with `name email`. Assume “name” is not currently stored and email is the identifier.
 
 ---
