@@ -41,5 +41,7 @@ const patientDocumentChunkSchema = new mongoose.Schema(
 );
 
 patientDocumentChunkSchema.index({ documentId: 1, chunkIndex: 1 });
+// Add a text index to support fallback text search when vector index or embeddings are unavailable
+patientDocumentChunkSchema.index({ content: 'text' });
 
 module.exports = mongoose.model('PatientDocumentChunk', patientDocumentChunkSchema);

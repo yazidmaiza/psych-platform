@@ -88,6 +88,8 @@ exports.queryDocument = async (req, res) => {
 
     const { contextText, chunks } = await retrieveDocumentContext({
       documentId: doc._id,
+      psychologistId: req.user.id,
+      patientId: doc.patientId,
       question,
       topK: Number(req.body.topK || 5)
     });

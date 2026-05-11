@@ -1,5 +1,5 @@
 # Introduction
-Sprint 5 focuses on **platform enrichment** for PsychPlatform by improving professional and administrative capabilities, user trust signals, multilingual usability, and continuous engagement. The sprint introduces a psychologist dashboard, document AI querying, a ratings system, a broader admin panel, internationalization (EN/FR/AR) with RTL support, a floating assistant, and a real-time/in-app notifications system.
+Sprint 5 focuses on **platform enrichment** for PsychPlatform by improving professional and administrative capabilities, user trust signals, multilingual usability, and continuous engagement. The sprint introduces a psychologist dashboard, permission-scoped document AI querying, a ratings system, a broader admin panel, internationalization (EN/FR/AR) with RTL support, a floating assistant, and a real-time/in-app notifications system with queue and retry support.
 
 This document presents Sprint 5 objectives, planning, backlog, execution approach, analysis, UML-oriented design descriptions (optionally with Mermaid), testing, deployment, and sprint review/retrospective elements suitable for a PFE/project report.
 
@@ -7,12 +7,12 @@ This document presents Sprint 5 objectives, planning, backlog, execution approac
 The objective of Sprint 5 is to enrich the platform with user-facing and operational features that:
 
 - Provide psychologists with a **dashboard** (analytics, sessions, reports, workload indicators).
-- Enable **document AI querying** (upload + intelligent search/Q&A) with strict permission boundaries.
+- Enable **document AI querying** (upload + intelligent search/Q&A) with strict permission boundaries and grounded answers.
 - Implement a **ratings and feedback** system to improve trust and discovery relevance.
 - Extend the **admin panel** beyond onboarding (user management, approvals, monitoring, moderation support).
 - Deliver **internationalization (i18n)** for EN/FR/AR, including **RTL layout** support.
 - Add a **floating assistant** to provide contextual help and AI-driven guidance across the UI.
-- Provide a robust **notifications system** (real-time + in-app center) for booking/session/report and admin events.
+- Provide a robust **notifications system** (real-time + in-app center) for booking/session/report and admin events, including queued delivery and retry logic.
 
 Success criteria:
 - Psychologists can monitor sessions and access reports from a single dashboard.
@@ -56,9 +56,9 @@ Planned deliverables:
 3. **US-5.3: Upload documents for AI querying**
    - As a user (patient/psychologist/admin depending on policy), I want to upload documents to a personal workspace so that I can search or ask questions about them.
    - Acceptance criteria:
-     - Supported formats (e.g., PDF/text) with size limits and virus/malware scanning if available.
+    - Supported format: PDF with size limits.
      - Documents are stored securely and tagged with owner and access scope.
-     - Upload produces an indexing job for AI querying.
+    - Upload produces a chunking/embedding job for AI querying.
 
 4. **US-5.4: Intelligent search/Q&A over documents**
    - As a user, I want to ask questions about my documents so that I can retrieve relevant information quickly.

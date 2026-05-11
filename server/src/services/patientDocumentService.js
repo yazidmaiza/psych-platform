@@ -74,59 +74,105 @@ const ingestPatientDocument = async ({ document, extractedText }) => {
   };
 };
 
-const retrieveDocumentContext = async ({ documentId, question, topK = 5 }) => {
+const retrieveDocumentContext = async ({ documentId, psychologistId, patientId, question, topK = 5 }) => {
   if (!documentId || !question) return { chunks: [], contextText: '' };
 
   const collection = getCollection();
   const keywordList = normalizeQuestionKeywords(question);
   let chunks = [];
+  const documentFilter = {
+    documentId: new mongoose.Types.ObjectId(documentId)
+  };
+
+  if (psychologistId) {
+    documentFilter.psychologistId = new mongoose.Types.ObjectId(psychologistId);
+  }
+
+  if (patientId) {
+    documentFilter.patientId = new mongoose.Types.ObjectId(patientId);
+  }
 
   if (process.env.GEMINI_API_KEY) {
     try {
-      const embeddings = new GoogleGenerativeAIEmbeddings({
-        modelName: 'text-embedding-004',
-        apiKey: process.env.GEMINI_API_KEY
-      });
-      const vector = await embeddings.embedQuery(question);
+      // Only attempt vector search if there are chunk embeddings for this document
+      const hasEmbeddings = await collection.findOne({ ...documentFilter, embedding: { $ne: null } });
+      if (hasEmbeddings) {
+        const embeddings = new GoogleGenerativeAIEmbeddings({
+          modelName: 'text-embedding-004',
+          apiKey: process.env.GEMINI_API_KEY
+        });
+        const vector = await embeddings.embedQuery(question);
 
-      const pipeline = [
-        {
-          $vectorSearch: {
-            index: VECTOR_INDEX,
-            path: 'embedding',
-            queryVector: vector,
-            numCandidates: 80,
-            limit: topK,
-            filter: { documentId: new mongoose.Types.ObjectId(documentId) }
+        const pipeline = [
+          {
+            $vectorSearch: {
+              index: VECTOR_INDEX,
+              path: 'embedding',
+              queryVector: vector,
+              numCandidates: 80,
+              limit: topK,
+              filter: documentFilter
+            }
+          },
+          {
+            $project: {
+              content: 1,
+              chunkIndex: 1,
+              sourceName: 1,
+              score: { $meta: 'vectorSearchScore' }
+            }
           }
-        },
-        {
-          $project: {
-            content: 1,
-            chunkIndex: 1,
-            sourceName: 1,
-            score: { $meta: 'vectorSearchScore' }
-          }
+        ];
+
+        try {
+          chunks = await collection.aggregate(pipeline).toArray();
+        } catch (err) {
+          // Likely the vector index is missing or server doesn't support $vectorSearch — fallback to text search
+          chunks = [];
         }
-      ];
-
-      chunks = await collection.aggregate(pipeline).toArray();
+      }
     } catch (err) {
       chunks = [];
     }
   }
 
   if (!chunks.length) {
+    // Prefer text search (if text index exists) then regex fallback
     const regex = keywordList.length ? new RegExp(keywordList.join('|'), 'i') : null;
-    const query = {
-      documentId: new mongoose.Types.ObjectId(documentId)
-    };
-    if (regex) query.content = regex;
+    const query = { ...documentFilter };
 
-    chunks = await PatientDocumentChunk.find(query)
-      .sort({ chunkIndex: 1 })
-      .limit(topK)
-      .lean();
+    if (regex) {
+      // Use text search if available for better relevance
+      try {
+        const textResults = await PatientDocumentChunk.find({
+          $text: { $search: keywordList.join(' ') },
+          ...documentFilter
+        }, { score: { $meta: 'textScore' } })
+          .sort({ score: { $meta: 'textScore' } })
+          .limit(topK)
+          .lean();
+
+        if (textResults && textResults.length) {
+          chunks = textResults.map((doc) => ({
+            content: doc.content,
+            chunkIndex: doc.chunkIndex,
+            sourceName: doc.sourceName || '',
+            score: doc.score
+          }));
+        }
+      } catch (err) {
+        // text search failed (index missing), fall back to regex
+      }
+    }
+
+    if (!chunks.length) {
+      if (regex) query.content = regex;
+
+      chunks = await PatientDocumentChunk.find(query)
+        .sort({ chunkIndex: 1 })
+        .limit(topK)
+        .lean();
+    }
   }
 
   const contextText = chunks

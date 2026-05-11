@@ -10,6 +10,11 @@ The Psych Platform is a comprehensive web application designed to bridge the gap
 - **Psychologists**: Manage availability via an intuitive calendar, track patient histories, write private clinical notes, and review statistics.
 - **Administrators**: Dedicated admin panel for platform oversight, including a paginated onboarding review queue (`docs/review-queue.md`).
 
+### 🧠 Document RAG & Retrieval
+- Psychologists can upload patient PDFs, which are chunked and embedded for question answering.
+- Retrieval is permission-scoped to the psychologist and selected patient document.
+- The UI shows grounded answers and the chunks used as sources.
+
 ### 📅 Advanced Scheduling & Calendar
 - Psychologists can configure and set their available time slots.
 - Patients can dynamically book and split sessions.
@@ -17,7 +22,7 @@ The Psych Platform is a comprehensive web application designed to bridge the gap
 
 ### 💬 Real-Time Communication
 - Secure, real-time patient-therapist chat using WebSockets (`socket.io`).
-- Notifications on new messages and upcoming appointments.
+- Notifications on new messages, appointment changes, and queued delivery retries.
 
 ### 🤖 Darija-Aware AI Assistant (RAG System)
 A sophisticated Agent Operating System designed to understand context and Tunisian Darija dialects.
@@ -26,13 +31,13 @@ A sophisticated Agent Operating System designed to understand context and Tunisi
 - **AI Chatbot**: Acts as a psychological intake assistant that provides culturally resonant and empathetic support.
 
 ### 📄 Clinical Documentation & Analytics
-- **Document Management**: Secure patient document uploading with text extraction via `pdf-parse` and `tesseract.js`.
+- **Document Management**: Secure patient document uploading with text extraction via `pdf-parse`, chunking, and RAG-based Q&A.
 - **Dashboards**: Visualize emotional metrics, session statistics, and customized progress charts.
 
 ### 🛡️ Enterprise-Grade Security
 Built with modern security best practices:
 - **Authentication**: JWT-based auth with robust email verification flows.
-- **Protection Measures**: HTTP headers (`helmet`), Rate Limiting (`express-rate-limit`), NoSQL injection protection (`express-mongo-sanitize`), and XSS cleaning (`xss-clean`).
+- **Protection Measures**: HTTP headers (`helmet`), Rate Limiting (`express-rate-limit`), request validation, and role-based authorization.
 - **Private verification uploads**: Psychologist ID card images and intro videos are stored under `server/private_uploads/` by default (override with `PRIVATE_UPLOADS_DIR`) and are only served via authenticated admin endpoints.
 
 ---
@@ -76,7 +81,7 @@ Built with modern security best practices:
 
 ### Prerequisites
 - Node.js installed
-- MongoDB URI
+- MongoDB URI (`MONGO_URI`)
 - Relevant API Keys (Gemini, Groq, etc.)
 
 ### Installation

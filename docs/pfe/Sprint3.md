@@ -1,22 +1,22 @@
 # Introduction
-Sprint 3 addresses **patient engagement** by implementing the core capabilities that allow patients to find psychologists, evaluate options, manage schedules, and complete bookings from request to completion. The sprint focuses on search and discovery (including geospatial search), calendar management, and the full booking lifecycle with clear status tracking.
+Sprint 3 addresses **patient engagement** by implementing the core capabilities that allow patients to find psychologists, evaluate options, manage schedules, and complete bookings from request to completion. The sprint focuses on search and discovery (including ranked and geospatial search), calendar management with recurring availability rules and exceptions, and the full booking lifecycle with clear status tracking.
 
 This document provides Sprint 3 objectives, planning, backlog, execution approach, analysis, UML-oriented design descriptions (textual), testing, deployment, and sprint review/retrospective elements in a format suitable for a PFE/project report.
 
 # Sprint3Objective
 The objective of Sprint 3 is to deliver a complete patient engagement workflow that:
 
-- Enables **search & discovery** of psychologists using categories and filters.
+- Enables **search & discovery** of psychologists using categories, filters, and ranking.
 - Supports **geospatial search** to rank and display nearby psychologists and optionally render map-based results.
-- Provides **calendar management** for psychologist availability and patient scheduling.
-- Implements a **full booking lifecycle**: request → confirm → cancel → complete.
+- Provides **calendar management** for psychologist availability rules, exceptions, and patient scheduling.
+- Implements a **full booking lifecycle**: request → pending payment → paid → active → complete/cancel.
 - Ensures secure access control, consistent state transitions, and auditable booking events.
 
 Success criteria:
 - Patients can search with filters and obtain relevant, paginated results.
 - Patients can request bookings based on real availability.
 - Psychologists can manage availability and confirm/decline booking requests.
-- Bookings progress through well-defined states and reflect cancellations and completion correctly.
+- Bookings progress through well-defined states and reflect cancellations, payment verification, activation, and completion correctly.
 
 # SprintPlanning3
 Sprint planning assumptions:
@@ -80,13 +80,13 @@ Planned deliverables:
    - As a patient, I want to request a session at a selected time so that I can schedule an appointment.
    - Acceptance criteria:
      - System checks slot availability and prevents double booking.
-     - Booking is created with status `REQUESTED` and visible in both dashboards.
+    - Booking is created with a pending/requested state and visible in both dashboards.
 
 8. **US-3.8: Psychologist confirms or declines**
    - As a psychologist, I want to confirm or decline booking requests so that I can control my schedule.
    - Acceptance criteria:
-     - Confirm transitions to `CONFIRMED` and locks the slot.
-     - Decline transitions to `DECLINED` with an optional reason.
+    - Confirm transitions to the confirmed / pending-payment workflow and locks the slot.
+    - Decline transitions to a canceled/rejected state with an optional reason.
 
 9. **US-3.9: Cancellation by patient or psychologist**
    - As a patient/psychologist, I want to cancel a booking so that the schedule remains accurate.
@@ -103,21 +103,22 @@ Planned deliverables:
 Engineering tasks:
 - Implement search indexing strategy (DB query optimization and/or dedicated search engine).
 - Implement geospatial data model and proximity queries.
-- Implement scheduling model with availability rules and slot generation.
+- Implement scheduling model with recurring availability rules, exceptions, and slot generation.
 - Implement booking state machine and conflict prevention.
-- Add notifications and real-time updates (if enabled).
+- Add notifications and real-time updates for booking changes.
 
 # SprintExecution
 Execution strategy:
 - **Incremental increments:** deliver search filters first, then availability/slots, then booking lifecycle, and finally real-time updates and map UX improvements.
 - **State-driven design:** booking and availability are implemented with explicit states, transition guards, and idempotent endpoints.
-- **Risk controls:** treat scheduling conflicts, time zones, and concurrency as first-class concerns.
+- **Risk controls:** treat scheduling conflicts, time zones, booking concurrency, and slot locking as first-class concerns.
 
 Definition of Done (DoD):
 - Meets acceptance criteria for selected stories.
 - API endpoints are documented and validated with tests.
 - Authorization enforced (patient vs psychologist vs admin).
 - Booking transitions are auditable (event logs).
+- Availability and slot booking operations are traceable and reflected in patient and psychologist dashboards.
 - Deployed to a review environment for functional validation.
 
 # Analysis

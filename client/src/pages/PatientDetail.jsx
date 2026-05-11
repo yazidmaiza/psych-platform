@@ -14,9 +14,12 @@ function PatientDetail() {
     const [documents, setDocuments] = useState([]);
     const [docFile, setDocFile] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState('');
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState('');
+    const [querySources, setQuerySources] = useState([]);
+    const [queryError, setQueryError] = useState('');
     const [querying, setQuerying] = useState(false);
     const [activeSessionId, setActiveSessionId] = useState(null);
     const [endingSession, setEndingSession] = useState(false);
@@ -27,7 +30,14 @@ function PatientDetail() {
     const fetchDocuments = useCallback(async () => {
         try {
             const docs = await api.get('/api/documents/patient/' + patientId);
-            setDocuments(Array.isArray(docs) ? docs : []);
+            const nextDocuments = Array.isArray(docs) ? docs : [];
+            setDocuments(nextDocuments);
+            setSelectedDoc((currentSelectedDoc) => {
+                if (currentSelectedDoc && nextDocuments.some((doc) => doc._id === currentSelectedDoc)) {
+                    return currentSelectedDoc;
+                }
+                return nextDocuments[0]?._id || null;
+            });
         } catch (err) {
             console.error(err);
         }
@@ -132,6 +142,7 @@ function PatientDetail() {
     const uploadDocument = async () => {
         if (!docFile) return;
         setUploading(true);
+        setUploadStatus('');
         try {
             const token = localStorage.getItem('token');
             const formData = new FormData();
@@ -145,8 +156,14 @@ function PatientDetail() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
             setDocFile(null);
+            setUploadStatus(`Uploaded ${data.document?.originalName || 'document'}${data.document?.embeddingStatus ? ` · ${data.document.embeddingStatus}` : ''}`);
+            setSelectedDoc(data.document?._id || null);
+            setQuestion('');
+            setAnswer('');
+            setQuerySources([]);
             fetchDocuments();
         } catch (err) {
+            setUploadStatus(err.message || 'Upload failed');
             console.error(err);
         } finally {
             setUploading(false);
@@ -154,18 +171,30 @@ function PatientDetail() {
     };
 
     const queryDocument = async () => {
-        if (!selectedDoc || !question.trim()) return;
+        if (!selectedDoc || !question.trim()) {
+            setQueryError('Select a document and enter a question.');
+            return;
+        }
         setQuerying(true);
         setAnswer('');
+        setQuerySources([]);
+        setQueryError('');
         try {
-            const data = await api.post('/api/documents/query/' + selectedDoc, { question });
+            const data = await api.post('/api/documents/query/' + selectedDoc, { question, topK: 5 });
             setAnswer(data.answer);
+            setQuerySources(Array.isArray(data.sources) ? data.sources : []);
         } catch (err) {
+            setQueryError(err.message || 'Could not answer that question right now.');
             console.error(err);
         } finally {
             setQuerying(false);
         }
     };
+
+    const selectedDocument = documents.find(doc => doc._id === selectedDoc) || null;
+    const readyCount = documents.filter(doc => doc.embeddingStatus === 'ready').length;
+    const skippedCount = documents.filter(doc => doc.embeddingStatus === 'skipped').length;
+    const failedCount = documents.filter(doc => doc.embeddingStatus === 'failed').length;
 
 
     const acknowledgeAlert = async (alertId) => {
@@ -193,7 +222,7 @@ function PatientDetail() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="bg-white shadow-sm">
+            <div className="bg-white shadow-sm sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/90">
                 <div className="max-w-4xl mx-auto px-6 py-5 flex items-center gap-4 flex-wrap">
                     <button
                         onClick={() => navigate(-1)}
@@ -482,15 +511,35 @@ function PatientDetail() {
 
             </div>
             {/* Patient Documents + RAG */}
-            <div className="bg-white rounded-2xl shadow p-6">
-                <h2 className="text-lg font-bold text-gray-700 mb-4">Patient Documents</h2>
+            <div className="bg-white rounded-2xl shadow p-6 border border-gray-100">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-800">Patient Documents</h2>
+                        <p className="text-sm text-gray-500 mt-1">Upload a PDF, select it, then ask for a grounded summary using the extracted chunks.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700">{documents.length} docs</span>
+                        <span className="px-3 py-1 rounded-full bg-green-50 text-green-700">{readyCount} ready</span>
+                        <span className="px-3 py-1 rounded-full bg-yellow-50 text-yellow-700">{skippedCount} skipped</span>
+                        <span className="px-3 py-1 rounded-full bg-red-50 text-red-700">{failedCount} failed</span>
+                    </div>
+                </div>
+
+                {uploadStatus && (
+                    <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                        {uploadStatus}
+                    </div>
+                )}
 
                 {/* Upload */}
-                <div className="flex gap-3 mb-6">
+                <div className="flex gap-3 mb-3">
                     <input
                         type="file"
                         accept="application/pdf"
-                        onChange={e => setDocFile(e.target.files[0])}
+                        onChange={e => {
+                            setDocFile(e.target.files[0] || null);
+                            setUploadStatus('');
+                        }}
                         className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm"
                     />
                     <button
@@ -501,6 +550,7 @@ function PatientDetail() {
                         {uploading ? 'Uploading...' : 'Upload'}
                     </button>
                 </div>
+                <p className="text-xs text-gray-400 mb-6">PDF upload uses the document RAG pipeline. After upload, chunking and retrieval happen automatically.</p>
 
                 {/* Document List */}
                 {documents.length === 0 && (
@@ -510,7 +560,7 @@ function PatientDetail() {
                     {documents.map(doc => (
                         <div
                             key={doc._id}
-                            onClick={() => { setSelectedDoc(doc._id); setAnswer(''); }}
+                            onClick={() => { setSelectedDoc(doc._id); setAnswer(''); setQuerySources([]); setQueryError(''); }}
                             className={`flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition ${selectedDoc === doc._id
                                 ? 'border-blue-600 bg-blue-50'
                                 : 'border-gray-200 hover:border-blue-300'
@@ -519,18 +569,47 @@ function PatientDetail() {
                             <div>
                                 <p className="text-sm font-semibold text-gray-700">{doc.originalName}</p>
                                 <p className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString()}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {doc.textLength || 0} chars · {doc.chunkCount || 0} chunks
+                                </p>
                             </div>
-                            {selectedDoc === doc._id && (
-                                <span className="text-xs text-blue-600 font-semibold">Selected</span>
-                            )}
+                            <div className="flex flex-col items-end gap-2">
+                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${doc.embeddingStatus === 'ready'
+                                    ? 'bg-green-100 text-green-700'
+                                    : doc.embeddingStatus === 'pending'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : doc.embeddingStatus === 'failed'
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                    {doc.embeddingStatus || 'unknown'}
+                                </span>
+                                {selectedDoc === doc._id && (
+                                    <span className="text-xs text-blue-600 font-semibold">Selected</span>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
+
+                {selectedDocument && (
+                    <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <span className="font-semibold">Selected document:</span> {selectedDocument.originalName}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                {selectedDocument.embeddingStatus || 'unknown'} · {selectedDocument.chunkCount || 0} chunks
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* RAG Query */}
                 {selectedDoc && (
                     <div className="border-t border-gray-100 pt-4">
                         <h3 className="text-sm font-bold text-gray-700 mb-3">Ask a question about this document</h3>
+                        <p className="text-xs text-gray-400 mb-3">Questions are answered only from the selected document excerpts. If nothing relevant is found, the assistant will say so.</p>
                         <div className="flex gap-3 mb-4">
                             <input
                                 className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -547,10 +626,31 @@ function PatientDetail() {
                                 {querying ? 'Thinking...' : 'Ask'}
                             </button>
                         </div>
+                        {queryError && (
+                            <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {queryError}
+                            </div>
+                        )}
                         {answer && (
                             <div className="bg-gray-50 rounded-xl p-4">
-                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Answer</p>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <p className="text-xs text-gray-400 uppercase font-semibold">Answer</p>
+                                    <span className="text-xs text-gray-500 font-semibold">Grounded response</span>
+                                </div>
                                 <p className="text-sm text-gray-700 leading-relaxed">{answer}</p>
+                            </div>
+                        )}
+                        {querySources.length > 0 && (
+                            <div className="mt-4">
+                                <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Sources used</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {querySources.map((source, index) => (
+                                        <span key={`${source.chunkIndex}-${index}`} className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                                            {source.sourceName || 'Document'} · chunk {source.chunkIndex + 1}
+                                            {typeof source.score === 'number' ? ` · ${source.score.toFixed(2)}` : ''}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
