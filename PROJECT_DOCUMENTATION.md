@@ -543,6 +543,9 @@ Define data schemas using Mongoose:
 
 1. **Security Middleware**
    - `helmet` - Secure HTTP headers
+   - `xss-clean` - XSS attack prevention
+   - `express-mongo-sanitize` - NoSQL injection prevention
+   - CORS configuration
   - `express-rate-limit` - Rate limiting / DoS protection
   - CORS configuration
   - Request validation and role-based authorization in controllers/middleware
@@ -588,12 +591,14 @@ Create a `.env` file in the server root:
 
 ```env
 # Database
+MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/psychplatform
 MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/psychplatform
 
 # JWT
 JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRE=7d
 
+# Google Gemini AI
 # Google Gemini AI / embeddings
 GEMINI_API_KEY=your_google_gemini_api_key
 # Optional alias used by some scripts
@@ -626,6 +631,11 @@ MODELS_PATH=./models
 
 # File Upload Limits
 MAX_FILE_SIZE=10485760
+UPLOAD_DIR=./uploads
+
+# Rate Limiting
+RATE_LIMIT_WINDOW=15
+RATE_LIMIT_MAX_REQUESTS=100
 
 # Email Service
 EMAIL_HOST=smtp.gmail.com
@@ -665,6 +675,7 @@ EMAIL_PASSWORD=your_app_password
 5. **Initialize Database**
    ```bash
    cd ../server
+   npm run seed  # Seed initial data
   node src/seedDataset.js        # Optional: seed Darija/RAG dataset
   node src/seedIntakeProtocol.js # Optional: seed intake protocol data
    ```
@@ -724,21 +735,29 @@ docker-compose up --build
 ### Authentication Endpoints
 
 ```
+POST /auth/register
 POST /api/auth/register
 - Register new user (patient/psychologist)
 - Body: { email, password, role, name, phone }
 - Response: { user, token }
 
+POST /auth/login
 POST /api/auth/login
 - Authenticate user
 - Body: { email, password }
 - Response: { user, token }
 
+POST /auth/verify-email
 POST /api/auth/verify-email
 - Verify email with OTP
 - Body: { email, otp }
 - Response: { success, message }
 
+POST /auth/refresh-token
+- Refresh JWT token
+- Response: { token }
+
+GET /auth/profile
 POST /api/auth/refresh-token
 - Refresh JWT token
 - Response: { token }
@@ -752,21 +771,25 @@ GET /api/auth/profile
 ### Calendar Endpoints
 
 ```
+GET /calendar/availability/:psychologistId
 GET /api/calendar/availability/:psychologistId
 - Get psychologist available slots
 - Query: { month, year }
 - Response: [{ date, slots: [...] }]
 
+POST /calendar/book
 POST /api/calendar/book
 - Create appointment
 - Body: { psychologistId, date, time, reason }
 - Response: { appointment }
 
+PUT /calendar/appointment/:appointmentId
 PUT /api/calendar/appointment/:appointmentId
 - Update appointment status
 - Body: { status }
 - Response: { appointment }
 
+GET /calendar/my-appointments
 GET /api/calendar/my-appointments
 - Get user's appointments
 - Response: [{ appointment }]
@@ -775,11 +798,17 @@ GET /api/calendar/my-appointments
 ### Chatbot Endpoints
 
 ```
+POST /chatbot/message
 POST /api/chatbot/message
 - Send message to AI chatbot
 - Body: { threadId, message, userId }
 - Response: { response, threadId }
 
+GET /chatbot/thread/:threadId
+- Get conversation history
+- Response: [{ message, response, timestamp }]
+
+POST /chatbot/risk-assessment
 GET /api/chatbot/thread/:threadId
 - Get conversation history
 - Response: [{ message, response, timestamp }]
@@ -793,16 +822,19 @@ POST /api/chatbot/risk-assessment
 ### Message Endpoints
 
 ```
+POST /messages/send
 POST /api/messages/send
 - Send message (WebSocket alternative)
 - Body: { recipientId, message }
 - Response: { messageId, timestamp }
 
+GET /messages/conversation/:userId
 GET /api/messages/conversation/:userId
 - Get message history with user
 - Query: { limit, skip }
 - Response: [{ message }]
 
+PUT /messages/:messageId/read
 PUT /api/messages/:messageId/read
 - Mark message as read
 - Response: { success }
@@ -811,6 +843,19 @@ PUT /api/messages/:messageId/read
 ### Document Endpoints
 
 ```
+POST /documents/upload
+- Upload document (diploma, ID, etc.)
+- Multipart FormData: { file, type, userId }
+- Response: { document, extractedText }
+
+GET /documents/:documentId
+- Get document details
+- Response: { document, ocrResult }
+
+PUT /documents/:documentId/verify
+- Verify document (admin only)
+- Body: { verified, notes }
+- Response: { document }
 POST /api/documents/upload/:patientId
 - Upload patient PDF document (psychologist only)
 - Multipart FormData: { document }
@@ -898,6 +943,11 @@ socket.on('notification:new', {
 
 ```javascript
 // Helmet - Secure HTTP headers
+app.use(helmet());
+
+// CORS - Cross-Origin restrictions
+app.use(cors({
+  origin: process.env.CLIENT_URL,
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
 // CORS - Cross-Origin restrictions
@@ -912,6 +962,11 @@ app.use(rateLimit({
   max: 100
 }));
 
+// NoSQL Injection Prevention
+app.use(mongoSanitize());
+
+// XSS Protection
+app.use(xss());
 // Input validation and controller-level authorization guard the request surface.
 // Legacy xss-clean / express-mongo-sanitize middleware are not enabled in the
 // current Express 5 runtime because they mutate read-only request fields.
@@ -929,11 +984,15 @@ app.use(rateLimit({
 
 ### Retrieval-Augmented Generation (RAG) System
 
+The platform's AI assistant uses a sophisticated RAG architecture with final micro-optimizations for natural, direct, and human-like conversation:
 The platform's AI assistant uses a RAG architecture with grounded retrieval, scoped document access, and human-like conversation:
 
 #### Components
 
 1. **Vector Database**
+  - MongoDB with Vector Search
+  - Embedding models for semantic search
+  - Knowledge base: Psychological resources, Darija context
   - MongoDB Atlas with Vector Search
   - Gemini embeddings for semantic search
   - Knowledge base: psychological resources, Darija context, and patient document chunks

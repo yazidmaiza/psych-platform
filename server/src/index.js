@@ -10,21 +10,30 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const xssClean = require('xss-clean');
 const dns = require('dns');
+const path = require('path');
+const multer = require('multer');
+
 const { startNotificationWorker } = require('./services/notificationWorker');
-  // Routes
+const { getPublicUploadsRoot } = require('./utils/uploadRoots');
+
+// Routes
 const calendarRoutes = require('./routes/calendar.routes');
 
 dotenv.config();
 
-// Optional: force DNS resolvers (fixes SRV lookup failures on some Windows/VPN setups)
+// Optional: force DNS resolvers
 if (process.env.DNS_SERVERS) {
-  const servers = process.env.DNS_SERVERS.split(',').map((s) => s.trim()).filter(Boolean);
+  const servers = process.env.DNS_SERVERS
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   if (servers.length) dns.setServers(servers);
 }
 
 const app = express();
 const server = http.createServer(app);
-  
+
 //////////////////////////////////////////////////
 // 🔐 RATE LIMITERS
 //////////////////////////////////////////////////
@@ -57,26 +66,47 @@ app.use(cors({
   credentials: true
 }));
 
-// Set security HTTP headers
-app.use(helmet({
-  crossOriginResourcePolicy: false, // For image/audio fetching if cross-domain needed, adjust as needed
-}));
+// Security headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
 
+// JSON parser (skip multipart/file upload routes)
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
     req.path.startsWith('/api/verification/upload') ||
-    (req.path.startsWith('/api/sessions') && req.path.includes('/voice'))
+    (req.path.startsWith('/api/sessions') &&
+      req.path.includes('/voice'))
   ) {
     return next();
   }
+
   express.json({ limit: '10kb' })(req, res, next);
 });
 
-// Apply sanitization after JSON parsing to avoid conflicts with file uploads
-// Note: express-mongo-sanitize disabled due to Express 5 read-only query property
+// Sanitization
+// Disabled due to Express 5 read-only query compatibility
 // app.use(mongoSanitize());
-// app.use(xssClean()); // Disabled for Express 5 read-only query compatibility
+// app.use(xssClean());
+
+// Serve ONLY approved profile photos publicly
+app.use(
+  '/uploads/profile-photos',
+  express.static(
+    path.join(getPublicUploadsRoot(), 'profile_photos', 'approved'),
+    {
+      setHeaders: (res) => {
+        res.setHeader(
+          'Cache-Control',
+          'public, max-age=86400'
+        );
+      }
+    }
+  )
+);
 
 //////////////////////////////////////////////////
 // 🔌 SOCKET.IO
@@ -106,11 +136,13 @@ io.on('connection', (socket) => {
     io.to(data.roomId).emit('receive_message', data);
   });
 
-  // Psychologist joins their private room for real-time risk alerts
+  // Risk alert room
   socket.on('join_psychologist_room', (psychologistId) => {
     const room = `psychologist_${psychologistId}`;
     socket.join(room);
-    console.log(`Psychologist joined risk-alert room: ${room}`);
+    console.log(
+      `Psychologist joined risk-alert room: ${room}`
+    );
   });
 
   socket.on('disconnect', () => {
@@ -118,7 +150,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Export io so services (RiskAlertService) can emit events
+// Export io
 module.exports.io = io;
 
 //////////////////////////////////////////////////
@@ -150,7 +182,12 @@ app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
 app.post('/api/assistant', chatbotLimiter, async (req, res) => {
   try {
     const { message, page } = req.body;
-    if (!message) return res.status(400).json({ message: 'Message is required' });
+
+    if (!message) {
+      return res.status(400).json({
+        message: 'Message is required'
+      });
+    }
 
     const response = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
@@ -160,27 +197,36 @@ app.post('/api/assistant', chatbotLimiter, async (req, res) => {
           {
             role: 'system',
             content: `You are a helpful assistant for PsychPlatform, an AI-assisted psychological consultation platform.
+
 Your role is ONLY to help users navigate and use the platform.
 
 You can help with:
 - How to book a session
 - How to find psychologists
-- How payment works (patient pays, receives 6-digit code by email, enters code to start session)
-- How the AI chatbot works (3 types: preparation, followup, free expression)
-- How to rate a psychologist (10 questions after session ends)
-- How psychologist registration works (CV + diploma upload, admin approval required)
-- How voice messages work (microphone button in conversation)
+- How payment works
+- How the AI chatbot works
+- How to rate a psychologist
+- How psychologist registration works
+- How voice messages work
 - How to view session history
-- How the calendar works (psychologist adds slots, patient books them)
+- How the calendar works
 
 You must NOT give psychological advice or act as a therapist.
-If asked for psychological help, say: "I recommend discussing this with your psychologist during a session."
-If asked unrelated questions, say: "I can only help you navigate and use the platform."
+
+If asked for psychological help, say:
+"I recommend discussing this with your psychologist during a session."
+
+If asked unrelated questions, say:
+"I can only help you navigate and use the platform."
+
 Keep answers short, friendly and clear.
 
 User is currently on page: ${page || 'unknown'}`
           },
-          { role: 'user', content: message }
+          {
+            role: 'user',
+            content: message
+          }
         ],
         temperature: 0.7,
         max_tokens: 300
@@ -193,11 +239,17 @@ User is currently on page: ${page || 'unknown'}`
       }
     );
 
-    const reply = response.data.choices[0].message.content;
+    const reply =
+      response.data.choices[0].message.content;
+
     res.json({ reply });
+
   } catch (err) {
     console.error('ASSISTANT ERROR:', err.message);
-    res.status(500).json({ message: 'AI request failed' });
+
+    res.status(500).json({
+      message: 'AI request failed'
+    });
   }
 });
 
@@ -215,6 +267,29 @@ app.get('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        message: 'Uploaded file is too large.'
+      });
+    }
+
+    return res.status(400).json({
+      message: err.message || 'Upload failed'
+    });
+  }
+
+  if (
+    err &&
+    (err.code === 'LIMIT_FILE_SIZE' ||
+      err.code === 'REQUEST_ENTITY_TOO_LARGE')
+  ) {
+    return res.status(413).json({
+      message: 'Uploaded file is too large.'
+    });
+  }
+
   res.status(err.status || 500).json({
     message: err.message || 'Internal server error'
   });
@@ -225,19 +300,32 @@ app.use((err, req, res, next) => {
 //////////////////////////////////////////////////
 
 if (!process.env.MONGO_URI) {
-  console.error('MONGO_URI is not set. Create server/.env and add MONGO_URI=your_mongodb_connection_string');
+  console.error(
+    'MONGO_URI is not set. Create server/.env and add MONGO_URI=your_mongodb_connection_string'
+  );
+
   process.exit(1);
 }
 
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
+
     startNotificationWorker();
+
     server.listen(process.env.PORT || 5000, () => {
-      console.log('Server running on port ' + (process.env.PORT || 5000));
+      console.log(
+        'Server running on port ' +
+          (process.env.PORT || 5000)
+      );
     });
   })
   .catch((err) => {
-    console.error('MongoDB connection failed:', err.message);
+    console.error(
+      'MongoDB connection failed:',
+      err.message
+    );
+
     process.exit(1);
   });
