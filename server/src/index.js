@@ -67,17 +67,19 @@ app.use(cors({
 }));
 
 // Security headers
-app.use(helmet({
-  crossOriginResourcePolicy: false,
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
 
 // JSON parser (skip multipart/file upload routes)
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
     req.path.startsWith('/api/verification/upload') ||
-    req.path.startsWith('/api/profile-photos/upload') ||
-    (req.path.startsWith('/api/sessions') && req.path.includes('/voice'))
+    (req.path.startsWith('/api/sessions') &&
+      req.path.includes('/voice'))
   ) {
     return next();
   }
@@ -97,7 +99,10 @@ app.use(
     path.join(getPublicUploadsRoot(), 'profile_photos', 'approved'),
     {
       setHeaders: (res) => {
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader(
+          'Cache-Control',
+          'public, max-age=86400'
+        );
       }
     }
   )
@@ -135,7 +140,9 @@ io.on('connection', (socket) => {
   socket.on('join_psychologist_room', (psychologistId) => {
     const room = `psychologist_${psychologistId}`;
     socket.join(room);
-    console.log(`Psychologist joined risk-alert room: ${room}`);
+    console.log(
+      `Psychologist joined risk-alert room: ${room}`
+    );
   });
 
   socket.on('disconnect', () => {
@@ -167,7 +174,6 @@ app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes')
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
 app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
 app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
-app.use('/api/profile-photos', apiLimiter, require('./routes/profilePhotoRoutes'));
 
 //////////////////////////////////////////////////
 // 🤖 PLATFORM ASSISTANT (Groq)
@@ -178,7 +184,9 @@ app.post('/api/assistant', chatbotLimiter, async (req, res) => {
     const { message, page } = req.body;
 
     if (!message) {
-      return res.status(400).json({ message: 'Message is required' });
+      return res.status(400).json({
+        message: 'Message is required'
+      });
     }
 
     const response = await axios.post(
@@ -231,7 +239,8 @@ User is currently on page: ${page || 'unknown'}`
       }
     );
 
-    const reply = response.data.choices[0].message.content;
+    const reply =
+      response.data.choices[0].message.content;
 
     res.json({ reply });
 
@@ -298,7 +307,8 @@ if (!process.env.MONGO_URI) {
   process.exit(1);
 }
 
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
 
@@ -306,11 +316,16 @@ mongoose.connect(process.env.MONGO_URI)
 
     server.listen(process.env.PORT || 5000, () => {
       console.log(
-        'Server running on port ' + (process.env.PORT || 5000)
+        'Server running on port ' +
+          (process.env.PORT || 5000)
       );
     });
   })
   .catch((err) => {
-    console.error('MongoDB connection failed:', err.message);
+    console.error(
+      'MongoDB connection failed:',
+      err.message
+    );
+
     process.exit(1);
   });

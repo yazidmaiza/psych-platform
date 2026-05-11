@@ -302,6 +302,28 @@ exports.updatePsychologist = async (req, res) => {
       };
     }
 
+    const current = await Psychologist.findOne({ userId: req.user.id }).select('profileStatus rejectionDetails');
+    if (!current) return res.status(404).json({ message: 'Psychologist not found' });
+
+    const status = String(current.profileStatus || 'Draft');
+    if (status === 'Submitted') {
+      return res.status(409).json({ message: 'Your onboarding application is submitted and locked for review.' });
+    }
+
+    // If rejected and admin specified limited fields, enforce that.
+    if (status === 'Rejected' && Array.isArray(current.rejectionDetails?.fields) && current.rejectionDetails.fields.length > 0) {
+      const allowed = new Set(current.rejectionDetails.fields);
+      const incomingKeys = Object.keys(updateData).filter((k) => updateData[k] !== undefined);
+      const blocked = incomingKeys.filter((k) => !allowed.has(k));
+      if (blocked.length > 0) {
+        return res.status(409).json({
+          message: 'Only the requested fields can be edited before resubmission.',
+          allowedFields: Array.from(allowed),
+          blockedFields: blocked
+        });
+      }
+    }
+
     const psychologist = await Psychologist.findOneAndUpdate(
       { userId: req.user.id },
       updateData,

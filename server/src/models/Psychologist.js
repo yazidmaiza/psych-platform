@@ -7,6 +7,32 @@ const psychologistSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  profileStatus: {
+    type: String,
+    enum: ['Draft', 'Submitted', 'Approved', 'Rejected'],
+    default: 'Draft'
+  },
+  submittedAt: { type: Date, default: null },
+  lastResubmittedAt: { type: Date, default: null },
+  rejectionReason: { type: String, default: '' },
+  rejectedAt: { type: Date, default: null },
+  rejectedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  rejectionDetails: {
+    fields: { type: [String], default: [] },
+    documents: { type: [String], default: [] }
+  },
+  onboardingHistory: {
+    type: [
+      {
+        status: { type: String, enum: ['Draft', 'Submitted', 'Approved', 'Rejected'], required: true },
+        at: { type: Date, required: true },
+        byUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        reason: { type: String, default: '' },
+        details: { type: mongoose.Schema.Types.Mixed, default: {} }
+      }
+    ],
+    default: []
+  },
   firstName: {
     type: String,
     required: true,
@@ -84,6 +110,13 @@ const psychologistSchema = new mongoose.Schema({
       default: ''
     }
   },
+  credentialDocs: {
+    cv: { type: mongoose.Schema.Types.ObjectId, ref: 'CredentialDocument' },
+    diploma: { type: mongoose.Schema.Types.ObjectId, ref: 'CredentialDocument' },
+    idFront: { type: mongoose.Schema.Types.ObjectId, ref: 'CredentialDocument' },
+    idBack: { type: mongoose.Schema.Types.ObjectId, ref: 'CredentialDocument' },
+    introVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'CredentialDocument' }
+  },
   isRejected: {
     type: Boolean,
     default: false
@@ -112,5 +145,9 @@ const psychologistSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 psychologistSchema.index({ location: '2dsphere' });
+// Review queue indexes (UC-08)
+psychologistSchema.index({ profileStatus: 1, submittedAt: -1 });
+psychologistSchema.index({ profileStatus: 1, createdAt: -1 });
+psychologistSchema.index({ isRejected: 1, rejectedAt: -1 });
 
 module.exports = mongoose.model('Psychologist', psychologistSchema);

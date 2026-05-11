@@ -61,6 +61,11 @@ export default function DashboardSidebar({
             label="Patients"
           />
           <Item
+            active={section === 'documents'}
+            onClick={() => onSectionChange('documents')}
+            label="Credential documents"
+          />
+          <Item
             active={section === 'statistics'}
             onClick={() => onSectionChange('statistics')}
             label="Statistics"

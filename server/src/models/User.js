@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema({
     enum: ['patient', 'psychologist', 'admin'],
     required: true
   },
+  // Optional fine-grained permissions for admins. Legacy deployments may not set this field.
+  // When unset/empty for an admin, routes guarded by admin permissions will allow access by default.
+  adminPermissions: {
+    type: [String],
+    default: []
+  },
   isVerified: {
     type: Boolean,
     default: false

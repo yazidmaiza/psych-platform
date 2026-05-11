@@ -1,7 +1,13 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
 import ProtectedRoute from './components/ProtectedRoute';
 import { socket } from './services/socket';
+
+import { ThemeProvider } from './context/ThemeContext';
+
+import AssistantBot from './components/AssistantBot';
+import RiskAlertBanner from './components/RiskAlertBanner';
 
 import HomePage from './pages/HomePage';
 import PublicPsychologistProfile from './pages/PublicPsychologistProfile';
@@ -10,9 +16,6 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
-
-import AssistantBot from './components/AssistantBot';
-import RiskAlertBanner from './components/RiskAlertBanner';
 
 import PsychologistList from './pages/PsychologistList';
 import PsychologistProfile from './pages/PsychologistProfile';
@@ -36,8 +39,6 @@ import PatientHistory from './pages/PatientHistory';
 import CalendarPage from './pages/Calendar';
 
 import AdminPanel from './pages/AdminPanel';
-
-import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   useEffect(() => {

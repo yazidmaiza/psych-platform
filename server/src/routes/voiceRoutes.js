@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { transcribeVoice } = require('../controllers/voiceController');
+const { createVoiceMessage } = require('../controllers/voiceMessageController');
 const { protect } = require('../middleware/authMiddleware');
 
 const upload = multer({
@@ -18,5 +19,6 @@ const upload = multer({
 });
 
 router.post('/:id/voice', protect, upload.single('audio'), transcribeVoice);
+router.post('/:id/voice-message', protect, upload.single('audio'), createVoiceMessage);
 
 module.exports = router;
