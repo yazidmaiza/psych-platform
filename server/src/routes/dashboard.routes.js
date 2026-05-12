@@ -143,18 +143,26 @@ router.get('/patient/:patientId', protect, async (req, res) => {
 // US-27 - Add a private note
 router.post('/notes', protect, async (req, res) => {
     try {
-        const { patientId, content } = req.body;
+        const { patientId, content, sessionId } = req.body;
+
+        if (!patientId || !content) {
+            return res.status(400).json({ message: 'patientId and content are required' });
+        }
 
         const note = new PrivateNote({
             psychologistId: req.user.id,
             patientId,
-            content
+            content,
+            ...(sessionId ? { sessionId } : {})
         });
 
         await note.save();
         res.status(201).json(note);
     } catch (err) {
-        res.status(400).json({ message: err.message });
+        if (err?.name === 'ValidationError' || err?.name === 'CastError') {
+            return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 });
 

@@ -71,7 +71,13 @@ export default function Login() {
         </div>
       )}
 
-      <div className="mt-4 grid gap-3">
+      <form
+        className="mt-4 grid gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleLogin();
+        }}
+      >
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Email</span>
           <input
@@ -104,14 +110,13 @@ export default function Login() {
         </button>
 
         <button
-          type="button"
-          onClick={handleLogin}
+          type="submit"
           disabled={!canSubmit}
           className="mt-2 h-11 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
-      </div>
+      </form>
     </AuthShell>
   );
 }

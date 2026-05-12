@@ -16,7 +16,7 @@ export default function VerifyEmail() {
       if (!token) return;
       setLoading(true);
       try {
-        const res = await axios.get(`http://localhost:5000/api/auth/verify-email?token=${token}`);
+        const res = await axios.get(`http://localhost:5000/api/auth/verify-email?token=${encodeURIComponent(token)}`);
         setStatus(res.data?.message || 'Email verified successfully.');
         localStorage.setItem('isVerified', 'true');
       } catch (err) {

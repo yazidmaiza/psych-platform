@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
@@ -47,6 +47,7 @@ const TabButton = ({ active, children, onClick }) => (
 export default function PatientDetail() {
   const { patientId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -60,6 +61,15 @@ export default function PatientDetail() {
   const [data, setData] = useState({ messages: [], notes: [] });
   const [emotions, setEmotions] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [emotionFormOpen, setEmotionFormOpen] = useState(false);
+  const [emotionSessionId, setEmotionSessionId] = useState(null);
+  const [savingEmotions, setSavingEmotions] = useState(false);
+  const [emotionDraft, setEmotionDraft] = useState({
+    anxiety: 0,
+    sadness: 0,
+    anger: 0,
+    positivity: 0
+  });
 
   const [riskAlerts, setRiskAlerts] = useState([]);
   const socketRef = useRef(null);
@@ -128,18 +138,16 @@ export default function PatientDetail() {
 
       const active = sess.find((s) => String(s.status) === 'active');
       setActiveSessionId(active ? active._id : null);
+      setEmotionSessionId((current) => current || (active ? active._id : sess[0]?._id || null));
 
       const completed = sess.find((s) => String(s.status) === 'completed');
       setSessionIdForReport(completed ? completed._id : null);
 
-      if (completed) {
-        try {
-          const summaryRes = await api.get(`/api/chatbot/summary?patientId=${patientId}`);
-          setSummary(summaryRes || null);
-        } catch {
-          setSummary(null);
-        }
-      } else {
+      // Always try to load the latest AI summary (and latestReport link) for this patient.
+      try {
+        const summaryRes = await api.get(`/api/chatbot/summary?patientId=${patientId}`);
+        setSummary(summaryRes || null);
+      } catch {
         setSummary(null);
       }
     } catch (e) {
@@ -195,6 +203,44 @@ export default function PatientDetail() {
     window.URL.revokeObjectURL(url);
   }, [sessionIdForReport]);
 
+  const downloadChatbotReport = useCallback(async (explicitReportId) => {
+    try {
+      const reportId = explicitReportId || summary?.latestReport?._id;
+      if (!reportId) return;
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/chatbot/reports/${reportId}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || 'Failed to download PDF');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chatbot-report-${reportId}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e?.message || 'Failed to download PDF');
+    }
+  }, [summary]);
+
+  // If navigated here from a notification, auto-download the specified report id.
+  useEffect(() => {
+    const reportId = searchParams.get('downloadChatbotReport');
+    if (!reportId) return;
+
+    downloadChatbotReport(reportId);
+
+    // remove param after triggering once
+    const next = new URLSearchParams(searchParams);
+    next.delete('downloadChatbotReport');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloadChatbotReport]);
+
   const endSession = useCallback(async () => {
     if (!activeSessionId) return;
     if (!window.confirm('End this session? The patient will be prompted to rate you.')) return;
@@ -212,7 +258,7 @@ export default function PatientDetail() {
     if (!value) return;
     setSavingNote(true);
     try {
-      await api.post('/api/dashboard/notes', { patientId, content: value });
+      await api.post('/api/dashboard/notes', { patientId, sessionId: activeSessionId || undefined, content: value });
       setNewNote('');
       await fetchAll();
     } catch (e) {
@@ -220,7 +266,30 @@ export default function PatientDetail() {
     } finally {
       setSavingNote(false);
     }
-  }, [fetchAll, newNote, patientId]);
+  }, [activeSessionId, fetchAll, newNote, patientId]);
+
+  const saveEmotionalIndicators = useCallback(async () => {
+    if (!emotionSessionId) {
+      alert('Select a session first.');
+      return;
+    }
+    setSavingEmotions(true);
+    try {
+      const scores = {
+        anxiety: clamp(Number(emotionDraft.anxiety) || 0, 0, 100),
+        sadness: clamp(Number(emotionDraft.sadness) || 0, 0, 100),
+        anger: clamp(Number(emotionDraft.anger) || 0, 0, 100),
+        positivity: clamp(Number(emotionDraft.positivity) || 0, 0, 100)
+      };
+      await api.post('/api/dashboard/emotions', { patientId, sessionId: emotionSessionId, scores });
+      setEmotionFormOpen(false);
+      await fetchAll();
+    } catch (e) {
+      alert(e?.message || 'Failed to save emotional indicators');
+    } finally {
+      setSavingEmotions(false);
+    }
+  }, [emotionDraft, emotionSessionId, fetchAll, patientId]);
 
   const acknowledgeAlert = useCallback(async (alertId) => {
     try {
@@ -465,6 +534,21 @@ export default function PatientDetail() {
                           <div className="mt-2 text-xs leading-relaxed text-white/70">{summary.rawSummary}</div>
                         </div>
                       )}
+
+                      {summary.latestReport?._id && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={downloadChatbotReport}
+                            className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                          >
+                            Download chatbot PDF
+                          </button>
+                          <div className="text-xs text-white/50">
+                            Generated {fmtDate(summary.latestReport.createdAt)}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </GlassPanel>
@@ -502,6 +586,74 @@ export default function PatientDetail() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEmotionFormOpen((v) => !v)}
+                      className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                    >
+                      {emotionFormOpen ? 'Hide' : 'Add indicators'}
+                    </button>
+                  </div>
+
+                  {emotionFormOpen && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="grid gap-3">
+                        <label className="grid gap-1 text-xs text-white/70">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Session</span>
+                          <select
+                            value={emotionSessionId || ''}
+                            onChange={(e) => setEmotionSessionId(e.target.value || null)}
+                            className="h-10 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs text-white/80 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                          >
+                            <option value="" disabled>
+                              Select a session
+                            </option>
+                            {sessions.map((s) => (
+                              <option key={s._id} value={s._id}>
+                                {fmtDate(s.createdAt)} · {String(s.status || 'session')}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {['anxiety', 'sadness', 'anger', 'positivity'].map((key) => (
+                          <label key={key} className="grid gap-1 text-xs text-white/70">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-white/75">{emotionLabel(key)}</span>
+                              <span>{clamp(Number(emotionDraft[key]) || 0, 0, 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={clamp(Number(emotionDraft[key]) || 0, 0, 100)}
+                              onChange={(e) => setEmotionDraft((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                            />
+                          </label>
+                        ))}
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={saveEmotionalIndicators}
+                            disabled={savingEmotions || !emotionSessionId}
+                            className="h-10 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:opacity-50"
+                          >
+                            {savingEmotions ? 'Saving…' : 'Save indicators'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmotionDraft({ anxiety: 0, sadness: 0, anger: 0, positivity: 0 })}
+                            className="h-10 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </GlassPanel>
@@ -803,4 +955,3 @@ export default function PatientDetail() {
     </div>
   );
 }
-

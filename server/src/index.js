@@ -18,6 +18,7 @@ const { getPublicUploadsRoot } = require('./utils/uploadRoots');
 
 // Routes
 const calendarRoutes = require('./routes/calendar.routes');
+const ttsRoutes = require('./routes/ttsRoutes');
 
 dotenv.config();
 
@@ -40,19 +41,29 @@ const server = http.createServer(app);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max:
+    Number(process.env.AUTH_RATE_LIMIT_MAX) ||
+    (process.env.NODE_ENV === 'production' ? 10 : 1000),
   message: { message: 'Too many requests, please try again later.' }
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 100,
+  windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000,
+  max:
+    Number(process.env.API_RATE_LIMIT_MAX) ||
+    (process.env.NODE_ENV === 'production' ? 100 : 10000),
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Too many requests, please try again later.' }
 });
 
 const chatbotLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 50,
+  windowMs: Number(process.env.CHATBOT_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000,
+  max:
+    Number(process.env.CHATBOT_RATE_LIMIT_MAX) ||
+    (process.env.NODE_ENV === 'production' ? 50 : 10000),
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Chatbot message limit reached. Please try again later.' }
 });
 
@@ -173,6 +184,8 @@ app.use('/api/calendar', apiLimiter, calendarRoutes);
 app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
 app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
+app.use('/api/tts', apiLimiter, ttsRoutes);
+app.use('/api/review-queue', apiLimiter, require('./routes/reviewQueueRoutes'));
 app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
 
 //////////////////////////////////////////////////

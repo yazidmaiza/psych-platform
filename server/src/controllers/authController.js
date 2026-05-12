@@ -31,6 +31,9 @@ const buildAuthResponse = ({ user, accessToken, refreshToken, sessionId }) => ({
   user: {
     id: user._id,
     email: user.email,
+    fullName: user.fullName || '',
+    telephone: user.telephone || '',
+    birthDate: user.birthDate || '',
     role: user.role,
     isVerified: user.isVerified
   }
@@ -39,14 +42,21 @@ const buildAuthResponse = ({ user, accessToken, refreshToken, sessionId }) => ({
 // @POST /api/auth/register
 exports.register = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password, role, fullName, telephone, birthDate } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: 'Email already in use' });
     }
 
-    const user = new User({ email, password, role });
+    const user = new User({
+      email,
+      password,
+      role,
+      fullName: fullName ? String(fullName).trim() : '',
+      telephone: telephone ? String(telephone).trim() : '',
+      birthDate: birthDate ? String(birthDate).trim() : ''
+    });
     await user.save();
 
     const { ipAddress, userAgent, deviceId } = getRequestContext(req);

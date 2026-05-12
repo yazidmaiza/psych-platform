@@ -127,7 +127,7 @@ export default function Register() {
           <input
             value={form.fullName || ''}
             onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-            placeholder="John Doe"
+            placeholder="Cristiano Ronaldo"
             className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
           />
         </label>
@@ -150,7 +150,7 @@ export default function Register() {
             type="tel"
             value={form.telephone || ''}
             onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-            placeholder="123-456-7890"
+            placeholder="+216-54-569-821"
             className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
           />
         </label>

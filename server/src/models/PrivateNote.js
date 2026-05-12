@@ -13,7 +13,7 @@ const privateNoteSchema = new mongoose.Schema({
   sessionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Session',
-    required: true
+    required: false
   },
   content: {
     type: String,

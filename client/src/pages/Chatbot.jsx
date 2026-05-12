@@ -65,6 +65,52 @@ export default function Chatbot() {
 
   useEffect(() => { initSession(); }, [initSession]);
 
+  // When patient closes/leaves the chatbot, generate summary + emotional indicators server-side.
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    if (!token || role !== 'patient') return;
+
+    let sent = false;
+
+    const sendLogoutSummary = async () => {
+      if (sent) return;
+      sent = true;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3500);
+
+        await fetch('http://localhost:5000/api/chatbot/logout-summary', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({}),
+          keepalive: true,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+      } catch {
+        // ignore
+      }
+    };
+
+    const onBeforeUnload = () => {
+      // best-effort; keepalive helps on tab close
+      sendLogoutSummary();
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      // unmount when navigating away inside the SPA
+      sendLogoutSummary();
+    };
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
