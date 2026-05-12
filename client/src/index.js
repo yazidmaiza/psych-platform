@@ -4,6 +4,7 @@ import './index.css';
 import 'leaflet/dist/leaflet.css';
 import './i18n';
 import App from './App';
+import { ThemeProvider } from './context/ThemeContext';
 import reportWebVitals from './reportWebVitals';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -20,7 +21,9 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </React.StrictMode>
 );
 

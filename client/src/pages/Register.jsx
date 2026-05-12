@@ -21,7 +21,15 @@ const RoleCard = ({ active, label, description, onClick }) => (
 );
 
 export default function Register() {
-  const [form, setForm] = useState({ email: '', password: '', role: 'patient' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    telephone: '',
+    birthDate: '',
+    rePassword: '',
+    role: 'patient'
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -30,11 +38,35 @@ export default function Register() {
     const password = form.password.trim();
     const hasMinLength = password.length >= 8;
     const hasNumber = /\d/.test(password);
-    return form.email.trim().length > 0 && hasMinLength && hasNumber && !loading;
-  }, [form.email, form.password, loading]);
+    const allFieldsFilled =
+      form.fullName.trim().length > 0 &&
+      form.birthDate.trim().length > 0 &&
+      form.telephone.trim().length > 0 &&
+      form.email.trim().length > 0 &&
+      form.password.trim().length > 0 &&
+      form.rePassword.trim().length > 0;
+    const passwordsMatch = form.password === form.rePassword;
+    return allFieldsFilled && hasMinLength && hasNumber && passwordsMatch && !loading;
+  }, [form.fullName, form.birthDate, form.telephone, form.email, form.password, form.rePassword, loading]);
 
   const handleRegister = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      if (form.password !== form.rePassword) {
+        setError('Passwords do not match');
+      } else if (
+        !form.fullName.trim() ||
+        !form.birthDate.trim() ||
+        !form.telephone.trim() ||
+        !form.email.trim() ||
+        !form.password.trim() ||
+        !form.rePassword.trim()
+      ) {
+        setError('Please fill in all fields');
+      } else if (form.password.length < 8 || !/\d/.test(form.password)) {
+        setError('Password must be at least 8 characters and include a number');
+      }
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -89,6 +121,41 @@ export default function Register() {
       )}
 
       <div className="mt-4 grid gap-3">
+        {/* Full Name */}
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Full Name</span>
+          <input
+            value={form.fullName || ''}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            placeholder="John Doe"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        {/* Birth Date */}
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Birth Date</span>
+          <input
+            type="date"
+            value={form.birthDate || ''}
+            onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        {/* Telephone Number */}
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Telephone Number</span>
+          <input
+            type="tel"
+            value={form.telephone || ''}
+            onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+            placeholder="123-456-7890"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        {/* Email */}
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Email</span>
           <input
@@ -99,6 +166,7 @@ export default function Register() {
           />
         </label>
 
+        {/* Password */}
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Password</span>
           <input
@@ -111,23 +179,17 @@ export default function Register() {
           <div className="text-xs text-[color:var(--muted)]">Use at least 8 characters and include a number.</div>
         </label>
 
-        <div className="mt-2">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Account type</div>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <RoleCard
-              active={form.role === 'patient'}
-              label="Patient"
-              description="Book consultations and chat securely."
-              onClick={() => setForm({ ...form, role: 'patient' })}
-            />
-            <RoleCard
-              active={form.role === 'psychologist'}
-              label="Psychologist"
-              description="Set availability, manage patients, and run sessions."
-              onClick={() => setForm({ ...form, role: 'psychologist' })}
-            />
-          </div>
-        </div>
+        {/* Re-enter Password */}
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Re-enter Password</span>
+          <input
+            type="password"
+            value={form.rePassword || ''}
+            onChange={(e) => setForm({ ...form, rePassword: e.target.value })}
+            placeholder="********"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
 
         <button
           type="button"
