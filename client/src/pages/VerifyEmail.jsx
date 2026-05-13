@@ -17,9 +17,19 @@ export default function VerifyEmail() {
       setLoading(true);
       try {
         const res = await axios.get(`http://localhost:5000/api/auth/verify-email?token=${token}`);
+        console.log('DEBUG VerifyEmail: success response=', res.data);
         setStatus(res.data?.message || 'Email verified successfully.');
         localStorage.setItem('isVerified', 'true');
+        // Redirect to appropriate dashboard after 2 seconds
+        setTimeout(() => {
+          const role = localStorage.getItem('role');
+          if (role === 'admin') navigate('/admin');
+          else if (role === 'psychologist') navigate('/psychologist/dashboard');
+          else if (role === 'patient') navigate('/patient/dashboard');
+          else navigate('/login');
+        }, 2000);
       } catch (err) {
+        console.error('DEBUG VerifyEmail: error=', err.response?.data || err.message);
         setStatus(err.response?.data?.message || 'Verification failed.');
       } finally {
         setLoading(false);
@@ -27,7 +37,7 @@ export default function VerifyEmail() {
     };
 
     verify();
-  }, [token]);
+  }, [token, navigate]);
 
   const handleResend = async () => {
     setLoading(true);
