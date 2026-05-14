@@ -39,6 +39,7 @@ import PatientHistory from './pages/PatientHistory';
 import CalendarPage from './pages/Calendar';
 
 import AdminPanel from './pages/AdminPanel';
+import AuditLog from './pages/AuditLog';
 
 function App() {
   useEffect(() => {
@@ -252,6 +253,15 @@ function App() {
             element={
               <ProtectedRoute role="admin">
                 <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute role="admin">
+                <AuditLog />
               </ProtectedRoute>
             }
           />

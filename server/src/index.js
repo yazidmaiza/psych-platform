@@ -175,6 +175,7 @@ app.use('/api/sessions', apiLimiter, require('./routes/sessionRoutes'));
 app.use('/api/messages', apiLimiter, require('./routes/message.routes'));
 app.use('/api/dashboard', apiLimiter, require('./routes/dashboard.routes'));
 app.use('/api/admin', apiLimiter, require('./routes/adminRoutes'));
+app.use('/api/audit-events', apiLimiter, require('./routes/auditEventRoutes'));
 app.use('/api/sessions', apiLimiter, require('./routes/reportRoutes'));
 app.use('/api/sessions', apiLimiter, require('./routes/voiceRoutes'));
 app.use('/api/ratings', apiLimiter, require('./routes/ratingRoutes'));

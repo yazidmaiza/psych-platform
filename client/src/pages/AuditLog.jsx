@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 
@@ -22,6 +23,7 @@ const toQuery = (filters, page, limit) => {
 };
 
 export default function AuditLog() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState(() => {
     try {
       const raw = localStorage.getItem(FILTERS_KEY);
@@ -106,9 +108,18 @@ export default function AuditLog() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-4">
-        <div>
-          <div className="text-xl font-bold">Audit Log</div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xl font-bold">Audit Log</div>
           <div className="mt-1 text-sm text-white/60">Security and state-transition events (paginated).</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            className="h-10 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+          >
+            Back
+          </button>
         </div>
 
         {error && (
@@ -309,4 +320,3 @@ export default function AuditLog() {
     </div>
   );
 }
-

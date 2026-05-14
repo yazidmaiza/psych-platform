@@ -23,6 +23,7 @@ function Dashboard() {
   const navigate = useNavigate();
 
   const [section, setSection] = useState('patients');
+  const [patientSearch, setPatientSearch] = useState('');
 
   const [patients, setPatients] = useState([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
@@ -51,6 +52,16 @@ function Dashboard() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const filteredPatients = useMemo(() => {
+    const q = String(patientSearch || '').trim().toLowerCase();
+    if (!q) return patients;
+    return patients.filter((p) => {
+      const email = String(p?.email || '').toLowerCase();
+      const status = String(p?.status || '').toLowerCase();
+      return email.includes(q) || status.includes(q);
+    });
+  }, [patientSearch, patients]);
 
   const fetchPatients = useCallback(async () => {
     setPatientsLoading(true);
@@ -222,25 +233,6 @@ function Dashboard() {
 
               <div className="flex items-center gap-2">
                 <ThemeToggleButton />
-                <button
-                  type="button"
-                  onClick={() => setNotificationsOpen(true)}
-                  className="relative rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
-                >
-                  Notifications
-                  {unreadNotifications > 0 && (
-                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-indigo-500/90 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      {unreadNotifications}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileOpen(true)}
-                  className="rounded-2xl bg-[color:var(--accent-90)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
-                >
-                  Edit profile
-                </button>
               </div>
             </div>
           </div>
@@ -272,6 +264,22 @@ function Dashboard() {
                     </button>
                   </div>
 
+                  <GlassPanel className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs font-semibold text-white/60">
+                        {patientsLoading ? 'Loading…' : `${filteredPatients.length} / ${patients.length} shown`}
+                      </div>
+                      <div className="w-full sm:max-w-sm">
+                        <input
+                          value={patientSearch}
+                          onChange={(e) => setPatientSearch(e.target.value)}
+                          placeholder="Search by email or status…"
+                          className="h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-3 text-sm text-white/80 placeholder:text-white/30"
+                        />
+                      </div>
+                    </div>
+                  </GlassPanel>
+
                   {patientsError && (
                     <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
                       {patientsError}
@@ -288,7 +296,7 @@ function Dashboard() {
                   )}
 
                   <div className="grid gap-3">
-                    {patients.map((request) => (
+                    {filteredPatients.map((request) => (
                       <GlassPanel key={request._id} className="p-5 transition hover:bg-white/10">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
