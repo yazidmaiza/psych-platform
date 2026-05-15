@@ -13,8 +13,21 @@ const validateProfileCompleteness = (psychologist) => {
 };
 
 const validateDocumentsCompleteness = async ({ ownerUserId }) => {
-  const current = await CredentialDocument.find({ ownerUserId, isCurrent: true }).select('type');
-  const existing = new Set((current || []).map((d) => d.type));
+  // Backwards compatible: older rows may not have `isCurrent` set at all.
+  // Treat missing `isCurrent` as current, and only consider the latest per type.
+  const docs = await CredentialDocument.find({
+    ownerUserId,
+    $or: [{ isCurrent: true }, { isCurrent: { $exists: false } }]
+  }).select('type version createdAt').sort({ type: 1, version: -1, createdAt: -1 });
+
+  const existing = new Set();
+  const seenTypes = new Set();
+  for (const doc of docs || []) {
+    const type = String(doc?.type || '');
+    if (!type || seenTypes.has(type)) continue;
+    seenTypes.add(type);
+    existing.add(type);
+  }
   const missingDocuments = REQUIRED_DOC_TYPES.filter((t) => !existing.has(t));
   return { ok: missingDocuments.length === 0, missingDocuments };
 };
@@ -25,4 +38,3 @@ module.exports = {
   validateProfileCompleteness,
   validateDocumentsCompleteness
 };
-

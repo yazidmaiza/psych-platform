@@ -352,9 +352,23 @@ exports.downloadByToken = async (req, res) => {
 // @GET /api/credential-documents/my
 exports.getMyCurrentDocuments = async (req, res) => {
   try {
-    const docs = await CredentialDocument.find({ ownerUserId: req.user.id, isCurrent: true })
-      .sort({ type: 1, version: -1 });
-    return res.status(200).json(docs);
+    // Backwards compatible: older rows may not have `isCurrent` set at all.
+    // Treat missing `isCurrent` as current, and return the latest per type.
+    const docs = await CredentialDocument.find({
+      ownerUserId: req.user.id,
+      $or: [{ isCurrent: true }, { isCurrent: { $exists: false } }]
+    }).sort({ type: 1, version: -1, createdAt: -1 });
+
+    const latestByType = [];
+    const seenTypes = new Set();
+    for (const doc of docs) {
+      const type = String(doc.type || '');
+      if (!type || seenTypes.has(type)) continue;
+      seenTypes.add(type);
+      latestByType.push(doc);
+    }
+
+    return res.status(200).json(latestByType);
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
   }

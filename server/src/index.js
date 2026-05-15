@@ -19,6 +19,7 @@ const { getPublicUploadsRoot } = require('./utils/uploadRoots');
 // Routes
 const calendarRoutes = require('./routes/calendar.routes');
 const ttsRoutes = require('./routes/ttsRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 dotenv.config();
 
@@ -89,6 +90,8 @@ app.use((req, res, next) => {
   if (
     req.path.startsWith('/api/documents/upload') ||
     req.path.startsWith('/api/verification/upload') ||
+    req.path.startsWith('/api/credential-documents/upload') ||
+    req.path.startsWith('/api/profile-photos/upload') ||
     (req.path.startsWith('/api/sessions') &&
       req.path.includes('/voice'))
   ) {
@@ -114,6 +117,19 @@ app.use(
           'Cache-Control',
           'public, max-age=86400'
         );
+      }
+    }
+  )
+);
+
+// Patient profile photos (no moderation pipeline yet)
+app.use(
+  '/uploads/patient-photos',
+  express.static(
+    path.join(getPublicUploadsRoot(), 'patient_photos'),
+    {
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
       }
     }
   )
@@ -181,12 +197,16 @@ app.use('/api/sessions', apiLimiter, require('./routes/voiceRoutes'));
 app.use('/api/ratings', apiLimiter, require('./routes/ratingRoutes'));
 app.use('/api/verification', apiLimiter, require('./routes/verificationRoutes'));
 app.use('/api/documents', apiLimiter, require('./routes/documentRoutes'));
+app.use('/api/credential-documents', apiLimiter, require('./routes/credentialDocumentRoutes'));
 app.use('/api/calendar', apiLimiter, calendarRoutes);
 app.use('/api/notifications', apiLimiter, require('./routes/notificationRoutes'));
+app.use('/api/users', apiLimiter, userRoutes);
 app.use('/api/risk-alerts', apiLimiter, require('./routes/riskAlertRoutes'));
 app.use('/api/persona', apiLimiter, require('./routes/personaRoutes'));
 app.use('/api/tts', apiLimiter, ttsRoutes);
 app.use('/api/review-queue', apiLimiter, require('./routes/reviewQueueRoutes'));
+app.use('/api/onboarding', apiLimiter, require('./routes/onboardingRoutes'));
+app.use('/api/profile-photos', apiLimiter, require('./routes/profilePhotoRoutes'));
 app.use('/api/chat', chatbotLimiter, require('./workflows/chatRoute'));
 
 //////////////////////////////////////////////////

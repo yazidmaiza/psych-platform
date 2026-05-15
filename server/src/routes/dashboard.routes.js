@@ -94,7 +94,7 @@ router.get('/patients', protect, async (req, res) => {
         // Get unique patient IDs
         const User = require('../models/User');
         const uniquePatientIds = [...new Set(sessions.map(s => s.patientId.toString()))];
-        const patients = await User.find({ _id: { $in: uniquePatientIds } }).select('-password');
+        const patients = await User.find({ _id: { $in: uniquePatientIds } }).select('email firstName lastName fullName photo');
 
         // Merge session info with patient info
         const result = uniquePatientIds.map(patientId => {
@@ -104,6 +104,10 @@ router.get('/patients', protect, async (req, res) => {
                 _id: patientSessions[0]._id,
                 patientId,
                 email: patient?.email || 'Unknown',
+                firstName: patient?.firstName || '',
+                lastName: patient?.lastName || '',
+                fullName: patient?.fullName || '',
+                photo: patient?.photo || '',
                 sessionCount: patientSessions.length,
                 lastSession: patientSessions[0].createdAt,
                 status: patientSessions[0].status

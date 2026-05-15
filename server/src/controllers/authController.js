@@ -31,9 +31,12 @@ const buildAuthResponse = ({ user, accessToken, refreshToken, sessionId }) => ({
   user: {
     id: user._id,
     email: user.email,
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
     fullName: user.fullName || '',
     telephone: user.telephone || '',
     birthDate: user.birthDate || '',
+    photo: user.photo || '',
     role: user.role,
     isVerified: user.isVerified
   }
