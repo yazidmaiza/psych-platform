@@ -27,6 +27,8 @@ import SessionPage from './pages/SessionPage';
 import RateConsultation from './pages/RateConsultation';
 import MySessionHistory from './pages/MySessionHistory';
 import Notifications from './pages/Notifications';
+import PatientDashboard from './pages/PatientDashboard';
+import PatientEditProfile from './pages/PatientEditProfile';
 
 import Conversation from './pages/Conversation';
 import Statistics from './pages/Statistics';
@@ -35,7 +37,6 @@ import Dashboard from './pages/Dashboard';
 import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
 import PatientDetail from './pages/PatientDetail';
-import PatientHistory from './pages/PatientHistory';
 import CalendarPage from './pages/Calendar';
 
 import AdminPanel from './pages/AdminPanel';
@@ -69,7 +70,25 @@ function App() {
             path="/patient/dashboard"
             element={
               <ProtectedRoute role="patient">
+                <PatientDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patient/discovery"
+            element={
+              <ProtectedRoute role="patient">
                 <PsychologistList />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patient/profile"
+            element={
+              <ProtectedRoute role="patient">
+                <PatientEditProfile />
               </ProtectedRoute>
             }
           />
@@ -216,15 +235,6 @@ function App() {
             element={
               <ProtectedRoute role="psychologist">
                 <PatientDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/history/:patientId"
-            element={
-              <ProtectedRoute role="psychologist">
-                <PatientHistory />
               </ProtectedRoute>
             }
           />

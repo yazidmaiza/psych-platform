@@ -19,13 +19,13 @@ const StarRating = ({ rating, total }) => {
         {stars.map((star) => (
           <span
             key={star}
-            className={`text-sm ${star <= Math.round(rating) ? 'text-amber-300' : 'text-white/20'}`}
+            className={`text-sm ${star <= Math.round(rating) ? 'text-tertiary-container' : 'text-outline-variant'}`}
           >
             *
           </span>
         ))}
       </div>
-      <span className="text-xs text-white/60">
+      <span className="text-xs text-on-surface-variant">
         {rating > 0 ? `${rating.toFixed(1)} (${total})` : t('noRatingsYet')}
       </span>
     </div>
@@ -33,7 +33,7 @@ const StarRating = ({ rating, total }) => {
 };
 
 const Glass = ({ children, className = '' }) => (
-  <div className={`rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-sm ${className}`}>
+  <div className={`bg-white/70 backdrop-blur-md border border-white rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)] ${className}`}>
     {children}
   </div>
 );
@@ -163,13 +163,13 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
         chosenStart: selectedWindow.start.toISOString(),
         chosenDuration: duration
       });
-      setSuccess('Booking request sent! The psychologist will confirm shortly.');
+      setSuccess(t('bookingRequestSent'));
       setTimeout(() => {
         onBooked();
         onClose();
       }, 2000);
     } catch (e) {
-      setError(e.message || 'Failed to send booking request.');
+      setError(e.message || t('bookingRequestFailed'));
     } finally {
       setBooking(false);
     }
@@ -183,7 +183,7 @@ function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, o
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t('close')}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -438,92 +438,102 @@ function PsychologistList() {
   }, [psychologists, openPsychologistUserIds]);
 
   return (
-    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
-      {/* Background */}
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-[var(--app-bg)]" />
-      </div>
-
-      <div className="relative">
-        {/* Header */}
-        <div className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
-          <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 items-start gap-3" dir={i18n.dir()}>
-                <PlatformLogo size={40} className="mt-0.5" />
-                <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{t('patientDashboard')}</h1>
-                  <p className="mt-1 text-sm text-[color:var(--muted)]">
-                    {t('dashboardDesc')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2" dir={i18n.dir()}>
-                 <ThemeToggleButton />
-                  <select
-                    className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition outline-none cursor-pointer"
-                    value={i18n.language}
-                    onChange={(e) => i18n.changeLanguage(e.target.value)}
-                  >
-                    <option value="en">EN</option>
-                    <option value="fr">FR</option>
-                    <option value="ar">AR</option>
-                  </select>
-                <button
-                  onClick={() => navigate('/history')}
-                  className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
-                >
-                  {t('mySessions')}
-                </button>
-                <button
-                  onClick={() => {
-                    setNotificationsOpen(true);
-                    refreshUnreadNotifications();
-                  }}
-                  className="relative rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-                >
-                  {t('notifications')}
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -right-1 -top-1 grid h-5 min-w-[20px] place-items-center rounded-full bg-indigo-500 px-1 text-[11px] font-bold text-white">
-                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={logout}
-                  className="rounded-xl bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500 transition"
-                >
-                  {t('logout')}
-                </button>
-              </div>
+    <div className="bg-background text-on-background antialiased min-h-screen">
+      <header className="bg-surface/70 dark:bg-surface-container/70 backdrop-blur-xl top-0 sticky z-50 border-b border-white/20 dark:border-outline-variant/20 shadow-[0_8px_30px_rgba(27,77,92,0.08)]">
+        <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+          <div className="flex items-center gap-3">
+            <PlatformLogo size={34} className="mt-0.5" />
+            <div className="font-display-lg text-title-md font-bold text-primary dark:text-primary-fixed-dim">
+              PsychPlatform
             </div>
           </div>
-        </div>
 
-        <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+          <nav className="hidden md:flex gap-8 items-center">
+            <button
+              type="button"
+              onClick={() => navigate('/patient/discovery')}
+              className="text-primary dark:text-primary-fixed-dim font-bold border-b-2 border-primary dark:border-primary-fixed-dim pb-1 font-body-md text-body-md"
+            >
+              {t('navDiscovery')}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/patient/dashboard')}
+              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
+            >
+              {t('navDashboard')}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/history')}
+              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
+            >
+              {t('navHistory')}
+            </button>
+          </nav>
+
+          <div className="flex items-center gap-2" dir={i18n.dir()}>
+            <ThemeToggleButton />
+            <select
+              className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-2 py-2 text-sm font-semibold text-on-surface hover:brightness-110 transition outline-none cursor-pointer"
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+            >
+              <option value="en">EN</option>
+              <option value="fr">FR</option>
+              <option value="ar">AR</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                setNotificationsOpen(true);
+                refreshUnreadNotifications();
+              }}
+              className="relative text-primary dark:text-primary-fixed-dim p-2 rounded-full hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-all duration-300"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <span className="material-symbols-outlined">notifications</span>
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-on-primary">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="ml-1 rounded-2xl bg-error px-4 py-2 text-sm font-semibold text-on-error hover:brightness-110 transition"
+            >
+              {t('logout')}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
           {/* Filters */}
-          <Glass className="p-4 sm:p-5">
+          <Glass className="p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" dir={i18n.dir()}>
               <div>
-                <h2 className="text-sm font-semibold text-white">{t('searchFilters')}</h2>
-                <p className="mt-1 text-xs text-white/60">
+                <h2 className="font-title-md text-title-md text-primary">{t('searchFilters')}</h2>
+                <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
                   {t('useFiltersThenSearch')}
                 </p>
               </div>
 
               <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end flex-wrap">
                 <input
-                  className="w-full lg:max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white placeholder:text-white/60 outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+                  className="w-full lg:max-w-[280px] rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
                   placeholder={t('searchPlaceholder')}
                   value={filters.search}
                   onChange={e => setFilters({ ...filters, search: e.target.value })}
                 />
                 
                 <select
-                  className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-white outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+                  className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 py-3 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
                   value={filters.sort}
                   onChange={e => setFilters({ ...filters, sort: e.target.value })}
                 >
@@ -540,7 +550,7 @@ function PsychologistList() {
                         checked={useLocation}
                         onChange={(e) => setUseLocation(e.target.checked)}
                       />
-                      <div className="absolute inset-0 rounded-full bg-white/10 peer-checked:bg-indigo-500 transition"></div>
+                      <div className="absolute inset-0 rounded-full bg-outline-variant/40 peer-checked:bg-primary transition"></div>
                       <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></div>
                     </div>
                     {t('useMyLocation')}
@@ -552,11 +562,11 @@ function PsychologistList() {
                     </div>
                   )}
                   {useLocation && filters.lat && (
-                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/30 px-3 text-sm text-white/50 h-[46px] rtl:flex-row-reverse">
+                    <div className="flex items-center gap-2 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-3 text-sm text-on-surface-variant h-[46px] rtl:flex-row-reverse">
                       <span>{t('within')}</span>
                       <input
                         type="number"
-                        className="w-16 h-9 rounded-xl border border-white/10 bg-transparent px-2 text-center text-white outline-none focus:border-indigo-400/40"
+                        className="w-16 h-9 rounded-xl border border-outline-variant/40 bg-transparent px-2 text-center text-on-surface outline-none focus:border-primary/40"
                         min="1"
                         value={filters.distance}
                         onChange={e => setFilters(f => ({ ...f, distance: Number(e.target.value) || 1 }))}
@@ -569,7 +579,7 @@ function PsychologistList() {
             </div>
 
             {error && (
-              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50 rtl:text-right" dir={i18n.dir()}>
+              <div className="mt-4 rounded-2xl border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-on-error-container rtl:text-right" dir={i18n.dir()}>
                 {error}
               </div>
             )}
@@ -579,13 +589,13 @@ function PsychologistList() {
           <div className="mt-6 flex gap-2">
             <button
               onClick={() => setViewMode('list')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-primary text-on-primary' : 'bg-white/70 border border-white text-on-surface-variant hover:brightness-110'}`}
             >
               {t('listView')}
             </button>
             <button
               onClick={() => setViewMode('map')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-primary text-on-primary' : 'bg-white/70 border border-white text-on-surface-variant hover:brightness-110'}`}
             >
               {t('mapView')}
             </button>
@@ -594,10 +604,10 @@ function PsychologistList() {
           {/* Content */}
           <div className="mt-4">
             <div className="flex items-center justify-between gap-3 min-w-0" dir={i18n.dir()}>
-              <h3 className="text-sm font-semibold text-white">
+              <h3 className="text-sm font-semibold text-primary">
                 {t('availablePsychologists')}
               </h3>
-              <div className="text-xs text-white/60 shrink-0">
+              <div className="text-xs text-on-surface-variant shrink-0">
                 {loading ? '...' : `${visiblePsychologists.length} `}
               </div>
             </div>
@@ -605,7 +615,7 @@ function PsychologistList() {
             {(!loading && visiblePsychologists.length === 0) && (
               <Glass className="mt-4 p-10 text-center rtl:text-right" dir={i18n.dir()}>
                 <div className="text-sm font-semibold">{t('noPsychologists')}</div>
-                <p className="mt-2 text-sm text-white/60">
+                <p className="mt-2 text-sm text-on-surface-variant">
                   {t('changeFilters')}
                 </p>
               </Glass>
@@ -613,22 +623,22 @@ function PsychologistList() {
 
             <div className="mt-4">
               {viewMode === 'map' ? (
-                <div className="h-[600px] rounded-3xl overflow-hidden border border-white/10 relative z-0">
+                <div className="h-[600px] rounded-3xl overflow-hidden border border-outline-variant/40 relative z-0 bg-surface-container-lowest/70">
                   {filters.lat && (
                     <button
                       onClick={() => setRecenterTrigger(t => t + 1)}
-                      className="absolute bottom-6 left-6 z-[400] rounded-xl bg-slate-900/90 backdrop-blur border border-white/20 px-4 py-3 text-sm font-bold text-white shadow-xl hover:bg-slate-800 transition rtl:right-6 rtl:left-auto"
+                      className="absolute bottom-6 left-6 z-[400] rounded-xl bg-surface/90 backdrop-blur border border-outline-variant/40 px-4 py-3 text-sm font-bold text-primary shadow-xl hover:brightness-110 transition rtl:right-6 rtl:left-auto"
                     >
                       {t('recenterLocation')}
                     </button>
                   )}
                   {locationDenied && (
-                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-bold text-white shadow-xl text-center w-max max-w-xs">
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] rounded-xl bg-error/90 px-4 py-2 text-sm font-bold text-on-error shadow-xl text-center w-max max-w-xs">
                       {t('deniedLocation')}
                     </div>
                   )}
 
-                  <MapContainer center={filters.lat ? [filters.lat, filters.lng] : [36.8065, 10.1815]} zoom={13} className="h-full w-full bg-slate-800">
+                  <MapContainer center={filters.lat ? [filters.lat, filters.lng] : [36.8065, 10.1815]} zoom={13} className="h-full w-full bg-surface-container-high">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     
                     <MapEventHandler locationDenied={locationDenied} setFilters={setFilters} />
@@ -647,7 +657,7 @@ function PsychologistList() {
                             <div className="text-xs text-slate-600 mt-1 rtl:text-right" dir={i18n.dir()}>
                               {psy.city || t('cityNotSet')}
                               {useLocation && filters.lat && filters.lng && (
-                                <span className="block mt-1 font-semibold text-indigo-600">
+                                <span className="block mt-1 font-semibold text-primary">
                                   {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
                                 </span>
                               )}
@@ -675,13 +685,13 @@ function PsychologistList() {
                     const photoUrl = toAbsoluteUrl(psy.photo);
 
                     return (
-                      <Glass key={psy._id} className="p-5 transition hover:bg-white/10">
+                      <Glass key={psy._id} className="p-6">
                         <div className="flex items-start gap-4">
-                          <div className="h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                          <div className="h-12 w-12 overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70">
                             {photoUrl ? (
                               <img src={photoUrl} alt={`${psy.firstName} ${psy.lastName}`} className="h-full w-full object-cover" />
                             ) : (
-                              <div className="grid h-full w-full place-items-center text-sm font-bold text-white">
+                              <div className="grid h-full w-full place-items-center text-sm font-bold text-primary">
                                 {initials || 'P'}
                               </div>
                             )}
@@ -693,10 +703,10 @@ function PsychologistList() {
                                 <div className="truncate text-base font-semibold">
                                   {psy.firstName} {psy.lastName}
                                 </div>
-                                <div className="mt-1 text-sm text-white/60 flex flex-wrap gap-1 items-center">
+                                <div className="mt-1 text-sm text-on-surface-variant flex flex-wrap gap-1 items-center">
                                   {psy.city || t('notSet')}
                                   {useLocation && filters.lat && filters.lng && psy.location?.coordinates && (
-                                    <span className="font-semibold text-indigo-400">
+                                    <span className="font-semibold text-primary">
                                       | {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
                                     </span>
                                   )}
@@ -704,7 +714,7 @@ function PsychologistList() {
                               </div>
 
                               <div className="shrink-0 text-right rtl:text-left">
-                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                                <div className="rounded-full border border-outline-variant/40 bg-surface-container-lowest/70 px-3 py-1 text-xs font-semibold text-on-surface-variant">
                                   {psy.sessionPrice > 0 ? `${psy.sessionPrice} TND` : t('priceNotSet')}
                                 </div>
                               </div>
@@ -715,25 +725,25 @@ function PsychologistList() {
                             </div>
 
                             {psy.nextAvailableAt && (
-                              <div className="mt-2 text-xs text-emerald-200" dir={i18n.dir()}>
+                              <div className="mt-2 text-xs text-secondary" dir={i18n.dir()}>
                                 {t('nextAvailable')}: {moment(psy.nextAvailableAt).format('ddd D MMM, HH:mm')}
                               </div>
                             )}
 
-                            <div className="mt-3 grid gap-2 text-sm text-white/70" dir={i18n.dir()}>
+                            <div className="mt-3 grid gap-2 text-sm text-on-surface-variant" dir={i18n.dir()}>
                               <div className="truncate">
-                                <span className="text-white/50">{t('languages')}</span>{' '}
+                                <span className="text-on-surface-variant/70">{t('languages')}</span>{' '}
                                 {Array.isArray(psy.languages) ? psy.languages.join(', ') : (psy.languages || t('notSet'))}
                               </div>
                               <div className="truncate">
-                                <span className="text-white/50">{t('specializations')}</span>{' '}
+                                <span className="text-on-surface-variant/70">{t('specializations')}</span>{' '}
                                 {Array.isArray(psy.specializations) ? psy.specializations.join(', ') : (psy.specializations || t('notSet'))}
                               </div>
                             </div>
 
                             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                               <button
-                                className="h-[44px] flex-1 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
+                                className="h-[44px] flex-1 rounded-2xl bg-secondary px-4 text-sm font-semibold text-on-secondary shadow hover:brightness-110 transition disabled:opacity-50"
                                 onClick={() => {
                                   if (!psychologistUserId) return;
                                   setSlotPickerTarget({
@@ -747,7 +757,7 @@ function PsychologistList() {
                                 {t('bookSession')}
                               </button>
                               <button
-                                className="h-[44px] flex-1 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                                className="h-[44px] flex-1 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary shadow hover:brightness-110 transition"
                                 onClick={() => navigate(`/p/psychologist/${psy._id}`)}
                               >
                                 {t('viewProfile')}
@@ -771,7 +781,6 @@ function PsychologistList() {
             refreshUnreadNotifications();
           }}
         />
-      </div>
 
       {/* Slot picker modal */}
       {slotPickerTarget && (

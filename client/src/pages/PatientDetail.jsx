@@ -31,13 +31,29 @@ const emotionLabel = (emotion) => {
   return emotion;
 };
 
+const SESSION_TYPE_LABELS = {
+  preparation: 'First consultation preparation',
+  followup: 'Follow-up session',
+  free: 'Free expression'
+};
+
+const sessionStatusBadgeClass = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-800';
+  if (s === 'completed') return 'border-sky-500/20 bg-sky-500/10 text-sky-800';
+  if (s === 'canceled' || s === 'rejected') return 'border-rose-500/20 bg-rose-500/10 text-rose-800';
+  return 'border-amber-500/20 bg-amber-500/10 text-amber-800';
+};
+
 const TabButton = ({ active, children, onClick }) => (
   <button
     type="button"
     onClick={onClick}
     className={[
-      'h-9 rounded-2xl border px-4 text-xs font-semibold transition',
-      active ? 'border-indigo-400/30 bg-indigo-500/20 text-indigo-50' : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
+      'h-9 rounded-2xl border px-4 text-xs font-semibold shadow-sm backdrop-blur transition',
+      active
+        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900'
+        : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70'
     ].join(' ')}
   >
     {children}
@@ -74,7 +90,11 @@ export default function PatientDetail() {
   const [riskAlerts, setRiskAlerts] = useState([]);
   const socketRef = useRef(null);
 
-  const [tab, setTab] = useState('overview'); // overview | alerts | notes | documents | chat
+  const [tab, setTab] = useState('overview'); // overview | history | alerts | notes | documents | chat
+
+  // History (sessions)
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyOnlyCompleted, setHistoryOnlyCompleted] = useState(false);
 
   // Notes
   const [newNote, setNewNote] = useState('');
@@ -202,6 +222,21 @@ export default function PatientDetail() {
     a.click();
     window.URL.revokeObjectURL(url);
   }, [sessionIdForReport]);
+
+  const downloadSessionPDF = useCallback(async (sessionId) => {
+    if (!sessionId) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}/report/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report-${sessionId}.pdf`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }, []);
 
   const downloadChatbotReport = useCallback(async (explicitReportId) => {
     try {
@@ -356,15 +391,27 @@ export default function PatientDetail() {
     return list.filter((m) => String(m.content || '').toLowerCase().includes(q)).slice(-50);
   }, [chatQuery, data?.messages]);
 
+  const filteredSessions = useMemo(() => {
+    const q = String(historyQuery || '').trim().toLowerCase();
+    let list = sessions;
+    if (historyOnlyCompleted) list = list.filter((s) => String(s.status) === 'completed');
+    if (!q) return list;
+    return list.filter((s) => {
+      const type = SESSION_TYPE_LABELS[s.sessionType] || s.sessionType || '';
+      return `${type} ${s.status} ${fmtDate(s.createdAt)}`.toLowerCase().includes(q);
+    });
+  }, [historyOnlyCompleted, historyQuery, sessions]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
         <div className="pointer-events-none fixed inset-0">
-          <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-          <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+          <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
+          <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
           <div className="absolute inset-0 bg-[var(--app-bg)]" />
         </div>
-        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 text-sm text-white/60">
+        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 text-sm text-slate-600">
           Loading patient...
         </div>
       </div>
@@ -374,71 +421,69 @@ export default function PatientDetail() {
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
+        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
-        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <button onClick={() => navigate(-1)} className="text-xs font-semibold text-white/70 hover:text-white">
+                <button onClick={() => navigate(-1)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
                   ← Back
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <h1 className="truncate text-lg font-semibold tracking-tight">Patient details</h1>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">Patient details</h1>
+                  <span className="ui-pill">
                     {patientMeta?.email || patientId}
                   </span>
                   {unackedAlerts.length > 0 && (
-                    <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-100">
+                    <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-800 shadow-sm">
                       {unackedAlerts.length} alert{unackedAlerts.length === 1 ? '' : 's'}
                     </span>
                   )}
                 </div>
-                <div className="mt-1 text-xs text-white/50">
+                <div className="mt-1 text-xs text-slate-500">
                   {stats.total} sessions · {stats.completed} completed · {stats.active} active
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex max-w-full items-center gap-2 overflow-x-auto whitespace-nowrap">
                 <button
                   onClick={() => setChatOpen(true)}
-                  className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                  className="h-9 ui-btn-primary px-4 text-xs"
                 >
                   Open chat
                 </button>
                 {activeSessionId && (
-                  <button
-                    onClick={endSession}
-                    className="h-9 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 text-xs font-semibold text-rose-50 hover:bg-rose-500/15"
-                    title="End the active session"
-                  >
-                    End session
-                  </button>
+                    <button
+                      onClick={endSession}
+                      className="h-9 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 text-xs font-semibold text-rose-800 shadow-sm transition hover:bg-rose-500/15"
+                      title="End the active session"
+                    >
+                      End session
+                    </button>
                 )}
                 {sessionIdForReport && (
                   <button
                     onClick={downloadPDF}
-                    className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                    className="h-9 ui-btn-ghost px-4 text-xs"
                   >
                     Download report
                   </button>
                 )}
-                <button
-                  onClick={() => navigate(`/history/${patientId}`)}
-                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
-                >
-                  History
-                </button>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
                 Overview
+              </TabButton>
+              <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
+                History
               </TabButton>
               <TabButton active={tab === 'alerts'} onClick={() => setTab('alerts')}>
                 Risk alerts
@@ -459,8 +504,8 @@ export default function PatientDetail() {
         <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
           {error && (
             <GlassPanel className="p-5">
-              <div className="text-sm font-semibold text-rose-200/90">Could not load patient</div>
-              <div className="mt-1 text-xs text-white/60">{error}</div>
+              <div className="text-sm font-semibold text-rose-800">Could not load patient</div>
+              <div className="mt-1 text-xs text-slate-600">{error}</div>
             </GlassPanel>
           )}
 
@@ -469,31 +514,31 @@ export default function PatientDetail() {
               <div className="space-y-5 lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white/80">AI summary</div>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60">Latest</span>
+                    <div className="text-sm font-semibold text-slate-900">AI summary</div>
+                    <span className="ui-pill">Latest</span>
                   </div>
                   {!summary ? (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
                       No AI summary available yet (requires at least one completed session).
                     </div>
                   ) : (
                     <>
                       <div className="mt-4 grid grid-cols-3 gap-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
-                          <div className="text-[11px] font-semibold text-white/55">Emotion</div>
-                          <div className="mt-1 text-xs font-semibold text-white/80 capitalize">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-slate-500">Emotion</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-900 capitalize">
                             {summary.emotionalIndicators?.dominantEmotion || '—'}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
-                          <div className="text-[11px] font-semibold text-white/55">Urgency</div>
-                          <div className="mt-1 text-xs font-semibold text-white/80">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-slate-500">Urgency</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-900">
                             {summary.emotionalIndicators?.urgencyScore ? `${summary.emotionalIndicators.urgencyScore} / 5` : '—'}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
-                          <div className="text-[11px] font-semibold text-white/55">Trend</div>
-                          <div className="mt-1 text-xs font-semibold text-white/80 capitalize">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-slate-500">Trend</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-900 capitalize">
                             {summary.emotionalIndicators?.sentimentTrend || '—'}
                           </div>
                         </div>
@@ -501,12 +546,12 @@ export default function PatientDetail() {
 
                       {summary.keyThemes?.length > 0 && (
                         <div className="mt-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Key themes</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Key themes</div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {summary.keyThemes.slice(0, 12).map((t, i) => (
                               <span
                                 key={i}
-                                className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-[11px] font-semibold text-indigo-50/90"
+                                className="rounded-full border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] px-3 py-1 text-[11px] font-semibold text-slate-800 shadow-sm"
                               >
                                 {t}
                               </span>
@@ -516,12 +561,12 @@ export default function PatientDetail() {
                       )}
 
                       {summary.recommendations?.length > 0 && (
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Suggested follow-ups</div>
+                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Suggested follow-ups</div>
                           <div className="mt-2 space-y-2">
                             {summary.recommendations.slice(0, 6).map((rec, i) => (
-                              <div key={i} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70">
-                                <span className="font-semibold text-white/80">{i + 1}.</span> {rec}
+                              <div key={i} className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-3 text-xs text-slate-700 shadow-sm backdrop-blur">
+                                <span className="font-semibold text-slate-900">{i + 1}.</span> {rec}
                               </div>
                             ))}
                           </div>
@@ -529,9 +574,9 @@ export default function PatientDetail() {
                       )}
 
                       {summary.rawSummary && (
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Clinical summary</div>
-                          <div className="mt-2 text-xs leading-relaxed text-white/70">{summary.rawSummary}</div>
+                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Clinical summary</div>
+                          <div className="mt-2 text-xs leading-relaxed text-slate-700">{summary.rawSummary}</div>
                         </div>
                       )}
 
@@ -540,11 +585,11 @@ export default function PatientDetail() {
                           <button
                             type="button"
                             onClick={downloadChatbotReport}
-                            className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                            className="h-9 ui-btn-primary px-4 text-xs"
                           >
                             Download chatbot PDF
                           </button>
-                          <div className="text-xs text-white/50">
+                          <div className="text-xs text-slate-500">
                             Generated {fmtDate(summary.latestReport.createdAt)}
                           </div>
                         </div>
@@ -556,20 +601,20 @@ export default function PatientDetail() {
 
               <div className="space-y-5">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Emotional indicators</div>
+                  <div className="text-sm font-semibold text-slate-900">Emotional indicators</div>
                   {emotions.length === 0 ? (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
                       No emotional indicators yet.
                     </div>
                   ) : (
                     <div className="mt-4 space-y-3">
                       {Object.entries(emotions?.[0]?.scores || {}).map(([emotion, score]) => (
                         <div key={emotion}>
-                          <div className="mb-1 flex items-center justify-between text-xs text-white/65">
-                            <span className="font-semibold text-white/75">{emotionLabel(emotion)}</span>
+                          <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                            <span className="font-semibold text-slate-800">{emotionLabel(emotion)}</span>
                             <span>{score}%</span>
                           </div>
-                          <div className="h-2.5 w-full rounded-full bg-white/10">
+                          <div className="h-2.5 w-full rounded-full bg-slate-900/10">
                             <div
                               className={[
                                 'h-2.5 rounded-full transition-all',
@@ -593,21 +638,21 @@ export default function PatientDetail() {
                     <button
                       type="button"
                       onClick={() => setEmotionFormOpen((v) => !v)}
-                      className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                      className="h-9 ui-btn-ghost px-4 text-xs"
                     >
                       {emotionFormOpen ? 'Hide' : 'Add indicators'}
                     </button>
                   </div>
 
                   {emotionFormOpen && (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
                       <div className="grid gap-3">
-                        <label className="grid gap-1 text-xs text-white/70">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Session</span>
+                        <label className="grid gap-1 text-xs text-slate-600">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Session</span>
                           <select
                             value={emotionSessionId || ''}
                             onChange={(e) => setEmotionSessionId(e.target.value || null)}
-                            className="h-10 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs text-white/80 outline-none focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                            className="ui-input text-xs"
                           >
                             <option value="" disabled>
                               Select a session
@@ -621,9 +666,9 @@ export default function PatientDetail() {
                         </label>
 
                         {['anxiety', 'sadness', 'anger', 'positivity'].map((key) => (
-                          <label key={key} className="grid gap-1 text-xs text-white/70">
+                          <label key={key} className="grid gap-1 text-xs text-slate-600">
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-white/75">{emotionLabel(key)}</span>
+                              <span className="font-semibold text-slate-800">{emotionLabel(key)}</span>
                               <span>{clamp(Number(emotionDraft[key]) || 0, 0, 100)}%</span>
                             </div>
                             <input
@@ -641,14 +686,14 @@ export default function PatientDetail() {
                             type="button"
                             onClick={saveEmotionalIndicators}
                             disabled={savingEmotions || !emotionSessionId}
-                            className="h-10 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:opacity-50"
+                            className="h-10 ui-btn-primary px-4 text-xs disabled:opacity-50"
                           >
                             {savingEmotions ? 'Saving…' : 'Save indicators'}
                           </button>
                           <button
                             type="button"
                             onClick={() => setEmotionDraft({ anxiety: 0, sadness: 0, anger: 0, positivity: 0 })}
-                            className="h-10 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                            className="h-10 ui-btn-ghost px-4 text-xs"
                           >
                             Reset
                           </button>
@@ -661,18 +706,115 @@ export default function PatientDetail() {
             </div>
           )}
 
+          {tab === 'history' && (
+            <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="space-y-5 lg:col-span-2">
+                <GlassPanel className="p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">Sessions</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={historyQuery}
+                        onChange={(e) => setHistoryQuery(e.target.value)}
+                        placeholder="Search sessions..."
+                        className="h-9 w-[220px] rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 text-xs text-slate-800 outline-none placeholder:text-slate-400 shadow-sm backdrop-blur focus:ring-2 focus:ring-[color:var(--accent-12)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setHistoryOnlyCompleted((v) => !v)}
+                        className={[
+                          'h-9 rounded-2xl border px-4 text-xs font-semibold shadow-sm backdrop-blur transition',
+                          historyOnlyCompleted
+                            ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900'
+                            : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70'
+                        ].join(' ')}
+                        title="Show only completed sessions"
+                      >
+                        Completed only
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {filteredSessions.length === 0 && (
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
+                        No sessions match your filters.
+                      </div>
+                    )}
+
+                    {filteredSessions.map((s) => (
+                      <div
+                        key={s._id}
+                        className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-slate-900">
+                              {SESSION_TYPE_LABELS[s.sessionType] || s.sessionType || 'Session'}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">{fmtDate(s.createdAt)}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={[
+                                'rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+                                sessionStatusBadgeClass(s.status)
+                              ].join(' ')}
+                            >
+                              {String(s.status || 'unknown')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => downloadSessionPDF(s._id)}
+                              disabled={String(s.status) !== 'completed'}
+                              className="h-9 ui-btn-ghost px-4 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                              title={String(s.status) === 'completed' ? 'Download report' : 'Report available after completion'}
+                            >
+                              PDF
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassPanel>
+              </div>
+
+              <div className="space-y-5">
+                <GlassPanel className="p-5">
+                  <div className="text-sm font-semibold text-slate-900">At a glance</div>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Total', value: stats.total },
+                      { label: 'Active', value: stats.active },
+                      { label: 'Completed', value: stats.completed }
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur"
+                      >
+                        <div className="text-[11px] font-semibold text-slate-500">{item.label}</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassPanel>
+              </div>
+            </div>
+          )}
+
           {tab === 'alerts' && (
             <div className="mt-5 space-y-5">
               <GlassPanel className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-white/80">Risk alerts</div>
-                  <div className="text-xs text-white/50">
+                  <div className="text-sm font-semibold text-slate-900">Risk alerts</div>
+                  <div className="text-xs text-slate-500">
                     {unackedAlerts.length > 0 ? `${unackedAlerts.length} unacknowledged` : 'All acknowledged'}
                   </div>
                 </div>
 
                 {riskAlerts.length === 0 ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                  <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
                     No risk alerts detected.
                   </div>
                 ) : (
@@ -681,10 +823,10 @@ export default function PatientDetail() {
                       const severity = String(alert.severity || 'medium').toLowerCase();
                       const theme =
                         severity === 'low'
-                          ? { border: 'border-amber-400/20', bg: 'bg-amber-500/10', text: 'text-amber-50', dot: 'bg-amber-400/80' }
+                          ? { border: 'border-amber-300/40', bg: 'bg-amber-50/70', text: 'text-amber-900', dot: 'bg-amber-500' }
                           : severity === 'high' || severity === 'critical'
-                            ? { border: 'border-rose-400/25', bg: 'bg-rose-500/10', text: 'text-rose-50', dot: 'bg-rose-400/80' }
-                            : { border: 'border-orange-400/20', bg: 'bg-orange-500/10', text: 'text-orange-50', dot: 'bg-orange-400/80' };
+                            ? { border: 'border-rose-300/45', bg: 'bg-rose-50/70', text: 'text-rose-900', dot: 'bg-rose-500' }
+                            : { border: 'border-orange-300/45', bg: 'bg-orange-50/70', text: 'text-orange-900', dot: 'bg-orange-500' };
 
                       return (
                         <div
@@ -698,11 +840,11 @@ export default function PatientDetail() {
                                 <div className={`text-sm font-semibold ${theme.text}`}>
                                   {String(alert.riskCategory || 'risk').replaceAll('_', ' ')}
                                 </div>
-                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/70">
+                                <span className="ui-pill">
                                   {String(alert.severity || 'medium').toUpperCase()}
                                 </span>
                               </div>
-                              <div className="mt-1 text-xs text-white/55">
+                              <div className="mt-1 text-xs text-slate-600">
                                 {fmtDate(alert.createdAt)} · {fmtTime(alert.createdAt)}
                               </div>
                             </div>
@@ -711,24 +853,24 @@ export default function PatientDetail() {
                               {!alert.isAcknowledged ? (
                                 <button
                                   onClick={() => acknowledgeAlert(alert._id)}
-                                  className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                                  className="h-9 ui-btn-ghost px-4 text-xs"
                                 >
                                   Acknowledge
                                 </button>
                               ) : (
-                                <span className="text-xs font-semibold text-emerald-200/90">Acknowledged</span>
+                                <span className="text-xs font-semibold text-emerald-800">Acknowledged</span>
                               )}
                             </div>
                           </div>
 
                           {alert.triggerMessage && (
-                            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+                            <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-xs text-slate-700 shadow-sm backdrop-blur">
                               “{String(alert.triggerMessage).slice(0, 240)}
                               {String(alert.triggerMessage).length > 240 ? '…' : ''}”
                             </div>
                           )}
 
-                          <div className="mt-3 text-[11px] text-white/55">Score: {alert.riskScore}/100</div>
+                          <div className="mt-3 text-[11px] text-slate-600">Score: {alert.riskScore}/100</div>
                         </div>
                       );
                     })}
@@ -742,19 +884,19 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Add note</div>
+                  <div className="text-sm font-semibold text-slate-900">Add note</div>
                   <div className="mt-3">
                     <textarea
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Write a private note for yourself (visible only to you)…"
-                      className="h-32 w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                      className="h-32 w-full resize-none rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 shadow-sm backdrop-blur transition focus:ring-2"
                     />
                   </div>
                   <button
                     onClick={addNote}
                     disabled={savingNote || !String(newNote || '').trim()}
-                    className="mt-3 h-10 w-full rounded-2xl bg-indigo-500/25 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-3 h-10 w-full ui-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {savingNote ? 'Saving...' : 'Save note'}
                   </button>
@@ -763,19 +905,19 @@ export default function PatientDetail() {
 
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Notes</div>
+                  <div className="text-sm font-semibold text-slate-900">Notes</div>
                   <div className="mt-4 space-y-3">
                     {Array.isArray(data?.notes) && data.notes.length > 0 ? (
                       data.notes.map((note) => (
-                        <div key={note._id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-sm text-white/80">{note.content}</div>
-                          <div className="mt-2 text-xs text-white/50">
+                        <div key={note._id} className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <div className="text-sm text-slate-800">{note.content}</div>
+                          <div className="mt-2 text-xs text-slate-500">
                             {fmtDate(note.createdAt)} · {fmtTime(note.createdAt)}
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">No notes yet.</div>
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">No notes yet.</div>
                     )}
                   </div>
                 </GlassPanel>
@@ -787,29 +929,29 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="space-y-5 lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Upload PDF</div>
+                  <div className="text-sm font-semibold text-slate-900">Upload PDF</div>
                   <div className="mt-3">
                     <input
                       type="file"
                       accept="application/pdf"
                       onChange={(e) => setDocFile(e.target.files?.[0] || null)}
-                      className="block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/80"
+                      className="block w-full rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-2 text-xs text-slate-700 shadow-sm backdrop-blur file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900/5 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-900/10"
                     />
                   </div>
                   <button
                     onClick={uploadDocument}
                     disabled={uploading || !docFile}
-                    className="mt-3 h-10 w-full rounded-2xl bg-indigo-500/25 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-3 h-10 w-full ui-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {uploading ? 'Uploading...' : 'Upload'}
                   </button>
-                  <div className="mt-2 text-[11px] text-white/50">Uploaded documents stay private and are only visible to authorized staff.</div>
+                  <div className="mt-2 text-[11px] text-slate-500">Uploaded documents stay private and are only visible to authorized staff.</div>
                 </GlassPanel>
 
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Ask about a document</div>
+                  <div className="text-sm font-semibold text-slate-900">Ask about a document</div>
                   {!selectedDoc ? (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
                       Select a document to ask questions.
                     </div>
                   ) : (
@@ -820,20 +962,20 @@ export default function PatientDetail() {
                           onChange={(e) => setQuestion(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && queryDocument()}
                           placeholder="e.g. What are the main symptoms mentioned?"
-                          className="h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-xs text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                          className="ui-input px-4 text-xs"
                         />
                       </div>
                       <button
                         onClick={queryDocument}
                         disabled={querying || !String(question || '').trim()}
-                        className="mt-3 h-10 w-full rounded-2xl border border-white/10 bg-white/5 text-xs font-semibold text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="mt-3 h-10 w-full ui-btn-ghost text-xs disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {querying ? 'Thinking...' : 'Ask'}
                       </button>
                       {answer && (
-                        <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Answer</div>
-                          <div className="mt-2 text-xs leading-relaxed text-white/70">{answer}</div>
+                        <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Answer</div>
+                          <div className="mt-2 text-xs leading-relaxed text-slate-700">{answer}</div>
                         </div>
                       )}
                     </>
@@ -844,10 +986,10 @@ export default function PatientDetail() {
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white/80">Documents</div>
+                    <div className="text-sm font-semibold text-slate-900">Documents</div>
                     <button
                       onClick={fetchDocuments}
-                      className="h-9 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white/80 hover:bg-white/10"
+                      className="h-9 ui-btn-ghost px-4 text-xs"
                     >
                       Refresh
                     </button>
@@ -855,7 +997,7 @@ export default function PatientDetail() {
 
                   <div className="mt-4 space-y-2">
                     {documents.length === 0 ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
                         No documents uploaded yet.
                       </div>
                     ) : (
@@ -869,15 +1011,17 @@ export default function PatientDetail() {
                           }}
                           className={[
                             'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition',
-                            selectedDoc === doc._id ? 'border-indigo-400/30 bg-indigo-500/15' : 'border-white/10 bg-white/5 hover:bg-white/7'
+                            selectedDoc === doc._id
+                              ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] shadow-sm'
+                              : 'border-[color:var(--panel-border)] bg-white/60 hover:bg-white/75 shadow-sm backdrop-blur'
                           ].join(' ')}
                         >
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-white/85">{doc.originalName}</div>
-                            <div className="mt-1 text-xs text-white/55">{fmtDate(doc.createdAt)}</div>
+                            <div className="truncate text-sm font-semibold text-slate-900">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-slate-500">{fmtDate(doc.createdAt)}</div>
                           </div>
                           {selectedDoc === doc._id && (
-                            <span className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-50/90">
+                            <span className="ui-pill">
                               Selected
                             </span>
                           )}
@@ -894,31 +1038,31 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-white/80">Search messages</div>
+                  <div className="text-sm font-semibold text-slate-900">Search messages</div>
                   <input
                     value={chatQuery}
                     onChange={(e) => setChatQuery(e.target.value)}
                     placeholder="Type to filter..."
-                    className="mt-3 h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-xs text-white/80 outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/15"
+                    className="mt-3 ui-input px-4 text-xs"
                   />
-                  <div className="mt-2 text-[11px] text-white/50">Showing the most recent 50 matches.</div>
+                  <div className="mt-2 text-[11px] text-slate-500">Showing the most recent 50 matches.</div>
                 </GlassPanel>
               </div>
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-white/80">Chat preview</div>
+                    <div className="text-sm font-semibold text-slate-900">Chat preview</div>
                     <button
                       onClick={() => setChatOpen(true)}
-                      className="h-9 rounded-2xl bg-indigo-500/25 px-4 text-xs font-semibold text-indigo-50 hover:bg-indigo-500/35"
+                      className="h-9 ui-btn-primary px-4 text-xs"
                     >
                       Open full chat
                     </button>
                   </div>
 
-                  <div className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
                     {filteredMessages.length === 0 ? (
-                      <div className="py-10 text-center text-sm text-white/60">No messages.</div>
+                      <div className="py-10 text-center text-sm text-slate-600">No messages.</div>
                     ) : (
                       filteredMessages.map((msg) => {
                         const fromPatient = String(msg.senderId) === String(patientId);
@@ -927,11 +1071,13 @@ export default function PatientDetail() {
                             <div
                               className={[
                                 'max-w-[80%] rounded-2xl px-4 py-3',
-                                fromPatient ? 'border border-white/10 bg-white/5 text-white/80' : 'bg-indigo-500/25 text-indigo-50'
+                                fromPatient
+                                  ? 'border border-[color:var(--panel-border)] bg-white/70 text-slate-800 shadow-sm backdrop-blur'
+                                  : 'border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] text-slate-900 shadow-sm'
                               ].join(' ')}
                             >
                               <div className="text-sm leading-relaxed">{msg.content}</div>
-                              <div className="mt-1 text-[11px] text-white/50">{fmtTime(msg.createdAt)}</div>
+                              <div className="mt-1 text-[11px] text-slate-500">{fmtTime(msg.createdAt)}</div>
                             </div>
                           </div>
                         );

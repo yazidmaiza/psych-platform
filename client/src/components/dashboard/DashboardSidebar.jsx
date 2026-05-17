@@ -7,17 +7,17 @@ const Item = ({ active, disabled, onClick, label, meta }) => (
     disabled={disabled}
     onClick={onClick}
     className={[
-      'group w-full rounded-2xl border px-4 py-3 text-left transition',
+      'group w-full rounded-2xl border px-4 py-3 text-left shadow-sm backdrop-blur transition',
       active
-        ? 'border-indigo-400/30 bg-indigo-500/15 text-white'
-        : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10',
+        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900 shadow-[0_10px_22px_rgba(15,23,42,0.10)]'
+        : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70',
       disabled ? 'opacity-50 cursor-not-allowed' : ''
     ].join(' ')}
   >
     <div className="flex items-center justify-between gap-3">
-      <div className="text-sm font-semibold">{label}</div>
+      <div className="text-sm font-semibold tracking-tight">{label}</div>
       {meta != null && (
-        <div className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/80">
+        <div className="rounded-full border border-[color:var(--panel-border)] bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
           {meta}
         </div>
       )}
@@ -36,19 +36,19 @@ export default function DashboardSidebar({
 }) {
   return (
     <aside className="w-full lg:w-[320px]">
-      <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-4">
+      <div className="ui-glass p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <PlatformLogo size={36} className="mt-0.5" />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-white">Psychologist</div>
-              <div className="mt-1 text-xs text-white/60">Dashboard</div>
+              <div className="text-sm font-semibold text-slate-900">Psychologist</div>
+              <div className="mt-1 text-xs text-slate-500">Dashboard</div>
             </div>
           </div>
           <button
             type="button"
             onClick={onLogout}
-            className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-50 hover:bg-rose-500/15 transition"
+            className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-500/15"
           >
             Logout
           </button>
@@ -64,6 +64,11 @@ export default function DashboardSidebar({
             active={section === 'documents'}
             onClick={() => onSectionChange('documents')}
             label="Credential documents"
+          />
+          <Item
+            active={section === 'messages'}
+            onClick={() => onSectionChange('messages')}
+            label="Messages"
           />
           <Item
             active={section === 'statistics'}
@@ -91,9 +96,9 @@ export default function DashboardSidebar({
           />
         </div>
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-xs font-semibold text-white/80">Tip</div>
-          <div className="mt-1 text-xs text-white/60">
+        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/50 p-4 shadow-sm backdrop-blur">
+          <div className="text-xs font-semibold text-slate-700">Tip</div>
+          <div className="mt-1 text-xs text-slate-500">
             Keep your availability updated so patients can book from your confirmed slots.
           </div>
         </div>

@@ -10,12 +10,13 @@ import AreaLineChart from '../components/charts/AreaLineChart';
 import StackedBar from '../components/charts/StackedBar';
 import PlatformLogo from '../components/branding/PlatformLogo';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
+import ConversationDrawer from '../components/conversation/ConversationDrawer';
 
 const StatCard = ({ label, value, hint }) => (
   <GlassPanel className="p-5">
-    <div className="text-xs font-semibold text-white/60">{label}</div>
-    <div className="mt-2 text-2xl font-semibold tracking-tight text-white">{value}</div>
-    {hint && <div className="mt-1 text-xs text-white/50">{hint}</div>}
+    <div className="text-xs font-semibold text-slate-500">{label}</div>
+    <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
+    {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
   </GlassPanel>
 );
 
@@ -24,6 +25,11 @@ function Dashboard() {
 
   const [section, setSection] = useState('patients');
   const [patientSearch, setPatientSearch] = useState('');
+  const [messagesSearch, setMessagesSearch] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatPatientId, setChatPatientId] = useState(null);
+  const [chatTitle, setChatTitle] = useState('Messages');
+  const [chatSubtitle, setChatSubtitle] = useState('');
 
   const [patients, setPatients] = useState([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
@@ -62,6 +68,16 @@ function Dashboard() {
       return email.includes(q) || status.includes(q);
     });
   }, [patientSearch, patients]);
+
+  const filteredMessagePatients = useMemo(() => {
+    const q = String(messagesSearch || '').trim().toLowerCase();
+    if (!q) return patients;
+    return patients.filter((p) => {
+      const email = String(p?.email || '').toLowerCase();
+      const status = String(p?.status || '').toLowerCase();
+      return email.includes(q) || status.includes(q);
+    });
+  }, [messagesSearch, patients]);
 
   const fetchPatients = useCallback(async () => {
     setPatientsLoading(true);
@@ -138,6 +154,15 @@ function Dashboard() {
     }
   }, [credentialUploadFiles, fetchCredentialDocs, fetchOnboarding]);
 
+  const openChatForPatient = useCallback((patient) => {
+    const id = patient?.patientId?.toString?.() || patient?.patientId;
+    if (!id) return;
+    setChatPatientId(id);
+    setChatTitle('Messages');
+    setChatSubtitle(String(patient?.email || id));
+    setChatOpen(true);
+  }, []);
+
   const refreshUnreadNotifications = useCallback(async () => {
     try {
       const data = await api.get('/api/notifications');
@@ -195,9 +220,9 @@ function Dashboard() {
 
   const statusBadge = useCallback((status) => {
     const s = String(status || '').toLowerCase();
-    if (s === 'accepted' || s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-50';
-    if (s === 'rejected' || s === 'canceled') return 'border-rose-500/20 bg-rose-500/10 text-rose-50';
-    return 'border-amber-500/20 bg-amber-500/10 text-amber-50';
+    if (s === 'accepted' || s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-800';
+    if (s === 'rejected' || s === 'canceled') return 'border-rose-500/20 bg-rose-500/10 text-rose-800';
+    return 'border-amber-500/25 bg-amber-500/10 text-amber-800';
   }, []);
 
   const breakdownSegments = useMemo(() => {
@@ -210,23 +235,30 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
-      {/* Background (match Session page look) */}
+      {/* Soft light background */}
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
+        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
-        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 <PlatformLogo size={36} />
                 <div className="min-w-0">
-                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">Dashboard</h1>
+                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
                   <div className="mt-1 text-xs text-[color:var(--muted)]">
-                    {section === 'patients' ? 'Manage patients and consultations' : 'Your performance at a glance'}
+                    {section === 'patients'
+                      ? 'Manage patients and consultations'
+                      : section === 'messages'
+                        ? 'Messages with your patients'
+                        : section === 'documents'
+                          ? 'Upload and manage credential documents'
+                          : 'Your performance at a glance'}
                   </div>
                 </div>
               </div>
@@ -254,11 +286,11 @@ function Dashboard() {
               {section === 'patients' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-white">Your patients</div>
+                    <div className="text-sm font-semibold text-slate-900">Your patients</div>
                     <button
                       type="button"
                       onClick={fetchPatients}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      className="ui-btn-ghost px-3 py-2 text-xs"
                     >
                       Refresh
                     </button>
@@ -266,7 +298,7 @@ function Dashboard() {
 
                   <GlassPanel className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-xs font-semibold text-white/60">
+                      <div className="text-xs font-semibold text-slate-500">
                         {patientsLoading ? 'Loading…' : `${filteredPatients.length} / ${patients.length} shown`}
                       </div>
                       <div className="w-full sm:max-w-sm">
@@ -274,14 +306,14 @@ function Dashboard() {
                           value={patientSearch}
                           onChange={(e) => setPatientSearch(e.target.value)}
                           placeholder="Search by email or status…"
-                          className="h-10 w-full rounded-2xl border border-white/10 bg-white/5 px-3 text-sm text-white/80 placeholder:text-white/30"
+                          className="ui-input"
                         />
                       </div>
                     </div>
                   </GlassPanel>
 
                   {patientsError && (
-                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-800 shadow-sm">
                       {patientsError}
                     </div>
                   )}
@@ -289,7 +321,7 @@ function Dashboard() {
                   {(!patientsLoading && patients.length === 0) && (
                     <GlassPanel className="p-10 text-center">
                       <div className="text-sm font-semibold">No patients yet</div>
-                      <div className="mt-2 text-sm text-white/60">
+                      <div className="mt-2 text-sm text-slate-500">
                         When a patient books a consultation, they will appear here.
                       </div>
                     </GlassPanel>
@@ -297,15 +329,33 @@ function Dashboard() {
 
                   <div className="grid gap-3">
                     {filteredPatients.map((request) => (
-                      <GlassPanel key={request._id} className="p-5 transition hover:bg-white/10">
+                      <GlassPanel key={request._id} className="p-5">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="truncate text-base font-semibold text-white">{request.email}</div>
-                            <div className="mt-1 grid gap-1 text-sm text-white/60 sm:grid-cols-2">
-                              <div>Sessions: <span className="text-white/80">{request.sessionCount}</span></div>
+                          <div className="min-w-0 flex items-start gap-3">
+                            <div className="h-12 w-12 overflow-hidden rounded-2xl border border-[color:var(--panel-border)] bg-white/60 shrink-0 shadow-sm">
+                              {request?.photo ? (
+                                <img
+                                  src={toAbsoluteUrl(request.photo)}
+                                  alt={request.fullName || request.email}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="grid h-full w-full place-items-center text-sm font-bold text-slate-700">
+                                  {(request.fullName || request.email || 'P').slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="truncate text-base font-semibold text-slate-900">
+                                {request.fullName || request.email}
+                              </div>
+                              <div className="mt-0.5 truncate text-xs text-slate-500">{request.email}</div>
+                            <div className="mt-1 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
+                              <div>Sessions: <span className="text-slate-800">{request.sessionCount}</span></div>
                               <div>
                                 Last activity:{' '}
-                                <span className="text-white/80">
+                                <span className="text-slate-800">
                                   {request.lastSession ? new Date(request.lastSession).toLocaleDateString() : 'N/A'}
                                 </span>
                               </div>
@@ -318,22 +368,113 @@ function Dashboard() {
                             >
                               {request.status || 'pending'}
                             </span>
+                            </div>
                           </div>
 
                           <div className="flex flex-col gap-2 sm:w-[240px]">
                             <button
                               type="button"
-                              className="h-11 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                              className="h-11 ui-btn-primary"
                               onClick={() => navigate(`/patient/${request.patientId?.toString()}`)}
                             >
                               Session and notes
                             </button>
+                          </div>
+                        </div>
+                      </GlassPanel>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {section === 'messages' && (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">Messages</div>
+                    <button
+                      type="button"
+                      onClick={fetchPatients}
+                      className="ui-btn-ghost px-3 py-2 text-xs"
+                      disabled={patientsLoading}
+                    >
+                      {patientsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  <GlassPanel className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs font-semibold text-slate-500">
+                        {patientsLoading ? 'Loading...' : `${filteredMessagePatients.length} / ${patients.length} shown`}
+                      </div>
+                      <div className="w-full sm:max-w-sm">
+                        <input
+                          value={messagesSearch}
+                          onChange={(e) => setMessagesSearch(e.target.value)}
+                          placeholder="Search patients..."
+                          className="ui-input text-sm"
+                        />
+                      </div>
+                    </div>
+                  </GlassPanel>
+
+                  {patientsError && (
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-800 shadow-sm">
+                      {patientsError}
+                    </div>
+                  )}
+
+                  {!patientsLoading && filteredMessagePatients.length === 0 && (
+                    <GlassPanel className="p-10 text-center">
+                      <div className="text-sm font-semibold">No patients found</div>
+                      <div className="mt-2 text-sm text-slate-500">
+                        Try adjusting your search.
+                      </div>
+                    </GlassPanel>
+                  )}
+
+                  <div className="grid gap-3">
+                    {filteredMessagePatients.map((p) => (
+                      <GlassPanel key={String(p.patientId)} className="p-5">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="truncate text-sm font-semibold text-slate-900">
+                                {p.email || p.patientId}
+                              </div>
+                              <span
+                                className={[
+                                  'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold',
+                                  statusBadge(p.status)
+                                ].join(' ')}
+                              >
+                                {String(p.status || 'pending')}
+                              </span>
+                            </div>
+                            <div className="mt-1 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
+                              <div>Sessions: <span className="text-slate-800">{p.sessionCount}</span></div>
+                              <div>
+                                Last activity:{' '}
+                                <span className="text-slate-800">
+                                  {p.lastSession ? new Date(p.lastSession).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
-                              className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-                              onClick={() => navigate(`/history/${request.patientId}`)}
+                              className="h-10 ui-btn-ghost"
+                              onClick={() => navigate(`/patient/${p.patientId?.toString?.() || p.patientId}`)}
                             >
-                              Patient history
+                              View patient
+                            </button>
+                            <button
+                              type="button"
+                              className="h-10 ui-btn-primary"
+                              onClick={() => openChatForPatient(p)}
+                            >
+                              Open chat
                             </button>
                           </div>
                         </div>
@@ -346,11 +487,11 @@ function Dashboard() {
               {section === 'statistics' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-white">Statistics</div>
+                    <div className="text-sm font-semibold text-slate-900">Statistics</div>
                     <button
                       type="button"
                       onClick={fetchStats}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      className="ui-btn-ghost px-3 py-2 text-xs"
                       disabled={statsLoading}
                     >
                       {statsLoading ? 'Refreshing...' : 'Refresh'}
@@ -358,14 +499,14 @@ function Dashboard() {
                   </div>
 
                   {statsError && (
-                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-800 shadow-sm">
                       {statsError}
                     </div>
                   )}
 
                   {!stats && statsLoading && (
                     <GlassPanel className="p-6">
-                      <div className="text-sm text-white/60">Loading statistics...</div>
+                      <div className="text-sm text-slate-600">Loading statistics...</div>
                     </GlassPanel>
                   )}
 
@@ -388,12 +529,12 @@ function Dashboard() {
                       <GlassPanel className="p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white">Sessions (last 14 days)</div>
-                            <div className="mt-1 text-xs text-white/60">New sessions created per day</div>
+                            <div className="text-sm font-semibold text-slate-900">Sessions (last 14 days)</div>
+                            <div className="mt-1 text-xs text-slate-500">New sessions created per day</div>
                           </div>
-                          <div className="text-xs text-white/60">
+                          <div className="text-xs text-slate-500">
                             Max:{' '}
-                            <span className="text-white/80">
+                            <span className="text-slate-800">
                               {Math.max(0, ...(Array.isArray(stats.sessionsByDay) ? stats.sessionsByDay.map((d) => Number(d.count || 0)) : [0]))}
                             </span>
                           </div>
@@ -404,8 +545,8 @@ function Dashboard() {
                       </GlassPanel>
 
                       <GlassPanel className="p-5">
-                        <div className="text-sm font-semibold text-white">Session breakdown</div>
-                        <div className="mt-1 text-xs text-white/60">Active vs pending vs completed</div>
+                        <div className="text-sm font-semibold text-slate-900">Session breakdown</div>
+                        <div className="mt-1 text-xs text-slate-500">Active vs pending vs completed</div>
                         <div className="mt-4">
                           <StackedBar segments={breakdownSegments} />
                         </div>
@@ -418,11 +559,11 @@ function Dashboard() {
               {section === 'documents' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-white">Credential documents</div>
+                    <div className="text-sm font-semibold text-slate-900">Credential documents</div>
                     <button
                       type="button"
                       onClick={fetchCredentialDocs}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                      className="ui-btn-ghost px-3 py-2 text-xs"
                       disabled={credentialDocsLoading}
                     >
                       {credentialDocsLoading ? 'Refreshing...' : 'Refresh'}
@@ -430,7 +571,7 @@ function Dashboard() {
                   </div>
 
                   {credentialDocsError && (
-                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-800 shadow-sm">
                       {credentialDocsError}
                     </div>
                   )}
@@ -438,17 +579,17 @@ function Dashboard() {
                   <GlassPanel className="p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-white">Onboarding status</div>
-                        <div className="mt-1 text-xs text-white/60">
+                        <div className="text-sm font-semibold text-slate-900">Onboarding status</div>
+                        <div className="mt-1 text-xs text-slate-500">
                           {onboardingLoading ? 'Loading...' : onboarding?.profileStatus || '—'}
                         </div>
                         {onboarding?.profileStatus === 'Rejected' && onboarding?.rejectionReason && (
-                          <div className="mt-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-50">
+                          <div className="mt-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-800">
                             Rejected: {onboarding.rejectionReason}
                           </div>
                         )}
                         {onboarding?.profileStatus === 'Submitted' && (
-                          <div className="mt-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-50">
+                          <div className="mt-2 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-900">
                             Application submitted and locked for review.
                           </div>
                         )}
@@ -458,7 +599,7 @@ function Dashboard() {
                           <button
                             type="button"
                             onClick={submitOnboarding}
-                            className="h-10 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white hover:bg-emerald-500 transition"
+                            className="h-10 ui-btn-primary"
                           >
                             {onboarding?.profileStatus === 'Rejected' ? 'Resubmit' : 'Submit'}
                           </button>
@@ -469,8 +610,8 @@ function Dashboard() {
 
                   {(onboarding?.profileStatus === 'Draft' || onboarding?.profileStatus === 'Rejected') && (
                     <GlassPanel className="p-5">
-                      <div className="text-sm font-semibold text-white">Upload replacements</div>
-                      <div className="mt-1 text-xs text-white/60">
+                      <div className="text-sm font-semibold text-slate-900">Upload replacements</div>
+                      <div className="mt-1 text-xs text-slate-500">
                         After admin rejection, upload updated documents here, then click <span className="font-semibold">Resubmit</span>.
                       </div>
                       <div className="mt-4 grid gap-3">
@@ -481,10 +622,10 @@ function Dashboard() {
                           { type: 'idBack', label: 'ID Back (JPG/PNG)', accept: 'image/jpeg,image/png' },
                           { type: 'introVideo', label: 'Intro Video (MP4/MOV/WEBM)', accept: 'video/mp4,video/webm,video/quicktime,.mov' }
                         ].map((item) => (
-                          <div key={item.type} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div key={item.type} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold text-white">{item.label}</div>
-                              <div className="mt-1 break-all text-xs text-white/50">
+                              <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+                              <div className="mt-1 break-all text-xs text-slate-500">
                                 {credentialUploadFiles?.[item.type]?.name || 'No file selected'}
                               </div>
                             </div>
@@ -496,13 +637,13 @@ function Dashboard() {
                                   const f = e.target.files?.[0] || null;
                                   setCredentialUploadFiles((prev) => ({ ...prev, [item.type]: f }));
                                 }}
-                                className="block w-full sm:w-auto text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-white/15"
+                                className="block w-full sm:w-auto text-xs text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900/5 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-900/10"
                               />
                               <button
                                 type="button"
                                 onClick={() => uploadCredentialDoc(item.type)}
                                 disabled={!credentialUploadFiles?.[item.type] || credentialUploadLoading}
-                                className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition disabled:opacity-50"
+                                className="h-10 ui-btn-primary disabled:opacity-50"
                               >
                                 {credentialUploadLoading && credentialUploadType === item.type ? 'Uploading...' : 'Upload'}
                               </button>
@@ -516,7 +657,7 @@ function Dashboard() {
                   {!credentialDocsLoading && credentialDocs.length === 0 && (
                     <GlassPanel className="p-10 text-center">
                       <div className="text-sm font-semibold">No documents yet</div>
-                      <div className="mt-2 text-sm text-white/60">
+                      <div className="mt-2 text-sm text-slate-500">
                         Upload your documents during onboarding to submit for verification.
                       </div>
                     </GlassPanel>
@@ -527,11 +668,11 @@ function Dashboard() {
                       <GlassPanel key={doc._id} className="p-5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white">
-                              {String(doc.type || '').toUpperCase()} <span className="text-white/50">·</span> v{doc.version}
+                            <div className="text-sm font-semibold text-slate-900">
+                              {String(doc.type || '').toUpperCase()} <span className="text-slate-400">·</span> v{doc.version}
                             </div>
-                            <div className="mt-1 break-all text-xs text-white/60">{doc.originalName}</div>
-                            <div className="mt-1 text-xs text-white/50">
+                            <div className="mt-1 break-all text-xs text-slate-600">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-slate-500">
                               Uploaded: {doc.createdAt ? new Date(doc.createdAt).toLocaleString() : '—'}
                             </div>
                           </div>
@@ -539,7 +680,7 @@ function Dashboard() {
                             <button
                               type="button"
                               onClick={() => openCredentialDoc(doc)}
-                              className="h-10 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white hover:bg-indigo-500 transition"
+                              className="h-10 ui-btn-primary"
                             >
                               Open
                             </button>
@@ -568,6 +709,14 @@ function Dashboard() {
           onSaved={() => {
             // Keep drawer open so the user can see the success state; they can close manually.
           }}
+        />
+
+        <ConversationDrawer
+          open={chatOpen}
+          otherUserId={chatPatientId}
+          title={chatTitle}
+          subtitle={chatSubtitle}
+          onClose={() => setChatOpen(false)}
         />
       </div>
     </div>

@@ -16,6 +16,7 @@ export const storeAuth = ({ accessToken, refreshToken, user }) => {
     if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
     if (user?.role) localStorage.setItem('role', user.role);
     if (user?.id) localStorage.setItem('userId', user.id);
+    if (typeof user?.fullName === 'string') localStorage.setItem('userName', user.fullName);
     if (typeof user?.isVerified !== 'undefined') {
         localStorage.setItem('isVerified', String(user.isVerified));
     }
@@ -79,6 +80,7 @@ export const logout = async () => {
     localStorage.removeItem('userId');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('isVerified');
+    localStorage.removeItem('userName');
     window.location.href = '/login';
 };
 
