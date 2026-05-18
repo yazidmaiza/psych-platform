@@ -11,7 +11,17 @@ const LANGUAGES = ['Arabic', 'French', 'English', 'Darija'];
 
 export default function PsychologistSetup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1: documents, 2: profile, 3: awaiting admin
+
+  const [checklist, setChecklist] = useState({
+    cv: false,
+    diploma: false,
+    idFront: false,
+    idBack: false,
+    introVideo: false
+  });
+  const [checklistLoading, setChecklistLoading] = useState(false);
+
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -21,16 +31,44 @@ export default function PsychologistSetup() {
     specializations: [],
     languages: []
   });
+
   const [cv, setCv] = useState(null);
   const [diploma, setDiploma] = useState(null);
   const [idFront, setIdFront] = useState(null);
   const [idBack, setIdBack] = useState(null);
+  const [introVideo, setIntroVideo] = useState(null);
+
   const [idFrontPreview, setIdFrontPreview] = useState('');
   const [idBackPreview, setIdBackPreview] = useState('');
-  const [introVideo, setIntroVideo] = useState(null);
   const [introVideoPreview, setIntroVideoPreview] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [uploadingType, setUploadingType] = useState('');
   const [error, setError] = useState('');
+
+  const refreshChecklist = async () => {
+    setChecklistLoading(true);
+    try {
+      const data = await api.get('/api/credential-documents/checklist');
+      setChecklist(
+        data?.checklist || {
+          cv: false,
+          diploma: false,
+          idFront: false,
+          idBack: false,
+          introVideo: false
+        }
+      );
+    } catch (e) {
+      // best-effort; upload calls will surface any errors
+    } finally {
+      setChecklistLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshChecklist();
+  }, []);
 
   useEffect(() => {
     if (!idFront) {
@@ -63,12 +101,39 @@ export default function PsychologistSetup() {
   }, [introVideo]);
 
   const toggleItem = (field, value) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
-      [field]: prev[field].includes(value)
-        ? prev[field].filter(i => i !== value)
-        : [...prev[field], value]
+      [field]: prev[field].includes(value) ? prev[field].filter((i) => i !== value) : [...prev[field], value]
     }));
+  };
+
+  const uploadOne = async (type, file) => {
+    if (!file) return;
+    setLoading(true);
+    setUploadingType(type);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('type', type);
+      formData.append('file', file);
+      await api.postForm('/api/credential-documents/upload', formData);
+      await refreshChecklist();
+    } catch (err) {
+      setError(err.message || 'Failed to upload document.');
+    } finally {
+      setLoading(false);
+      setUploadingType('');
+    }
+  };
+
+  const handleDocumentsContinue = () => {
+    const allComplete = Object.values(checklist).every(Boolean);
+    if (!allComplete) {
+      setError('Please upload your CV, diploma, ID front/back, and intro video before continuing.');
+      return;
+    }
+    setError('');
+    setStep(2);
   };
 
   const handleProfileSubmit = async () => {
@@ -78,40 +143,19 @@ export default function PsychologistSetup() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/api/psychologists/profile', form);
-      setStep(2);
-    } catch (err) {
-      setError('Failed to save profile. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      // New signups create a draft psychologist row; fill it in here.
+      // Older accounts may not have one yet.
+      try {
+        await api.put('/api/psychologists/me', form);
+      } catch (e) {
+        if (e?.status === 404) await api.post('/api/psychologists/profile', form);
+        else throw e;
+      }
 
-  const handleDocumentUpload = async () => {
-    if (!cv || !diploma || !idFront || !idBack || !introVideo) {
-      return setError('CV, diploma, both sides of your ID card, and an introduction video are required.');
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('cv', cv);
-      formData.append('diploma', diploma);
-      formData.append('idFront', idFront);
-      formData.append('idBack', idBack);
-      formData.append('introVideo', introVideo);
-
-      const res = await fetch('http://localhost:5000/api/verification/upload', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token },
-        body: formData
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setStep(3);
+      await api.post('/api/onboarding/submit', {});
+      navigate('/psychologist/draft-profile');
     } catch (err) {
-      setError(err.message || 'Failed to upload documents.');
+      setError(err.message || 'Failed to submit onboarding. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -124,7 +168,7 @@ export default function PsychologistSetup() {
           <div className="text-2xl mb-4">Submitting...</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Awaiting Admin Approval</h2>
           <p className="text-gray-500 text-sm">
-            Your documents have been submitted and analyzed. An admin will review and approve your account shortly.
+            Your onboarding application has been submitted. An admin will review your documents and approve or reject your profile.
           </p>
           <button
             onClick={() => navigate('/psychologist/dashboard')}
@@ -141,124 +185,29 @@ export default function PsychologistSetup() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-blue-700">
-            {step === 1 ? 'Complete Your Profile' : 'Upload Your Documents'}
-          </h1>
+          <h1 className="text-xl font-bold text-blue-700">{step === 1 ? 'Upload Your Credential Documents' : 'Complete Your Profile'}</h1>
           <span className="text-sm text-gray-400">Step {step} of 2</span>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-4 rounded-xl">
+            {error}
+          </div>
+        )}
 
         {step === 1 && (
           <>
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Basic Information</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">First Name</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="First name"
-                    value={form.firstName}
-                    onChange={e => setForm({ ...form, firstName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Last Name</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="Last name"
-                    value={form.lastName}
-                    onChange={e => setForm({ ...form, lastName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">City</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="City"
-                    value={form.city}
-                    onChange={e => setForm({ ...form, city: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Availability</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="e.g. Mon-Fri 9am-5pm"
-                    value={form.availability}
-                    onChange={e => setForm({ ...form, availability: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Bio</label>
-                <textarea
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                  placeholder="Describe your experience and approach..."
-                  rows={3}
-                  value={form.bio}
-                  onChange={e => setForm({ ...form, bio: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Specializations</h2>
-              <div className="flex flex-wrap gap-2">
-                {SPECIALIZATIONS.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => toggleItem('specializations', s)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.specializations.includes(s)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                      }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Languages</h2>
-              <div className="flex flex-wrap gap-2">
-                {LANGUAGES.map(l => (
-                  <button
-                    key={l}
-                    onClick={() => toggleItem('languages', l)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${form.languages.includes(l)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                      }`}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={handleProfileSubmit}
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Continue to Document Upload ->'}
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700">
-              Please upload your CV and diploma in PDF format, plus front and back images of your ID card, and an introduction video. Our AI will analyze your documents and an admin will approve your account.
+              Upload your credential documents first. After that, you’ll complete your profile details and submit for admin review.
             </div>
 
             <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-6">Upload Documents</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-700">Documents</h2>
+                <span className="text-xs text-gray-400">{checklistLoading ? 'Checking...' : ''}</span>
+              </div>
 
               <div className="flex flex-col gap-6">
                 <div>
@@ -266,10 +215,20 @@ export default function PsychologistSetup() {
                   <input
                     type="file"
                     accept="application/pdf"
-                    onChange={e => setCv(e.target.files[0])}
+                    onChange={(e) => setCv(e.target.files[0] || null)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                   />
-                  {cv && <p className="text-green-600 text-xs mt-1">Selected: {cv.name}</p>}
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="text-xs text-gray-500">{checklist.cv ? 'Uploaded' : 'Not uploaded'}</div>
+                    <button
+                      type="button"
+                      onClick={() => uploadOne('cv', cv)}
+                      disabled={loading || !cv}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
+                    >
+                      {uploadingType === 'cv' ? 'Uploading...' : checklist.cv ? 'Replace' : 'Upload'}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -277,14 +236,24 @@ export default function PsychologistSetup() {
                   <input
                     type="file"
                     accept="application/pdf"
-                    onChange={e => setDiploma(e.target.files[0])}
+                    onChange={(e) => setDiploma(e.target.files[0] || null)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                   />
-                  {diploma && <p className="text-green-600 text-xs mt-1">Selected: {diploma.name}</p>}
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="text-xs text-gray-500">{checklist.diploma ? 'Uploaded' : 'Not uploaded'}</div>
+                    <button
+                      type="button"
+                      onClick={() => uploadOne('diploma', diploma)}
+                      disabled={loading || !diploma}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
+                    >
+                      {uploadingType === 'diploma' ? 'Uploading...' : checklist.diploma ? 'Replace' : 'Upload'}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-bold text-gray-700">ID Card Upload (NEW)</h3>
+                  <h3 className="text-sm font-bold text-gray-700">ID Card</h3>
                   <p className="text-xs text-gray-500 mt-1">Upload clear images (JPG/JPEG/PNG, max 5MB each).</p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
@@ -293,10 +262,9 @@ export default function PsychologistSetup() {
                       <input
                         type="file"
                         accept="image/jpeg,image/png"
-                        onChange={e => setIdFront(e.target.files[0] || null)}
+                        onChange={(e) => setIdFront(e.target.files[0] || null)}
                         className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                       />
-                      {idFront && <p className="text-green-600 text-xs mt-1">Selected: {idFront.name}</p>}
                       {idFrontPreview && (
                         <img
                           src={idFrontPreview}
@@ -304,6 +272,17 @@ export default function PsychologistSetup() {
                           className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
                         />
                       )}
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-500">{checklist.idFront ? 'Uploaded' : 'Not uploaded'}</div>
+                        <button
+                          type="button"
+                          onClick={() => uploadOne('idFront', idFront)}
+                          disabled={loading || !idFront}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
+                        >
+                          {uploadingType === 'idFront' ? 'Uploading...' : checklist.idFront ? 'Replace' : 'Upload'}
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -311,10 +290,9 @@ export default function PsychologistSetup() {
                       <input
                         type="file"
                         accept="image/jpeg,image/png"
-                        onChange={e => setIdBack(e.target.files[0] || null)}
+                        onChange={(e) => setIdBack(e.target.files[0] || null)}
                         className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                       />
-                      {idBack && <p className="text-green-600 text-xs mt-1">Selected: {idBack.name}</p>}
                       {idBackPreview && (
                         <img
                           src={idBackPreview}
@@ -322,6 +300,17 @@ export default function PsychologistSetup() {
                           className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
                         />
                       )}
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-500">{checklist.idBack ? 'Uploaded' : 'Not uploaded'}</div>
+                        <button
+                          type="button"
+                          onClick={() => uploadOne('idBack', idBack)}
+                          disabled={loading || !idBack}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
+                        >
+                          {uploadingType === 'idBack' ? 'Uploading...' : checklist.idBack ? 'Replace' : 'Upload'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -334,10 +323,9 @@ export default function PsychologistSetup() {
                     <input
                       type="file"
                       accept="video/mp4,video/webm,video/quicktime,.mov"
-                      onChange={e => setIntroVideo(e.target.files[0] || null)}
+                      onChange={(e) => setIntroVideo(e.target.files[0] || null)}
                       className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
                     />
-                    {introVideo && <p className="text-green-600 text-xs mt-1">Selected: {introVideo.name}</p>}
                     {introVideoPreview && (
                       <video
                         src={introVideoPreview}
@@ -345,17 +333,130 @@ export default function PsychologistSetup() {
                         className="mt-2 w-full max-h-64 bg-gray-50 border border-gray-200 rounded-xl"
                       />
                     )}
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-xs text-gray-500">{checklist.introVideo ? 'Uploaded' : 'Not uploaded'}</div>
+                      <button
+                        type="button"
+                        onClick={() => uploadOne('introVideo', introVideo)}
+                        disabled={loading || !introVideo}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
+                      >
+                        {uploadingType === 'introVideo' ? 'Uploading...' : checklist.introVideo ? 'Replace' : 'Upload'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             <button
-              onClick={handleDocumentUpload}
-              disabled={loading || !cv || !diploma || !idFront || !idBack || !introVideo}
+              onClick={handleDocumentsContinue}
+              disabled={loading}
               className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {loading ? 'Uploading & Analyzing...' : 'Submit for Verification ->'}
+              Continue to Profile -&gt;
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div className="bg-white rounded-2xl shadow p-6">
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Basic Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">First Name</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="First name"
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Last Name</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="Last name"
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">City</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="City"
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Availability</label>
+                  <input
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    placeholder="e.g. Mon-Fri 9am-5pm"
+                    value={form.availability}
+                    onChange={(e) => setForm({ ...form, availability: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Bio</label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                  placeholder="Describe your experience and approach..."
+                  rows={3}
+                  value={form.bio}
+                  onChange={(e) => setForm({ ...form, bio: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow p-6">
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Specializations</h2>
+              <div className="flex flex-wrap gap-2">
+                {SPECIALIZATIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => toggleItem('specializations', s)}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
+                      form.specializations.includes(s)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow p-6">
+              <h2 className="text-lg font-bold text-gray-700 mb-4">Languages</h2>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => toggleItem('languages', l)}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
+                      form.languages.includes(l)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleProfileSubmit}
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              {loading ? 'Submitting...' : 'Submit for Admin Review ->'}
             </button>
           </>
         )}
@@ -363,4 +464,3 @@ export default function PsychologistSetup() {
     </div>
   );
 }
-

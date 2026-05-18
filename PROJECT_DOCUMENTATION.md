@@ -611,7 +611,7 @@ GROQ_API_KEY=your_groq_api_key
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_app_password
+EMAIL_PASS=your_app_password
 
 # Server Configuration
 PORT=5000
@@ -641,7 +641,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_app_password
+EMAIL_PASS=your_app_password
 ```
 
 ### Step-by-Step Installation

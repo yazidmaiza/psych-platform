@@ -290,6 +290,16 @@ exports.getPsychologistByUserId = async (req, res) => {
   }
 };
 
+exports.getMyPsychologist = async (req, res) => {
+  try {
+    const psychologist = await Psychologist.findOne({ userId: req.user.id }).populate('userId', 'email');
+    if (!psychologist) return res.status(404).json({ message: 'Psychologist not found' });
+    return res.status(200).json(psychologist);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 exports.updatePsychologist = async (req, res) => {
   try {
     const { bio, specializations, languages, availability, city, firstName, lastName, sessionPrice, location } = req.body;

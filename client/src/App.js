@@ -36,6 +36,7 @@ import Statistics from './pages/Statistics';
 import Dashboard from './pages/Dashboard';
 import EditProfile from './pages/EditProfile';
 import PsychologistSetup from './pages/PsychologistSetup';
+import PsychologistDraftProfile from './pages/PsychologistDraftProfile';
 import PatientDetail from './pages/PatientDetail';
 import CalendarPage from './pages/Calendar';
 
@@ -208,6 +209,15 @@ function App() {
             element={
               <ProtectedRoute role="psychologist">
                 <PsychologistSetup />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/psychologist/draft-profile"
+            element={
+              <ProtectedRoute role="psychologist">
+                <PsychologistDraftProfile />
               </ProtectedRoute>
             }
           />

@@ -28,7 +28,7 @@ export default function Register() {
     telephone: '',
     birthDate: '',
     rePassword: '',
-    role: 'patient'
+    role: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,6 +39,7 @@ export default function Register() {
     const hasMinLength = password.length >= 8;
     const hasNumber = /\d/.test(password);
     const allFieldsFilled =
+      form.role.trim().length > 0 &&
       form.fullName.trim().length > 0 &&
       form.birthDate.trim().length > 0 &&
       form.telephone.trim().length > 0 &&
@@ -47,11 +48,13 @@ export default function Register() {
       form.rePassword.trim().length > 0;
     const passwordsMatch = form.password === form.rePassword;
     return allFieldsFilled && hasMinLength && hasNumber && passwordsMatch && !loading;
-  }, [form.fullName, form.birthDate, form.telephone, form.email, form.password, form.rePassword, loading]);
+  }, [form.role, form.fullName, form.birthDate, form.telephone, form.email, form.password, form.rePassword, loading]);
 
   const handleRegister = async () => {
     if (!canSubmit) {
-      if (form.password !== form.rePassword) {
+      if (!form.role) {
+        setError('Please choose whether you are signing up as a patient or a psychologist');
+      } else if (form.password !== form.rePassword) {
         setError('Passwords do not match');
       } else if (
         !form.fullName.trim() ||
@@ -121,6 +124,32 @@ export default function Register() {
       )}
 
       <div className="mt-4 grid gap-3">
+        <div className="grid gap-2">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">
+            Sign up as
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <RoleCard
+              active={form.role === 'patient'}
+              label="Patient"
+              description="Book sessions and chat with psychologists."
+              onClick={() => {
+                setError('');
+                setForm({ ...form, role: 'patient' });
+              }}
+            />
+            <RoleCard
+              active={form.role === 'psychologist'}
+              label="Psychologist"
+              description="Offer services and set up your professional profile."
+              onClick={() => {
+                setError('');
+                setForm({ ...form, role: 'psychologist' });
+              }}
+            />
+          </div>
+        </div>
+
         {/* Full Name */}
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Full Name</span>

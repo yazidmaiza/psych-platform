@@ -55,11 +55,18 @@ const ensureJpegAtPath = async (file) => {
 };
 
 const ensureUploadAllowed = async ({ ownerUserId }) => {
-  const psychologist = await Psychologist.findOne({ userId: ownerUserId }).select('profileStatus isApproved isRejected rejectionDetails');
+  let psychologist = await Psychologist.findOne({ userId: ownerUserId }).select('profileStatus isApproved isRejected rejectionDetails');
   if (!psychologist) {
-    const err = new Error('Psychologist profile not found');
-    err.status = 404;
-    throw err;
+    // Backwards-compatible: some environments create the Psychologist row later in onboarding.
+    psychologist = await Psychologist.create({
+      userId: ownerUserId,
+      profileStatus: 'Draft',
+      isApproved: false,
+      isRejected: false,
+      firstName: '',
+      lastName: '',
+      city: ''
+    });
   }
   const status = String(psychologist.profileStatus || 'Draft');
   if (status !== 'Draft' && status !== 'Rejected') {

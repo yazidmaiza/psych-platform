@@ -35,13 +35,13 @@ const psychologistSchema = new mongoose.Schema({
   },
   firstName: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    default: ''
   },
   lastName: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    default: ''
   },
   photo: {
     type: String,

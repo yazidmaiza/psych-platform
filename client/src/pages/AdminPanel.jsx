@@ -290,7 +290,10 @@ export default function AdminPanel() {
 
   const runFaceCheck = async (psy) => {
     const key = `face:${psy._id}`;
-    const userId = typeof psy.userId === 'string' ? psy.userId : psy.userId?._id;
+    const userId =
+      typeof psy.userId === 'string'
+        ? psy.userId
+        : psy.userId?._id || (typeof psy.user?._id === 'string' ? psy.user._id : null);
     if (!userId) {
       setFaceChecks((prev) => ({
         ...prev,
@@ -733,7 +736,13 @@ export default function AdminPanel() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => runFaceCheck(psy)}
-                        disabled={!psy.userId?._id && typeof psy.userId !== 'string' ? true : faceChecks[`face:${psy._id}`]?.loading}
+                        disabled={
+                          !(
+                            (typeof psy.userId === 'string' && psy.userId) ||
+                            psy.userId?._id ||
+                            (typeof psy.user?._id === 'string' && psy.user._id)
+                          ) || faceChecks[`face:${psy._id}`]?.loading
+                        }
                         className="h-9 rounded-2xl bg-indigo-500/90 px-3 text-xs font-semibold text-white hover:bg-indigo-500 transition disabled:opacity-60"
                       >
                         {faceChecks[`face:${psy._id}`]?.loading ? 'Running…' : 'Run Face Check'}

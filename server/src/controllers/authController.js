@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Psychologist = require('../models/Psychologist');
 const EmailVerificationToken = require('../models/EmailVerificationToken');
 const PasswordResetToken = require('../models/PasswordResetToken');
 const sendEmail = require('../utils/sendEmail');
@@ -61,6 +62,22 @@ exports.register = async (req, res) => {
       birthDate: birthDate ? String(birthDate).trim() : ''
     });
     await user.save();
+
+    // Ensure psychologists have a draft onboarding record to attach credential documents to.
+    if (user.role === 'psychologist') {
+      const existingPsychologist = await Psychologist.findOne({ userId: user._id }).select('_id');
+      if (!existingPsychologist) {
+        await Psychologist.create({
+          userId: user._id,
+          profileStatus: 'Draft',
+          isApproved: false,
+          isRejected: false,
+          firstName: '',
+          lastName: '',
+          city: ''
+        });
+      }
+    }
 
     const { ipAddress, userAgent, deviceId } = getRequestContext(req);
     const sessionResult = await createRefreshSession({
