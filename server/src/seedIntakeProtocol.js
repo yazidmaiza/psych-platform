@@ -17,6 +17,7 @@ const INTAKE_PROTOCOL = [
   {
     stageNumber: 1,
     nameEn: 'Presenting Concern',
+    subtitleEn: 'What brought you here today',
     nameAr: 'السبب الرئيسي للزيارة',
     nameFr: 'Motif Principal',
     goalEn: 'Understand what brought the patient here and their primary concern.',
@@ -44,6 +45,7 @@ const INTAKE_PROTOCOL = [
   {
     stageNumber: 2,
     nameEn: 'Emotional Exploration',
+    subtitleEn: 'How you\'ve been feeling',
     nameAr: 'استكشاف المشاعر',
     nameFr: 'Exploration Émotionnelle',
     goalEn: 'Explore the emotional landscape: feelings, intensity, triggers, and frequency.',
@@ -70,6 +72,7 @@ const INTAKE_PROTOCOL = [
   {
     stageNumber: 3,
     nameEn: 'History & Context',
+    subtitleEn: 'Your background & experience',
     nameAr: 'التاريخ والسياق',
     nameFr: 'Historique et Contexte',
     goalEn: 'Understand when this began, any prior mental health history, and support systems.',
@@ -96,6 +99,7 @@ const INTAKE_PROTOCOL = [
   {
     stageNumber: 4,
     nameEn: 'Impact Assessment',
+    subtitleEn: 'How this affects your daily life',
     nameAr: 'تقييم الأثر',
     nameFr: 'Évaluation de l\'Impact',
     goalEn: 'Assess how this is affecting daily functioning, sleep, relationships, and work.',
@@ -122,6 +126,7 @@ const INTAKE_PROTOCOL = [
   {
     stageNumber: 5,
     nameEn: 'Closing & Safety Check',
+    subtitleEn: 'Wrapping up & safety check',
     nameAr: 'الختام وضمان السلامة',
     nameFr: 'Clôture et Vérification de Sécurité',
     goalEn: 'Wrap up, validate the patient, confirm safety, and set expectations for the psychologist meeting.',

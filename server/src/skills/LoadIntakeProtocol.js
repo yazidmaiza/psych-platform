@@ -1,5 +1,6 @@
 const IntakeProtocolServer = require('../mcp/IntakeProtocolServer');
 const IntakeSession = require('../models/IntakeSession');
+const Session = require('../models/Session');
 
 /**
  * Skill: LoadIntakeProtocol
@@ -15,6 +16,18 @@ class LoadIntakeProtocol {
   async execute(userId) {
     if (!userId) {
       throw new Error('LoadIntakeProtocol requires a userId.');
+    }
+
+    // Verify patient has a booked session (any status except canceled)
+    const bookedSession = await Session.findOne({
+      patientId: userId,
+      status: { $in: ['requested', 'pending', 'pending_payment', 'paid', 'verified', 'active', 'completed'] }
+    });
+
+    if (!bookedSession) {
+      const error = new Error('You must book a session with a psychologist to access the chatbot.');
+      error.statusCode = 403;
+      throw error;
     }
 
     try {
