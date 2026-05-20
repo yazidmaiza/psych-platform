@@ -52,6 +52,15 @@ const riskAlertSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high', 'critical'],
       required: true
     },
+    // Urgency level set by chatRoute.js when triggering the alert.
+    // 'HIGH'     — single risk event, intake continues, psychologist notified.
+    // 'CRITICAL' — 2nd consecutive HIGH risk, crisis hold activated,
+    //              psychologist receives a separate 'crisis_alert' Socket.IO event.
+    urgency: {
+      type: String,
+      enum: ['HIGH', 'CRITICAL'],
+      default: 'HIGH'
+    },
     isAcknowledged: {
       type: Boolean,
       default: false

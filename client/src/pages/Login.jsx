@@ -30,13 +30,15 @@ export default function Login() {
         user: res.data.user
       });
 
+      if (res.data.user.role === 'admin') {
+        navigate('/admin');
+        return;
+      }
       if (res.data.requiresEmailVerification) {
         navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
         return;
       }
-
-      if (res.data.user.role === 'admin') navigate('/admin');
-      else if (res.data.user.role === 'psychologist') navigate('/psychologist/dashboard');
+      if (res.data.user.role === 'psychologist') navigate('/psychologist/dashboard');
       else if (res.data.user.role === 'patient') navigate('/patient/dashboard');
       else setError('Invalid role');
     } catch (err) {
@@ -51,52 +53,62 @@ export default function Login() {
       title="Welcome back"
       subtitle="Log in to manage bookings, sessions, notifications, and your secure chat."
       onBack={() => navigate('/')}
-      backLabel="Home"
+      backLabel="Return to Homepage"
       footer={
-        <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="text-[color:var(--muted)]">No account yet?</div>
           <button
             type="button"
             onClick={() => navigate('/register')}
-            className="rounded-2xl bg-[color:var(--accent-90)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 transition"
+            className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent-90)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[color:var(--accent-20)] transition hover:brightness-110"
           >
             Create account
           </button>
         </div>
       }
     >
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--primary-container)] text-[color:var(--on-primary)] shadow-lg shadow-[color:var(--accent-20)]">
+          <span className="text-xl font-semibold">✦</span>
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Psych Platform</p>
+        <p className="mt-3 text-sm leading-6 text-[color:var(--muted)] sm:text-base">
+          Welcome back. Please sign in to continue.
+        </p>
+      </div>
+
       {error && (
         <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
           {error}
         </div>
       )}
 
-      <form
-        className="mt-4 grid gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleLogin();
-        }}
-      >
+      <div className="mt-6 grid gap-4">
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Email</span>
-          <input
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="you@example.com"
-            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted)]">✉</span>
+            <input
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="name@example.com"
+              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--surface-container-lowest)]/80 pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+            />
+          </div>
         </label>
 
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Password</span>
-          <input
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder="********"
-            className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted)]">⟡</span>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="••••••••"
+              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--surface-container-lowest)]/80 pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+            />
+          </div>
         </label>
 
         {/* Only email and password fields for login */}
@@ -104,19 +116,21 @@ export default function Login() {
         <button
           type="button"
           onClick={() => navigate('/forgot-password')}
-          className="text-left text-xs text-white/60 hover:text-white"
+          className="text-left text-xs font-medium text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
         >
           Forgot your password?
         </button>
 
         <button
-          type="submit"
+          type="button"
+          onClick={handleLogin}
           disabled={!canSubmit}
-          className="mt-2 h-11 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
+          className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--primary)] px-5 text-sm font-semibold text-white shadow-lg shadow-[color:var(--accent-20)] transition hover:brightness-110 disabled:opacity-50"
         >
           {loading ? 'Logging in...' : 'Login'}
+          {!loading && <span className="text-[18px] leading-none">→</span>}
         </button>
-      </form>
+      </div>
     </AuthShell>
   );
 }

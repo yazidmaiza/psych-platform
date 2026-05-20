@@ -23,6 +23,21 @@ const chatbotSummarySchema = new mongoose.Schema({
   recommendations: {
     type: [String],
     default: []
+  },
+
+  // ── Two-pass quality fields (Q3) ─────────────────────────────────────────
+  // Set by critiqueSummary() in chatbotController.js after the primary
+  // summary generation. lowConfidence: true means the second LLM pass rated
+  // confidence ≤ 2 out of 5 — psychologist should verify rather than rely on it.
+  lowConfidence: {
+    type: Boolean,
+    default: false
+  },
+  // One-sentence critique note from the second pass, e.g.
+  // "Summary may be speculative — patient gave short answers."
+  critiqueNote: {
+    type: String,
+    default: ''
   }
 }, { timestamps: true });
 

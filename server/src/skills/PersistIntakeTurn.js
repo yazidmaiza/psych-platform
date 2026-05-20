@@ -14,9 +14,10 @@ class PersistIntakeTurn {
    * @param {string} params.assistantReply - Generated AI response
    * @param {number} params.intakeStage - Current stage number (1–5)
    * @param {Object} params.session - IntakeSession mongoose document
+   * @param {boolean} [params.skipStageCount] - Whether to skip incrementing the stage turn count
    * @returns {Promise<void>}
    */
-  async execute({ userId, userMessage, assistantReply, intakeStage, session }) {
+  async execute({ userId, userMessage, assistantReply, intakeStage, session, skipStageCount = false }) {
     if (!userId || !userMessage || !assistantReply || !session) {
       throw new Error('PersistIntakeTurn requires userId, userMessage, assistantReply, and session.');
     }
@@ -28,11 +29,13 @@ class PersistIntakeTurn {
         { userId, role: 'assistant', content: assistantReply, intakeStage }
       ]);
 
-      // Increment turn count for the current stage
-      const stageKey = String(intakeStage);
-      const currentCount = session.stageTurnCounts.get(stageKey) || 0;
-      session.stageTurnCounts.set(stageKey, currentCount + 1);
-      await session.save();
+      if (!skipStageCount) {
+        // Increment turn count for the current stage
+        const stageKey = String(intakeStage);
+        const currentCount = session.stageTurnCounts.get(stageKey) || 0;
+        session.stageTurnCounts.set(stageKey, currentCount + 1);
+        await session.save();
+      }
     } catch (error) {
       console.error('PersistIntakeTurn - Error:', error.message);
       throw error;
