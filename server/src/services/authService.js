@@ -14,6 +14,16 @@ const hashToken = (token) => crypto.createHash('sha256').update(token).digest('h
 
 const generateRawToken = () => crypto.randomBytes(32).toString('hex');
 
+const generateNumericCode = (length = 6) => {
+  const n = Number(length);
+  if (!Number.isFinite(n) || n < 4 || n > 10) {
+    throw new Error('Invalid code length');
+  }
+
+  const max = 10 ** n;
+  return crypto.randomInt(0, max).toString().padStart(n, '0');
+};
+
 const createAccessToken = ({ userId, role, sessionId }) => {
   return jwt.sign(
     { id: userId, role, sid: sessionId },
@@ -96,7 +106,7 @@ const revokeAllSessionsForUser = async (userId) => {
 };
 
 const createEmailVerificationToken = async (userId) => {
-  const rawToken = generateRawToken();
+  const rawToken = generateNumericCode(Number(process.env.EMAIL_VERIFY_CODE_LENGTH || 6));
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + EMAIL_VERIFY_TTL_HOURS * 60 * 60 * 1000);
 
@@ -110,7 +120,7 @@ const createEmailVerificationToken = async (userId) => {
 };
 
 const createPasswordResetToken = async (userId) => {
-  const rawToken = generateRawToken();
+  const rawToken = generateNumericCode(Number(process.env.PASSWORD_RESET_CODE_LENGTH || 6));
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000);
 

@@ -5,29 +5,47 @@ import AuthShell from '../components/auth/AuthShell';
 
 export default function VerifyEmail() {
   const [params] = useSearchParams();
-  const token = params.get('token') || '';
-  const email = params.get('email') || '';
+  const initialEmail = params.get('email') || '';
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const verify = async () => {
-      if (!token) return;
-      setLoading(true);
-      try {
-        const res = await axios.get(`http://localhost:5000/api/auth/verify-email?token=${encodeURIComponent(token)}`);
-        setStatus(res.data?.message || 'Email verified successfully.');
-        localStorage.setItem('isVerified', 'true');
-      } catch (err) {
-        setStatus(err.response?.data?.message || 'Verification failed.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    setEmail(initialEmail);
+  }, [initialEmail]);
 
-    verify();
-  }, [token]);
+  const handleVerify = async () => {
+    if (!email.trim() || !code.trim()) return;
+    setLoading(true);
+    setStatus('');
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/verify-email', {
+        email,
+        code
+      });
+
+      setStatus(res.data?.message || 'Email verified successfully.');
+      localStorage.setItem('isVerified', 'true');
+
+      const role = localStorage.getItem('role');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setTimeout(() => navigate('/login'), 800);
+        return;
+      }
+
+      setTimeout(() => {
+        if (role === 'psychologist') navigate('/setup');
+        else navigate('/patient/dashboard');
+      }, 600);
+    } catch (err) {
+      setStatus(err.response?.data?.message || 'Verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleResend = async () => {
     setLoading(true);
@@ -45,7 +63,7 @@ export default function VerifyEmail() {
   return (
     <AuthShell
       title="Verify your email"
-      subtitle="Confirm your email to unlock the full platform."
+      subtitle="Enter the verification code sent to your email."
       onBack={() => navigate('/login')}
       backLabel="Back to login"
     >
@@ -57,8 +75,38 @@ export default function VerifyEmail() {
 
       <div className="mt-4 grid gap-3">
         <div className="text-sm text-white/60">
-          {token ? 'We are verifying your email now.' : 'Check your inbox for a verification link.'}
+          Check your inbox for a 6-digit code.
         </div>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Verification code</span>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            inputMode="numeric"
+            placeholder="123456"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={handleVerify}
+          disabled={!email.trim() || !code.trim() || loading}
+          className="mt-2 h-11 rounded-2xl bg-emerald-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-50"
+        >
+          {loading ? 'Verifying...' : 'Verify code'}
+        </button>
 
         <button
           type="button"

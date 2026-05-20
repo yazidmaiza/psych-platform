@@ -4,6 +4,8 @@ import { io } from 'socket.io-client';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 import ConversationDrawer from '../components/conversation/ConversationDrawer';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
@@ -39,10 +41,10 @@ const SESSION_TYPE_LABELS = {
 
 const sessionStatusBadgeClass = (status) => {
   const s = String(status || '').toLowerCase();
-  if (s === 'active') return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-800';
-  if (s === 'completed') return 'border-sky-500/20 bg-sky-500/10 text-sky-800';
-  if (s === 'canceled' || s === 'rejected') return 'border-rose-500/20 bg-rose-500/10 text-rose-800';
-  return 'border-amber-500/20 bg-amber-500/10 text-amber-800';
+  if (s === 'active') return 'border-emerald-400/30 bg-emerald-500/15 text-emerald-50';
+  if (s === 'completed') return 'border-sky-400/30 bg-sky-500/15 text-sky-50';
+  if (s === 'canceled' || s === 'rejected') return 'border-rose-400/30 bg-rose-500/15 text-rose-50';
+  return 'border-amber-400/30 bg-amber-500/15 text-amber-50';
 };
 
 const TabButton = ({ active, children, onClick }) => (
@@ -52,8 +54,8 @@ const TabButton = ({ active, children, onClick }) => (
     className={[
       'h-9 rounded-2xl border px-4 text-xs font-semibold shadow-sm backdrop-blur transition',
       active
-        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900'
-        : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70'
+        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-[color:var(--app-fg)]'
+        : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] hover:brightness-110'
     ].join(' ')}
   >
     {children}
@@ -407,11 +409,11 @@ export default function PatientDetail() {
       <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
         <div className="pointer-events-none fixed inset-0">
           <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
-          <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+          <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+          <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-[color:var(--accent-08)] blur-3xl" />
           <div className="absolute inset-0 bg-[var(--app-bg)]" />
         </div>
-        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 text-sm text-slate-600">
+        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 text-sm text-[color:var(--muted)]">
           Loading patient...
         </div>
       </div>
@@ -422,21 +424,29 @@ export default function PatientDetail() {
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
-        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-[color:var(--accent-08)] blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
         <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <PlatformLogo size={30} />
+                <div className="text-xs font-semibold text-[color:var(--muted)]">PsychPlatform</div>
+              </div>
+              <ThemeToggleButton />
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <button onClick={() => navigate(-1)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+                <button onClick={() => navigate(-1)} className="text-xs font-semibold text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition">
                   ← Back
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">Patient details</h1>
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-[color:var(--app-fg)]">Patient details</h1>
                   <span className="ui-pill">
                     {patientMeta?.email || patientId}
                   </span>
@@ -446,7 +456,7 @@ export default function PatientDetail() {
                     </span>
                   )}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-1 text-xs text-[color:var(--muted)]">
                   {stats.total} sessions · {stats.completed} completed · {stats.active} active
                 </div>
               </div>
@@ -505,7 +515,7 @@ export default function PatientDetail() {
           {error && (
             <GlassPanel className="p-5">
               <div className="text-sm font-semibold text-rose-800">Could not load patient</div>
-              <div className="mt-1 text-xs text-slate-600">{error}</div>
+              <div className="mt-1 text-xs text-[color:var(--muted)]">{error}</div>
             </GlassPanel>
           )}
 
@@ -514,31 +524,31 @@ export default function PatientDetail() {
               <div className="space-y-5 lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-slate-900">AI summary</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">AI summary</div>
                     <span className="ui-pill">Latest</span>
                   </div>
                   {!summary ? (
-                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-5 text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                       No AI summary available yet (requires at least one completed session).
                     </div>
                   ) : (
                     <>
                       <div className="mt-4 grid grid-cols-3 gap-2">
-                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold text-slate-500">Emotion</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-900 capitalize">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-[color:var(--muted)]">Emotion</div>
+                          <div className="mt-1 text-xs font-semibold text-[color:var(--app-fg)] capitalize">
                             {summary.emotionalIndicators?.dominantEmotion || '—'}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold text-slate-500">Urgency</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-900">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-[color:var(--muted)]">Urgency</div>
+                          <div className="mt-1 text-xs font-semibold text-[color:var(--app-fg)]">
                             {summary.emotionalIndicators?.urgencyScore ? `${summary.emotionalIndicators.urgencyScore} / 5` : '—'}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold text-slate-500">Trend</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-900 capitalize">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-3 text-center shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold text-[color:var(--muted)]">Trend</div>
+                          <div className="mt-1 text-xs font-semibold text-[color:var(--app-fg)] capitalize">
                             {summary.emotionalIndicators?.sentimentTrend || '—'}
                           </div>
                         </div>
@@ -546,12 +556,12 @@ export default function PatientDetail() {
 
                       {summary.keyThemes?.length > 0 && (
                         <div className="mt-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Key themes</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Key themes</div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {summary.keyThemes.slice(0, 12).map((t, i) => (
                               <span
                                 key={i}
-                                className="rounded-full border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] px-3 py-1 text-[11px] font-semibold text-slate-800 shadow-sm"
+                                className="rounded-full border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] px-3 py-1 text-[11px] font-semibold text-[color:var(--app-fg)] shadow-sm"
                               >
                                 {t}
                               </span>
@@ -561,12 +571,12 @@ export default function PatientDetail() {
                       )}
 
                       {summary.recommendations?.length > 0 && (
-                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Suggested follow-ups</div>
+                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Suggested follow-ups</div>
                           <div className="mt-2 space-y-2">
                             {summary.recommendations.slice(0, 6).map((rec, i) => (
-                              <div key={i} className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-3 text-xs text-slate-700 shadow-sm backdrop-blur">
-                                <span className="font-semibold text-slate-900">{i + 1}.</span> {rec}
+                              <div key={i} className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-xs text-[color:var(--muted)] shadow-sm backdrop-blur">
+                                <span className="font-semibold text-[color:var(--app-fg)]">{i + 1}.</span> {rec}
                               </div>
                             ))}
                           </div>
@@ -574,9 +584,9 @@ export default function PatientDetail() {
                       )}
 
                       {summary.rawSummary && (
-                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Clinical summary</div>
-                          <div className="mt-2 text-xs leading-relaxed text-slate-700">{summary.rawSummary}</div>
+                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Clinical summary</div>
+                          <div className="mt-2 text-xs leading-relaxed text-[color:var(--muted)]">{summary.rawSummary}</div>
                         </div>
                       )}
 
@@ -589,7 +599,7 @@ export default function PatientDetail() {
                           >
                             Download chatbot PDF
                           </button>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-[color:var(--muted)]">
                             Generated {fmtDate(summary.latestReport.createdAt)}
                           </div>
                         </div>
@@ -601,20 +611,20 @@ export default function PatientDetail() {
 
               <div className="space-y-5">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Emotional indicators</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Emotional indicators</div>
                   {emotions.length === 0 ? (
-                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-5 text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                       No emotional indicators yet.
                     </div>
                   ) : (
                     <div className="mt-4 space-y-3">
                       {Object.entries(emotions?.[0]?.scores || {}).map(([emotion, score]) => (
                         <div key={emotion}>
-                          <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
-                            <span className="font-semibold text-slate-800">{emotionLabel(emotion)}</span>
+                          <div className="mb-1 flex items-center justify-between text-xs text-[color:var(--muted)]">
+                            <span className="font-semibold text-[color:var(--app-fg)]">{emotionLabel(emotion)}</span>
                             <span>{score}%</span>
                           </div>
-                          <div className="h-2.5 w-full rounded-full bg-slate-900/10">
+                          <div className="h-2.5 w-full rounded-full bg-[color:var(--accent-10)]">
                             <div
                               className={[
                                 'h-2.5 rounded-full transition-all',
@@ -645,10 +655,10 @@ export default function PatientDetail() {
                   </div>
 
                   {emotionFormOpen && (
-                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
                       <div className="grid gap-3">
-                        <label className="grid gap-1 text-xs text-slate-600">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Session</span>
+                        <label className="grid gap-1 text-xs text-[color:var(--muted)]">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Session</span>
                           <select
                             value={emotionSessionId || ''}
                             onChange={(e) => setEmotionSessionId(e.target.value || null)}
@@ -666,9 +676,9 @@ export default function PatientDetail() {
                         </label>
 
                         {['anxiety', 'sadness', 'anger', 'positivity'].map((key) => (
-                          <label key={key} className="grid gap-1 text-xs text-slate-600">
+                          <label key={key} className="grid gap-1 text-xs text-[color:var(--muted)]">
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-slate-800">{emotionLabel(key)}</span>
+                              <span className="font-semibold text-[color:var(--app-fg)]">{emotionLabel(key)}</span>
                               <span>{clamp(Number(emotionDraft[key]) || 0, 0, 100)}%</span>
                             </div>
                             <input
@@ -711,13 +721,13 @@ export default function PatientDetail() {
               <div className="space-y-5 lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Sessions</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Sessions</div>
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         value={historyQuery}
                         onChange={(e) => setHistoryQuery(e.target.value)}
                         placeholder="Search sessions..."
-                        className="h-9 w-[220px] rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 text-xs text-slate-800 outline-none placeholder:text-slate-400 shadow-sm backdrop-blur focus:ring-2 focus:ring-[color:var(--accent-12)]"
+                        className="h-9 w-[220px] rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-xs text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] shadow-sm backdrop-blur focus:ring-2 focus:ring-[color:var(--accent-12)]"
                       />
                       <button
                         type="button"
@@ -725,8 +735,8 @@ export default function PatientDetail() {
                         className={[
                           'h-9 rounded-2xl border px-4 text-xs font-semibold shadow-sm backdrop-blur transition',
                           historyOnlyCompleted
-                            ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900'
-                            : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70'
+                            ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-[color:var(--app-fg)]'
+                            : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] hover:brightness-110'
                         ].join(' ')}
                         title="Show only completed sessions"
                       >
@@ -737,7 +747,7 @@ export default function PatientDetail() {
 
                   <div className="mt-4 space-y-3">
                     {filteredSessions.length === 0 && (
-                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-6 text-center text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                         No sessions match your filters.
                       </div>
                     )}
@@ -745,14 +755,14 @@ export default function PatientDetail() {
                     {filteredSessions.map((s) => (
                       <div
                         key={s._id}
-                        className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur"
+                        className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-slate-900">
+                            <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">
                               {SESSION_TYPE_LABELS[s.sessionType] || s.sessionType || 'Session'}
                             </div>
-                            <div className="mt-1 text-xs text-slate-500">{fmtDate(s.createdAt)}</div>
+                            <div className="mt-1 text-xs text-[color:var(--muted)]">{fmtDate(s.createdAt)}</div>
                           </div>
                           <div className="flex items-center gap-2">
                             <span
@@ -782,7 +792,7 @@ export default function PatientDetail() {
 
               <div className="space-y-5">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">At a glance</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">At a glance</div>
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     {[
                       { label: 'Total', value: stats.total },
@@ -791,10 +801,10 @@ export default function PatientDetail() {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur"
+                        className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-3 text-center shadow-sm backdrop-blur"
                       >
-                        <div className="text-[11px] font-semibold text-slate-500">{item.label}</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900">{item.value}</div>
+                        <div className="text-[11px] font-semibold text-[color:var(--muted)]">{item.label}</div>
+                        <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">{item.value}</div>
                       </div>
                     ))}
                   </div>
@@ -807,14 +817,14 @@ export default function PatientDetail() {
             <div className="mt-5 space-y-5">
               <GlassPanel className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-slate-900">Risk alerts</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Risk alerts</div>
+                  <div className="text-xs text-[color:var(--muted)]">
                     {unackedAlerts.length > 0 ? `${unackedAlerts.length} unacknowledged` : 'All acknowledged'}
                   </div>
                 </div>
 
                 {riskAlerts.length === 0 ? (
-                  <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
+                  <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-6 text-center text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                     No risk alerts detected.
                   </div>
                 ) : (
@@ -844,7 +854,7 @@ export default function PatientDetail() {
                                   {String(alert.severity || 'medium').toUpperCase()}
                                 </span>
                               </div>
-                              <div className="mt-1 text-xs text-slate-600">
+                              <div className="mt-1 text-xs text-[color:var(--muted)]">
                                 {fmtDate(alert.createdAt)} · {fmtTime(alert.createdAt)}
                               </div>
                             </div>
@@ -864,13 +874,13 @@ export default function PatientDetail() {
                           </div>
 
                           {alert.triggerMessage && (
-                            <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-xs text-slate-700 shadow-sm backdrop-blur">
+                            <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-3 text-xs text-[color:var(--muted)] shadow-sm backdrop-blur">
                               “{String(alert.triggerMessage).slice(0, 240)}
                               {String(alert.triggerMessage).length > 240 ? '…' : ''}”
                             </div>
                           )}
 
-                          <div className="mt-3 text-[11px] text-slate-600">Score: {alert.riskScore}/100</div>
+                          <div className="mt-3 text-[11px] text-[color:var(--muted)]">Score: {alert.riskScore}/100</div>
                         </div>
                       );
                     })}
@@ -884,13 +894,13 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Add note</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Add note</div>
                   <div className="mt-3">
                     <textarea
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Write a private note for yourself (visible only to you)…"
-                      className="h-32 w-full resize-none rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 shadow-sm backdrop-blur transition focus:ring-2"
+                      className="h-32 w-full resize-none rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] shadow-sm backdrop-blur transition focus:ring-2"
                     />
                   </div>
                   <button
@@ -905,19 +915,19 @@ export default function PatientDetail() {
 
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Notes</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Notes</div>
                   <div className="mt-4 space-y-3">
                     {Array.isArray(data?.notes) && data.notes.length > 0 ? (
                       data.notes.map((note) => (
-                        <div key={note._id} className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
-                          <div className="text-sm text-slate-800">{note.content}</div>
-                          <div className="mt-2 text-xs text-slate-500">
+                        <div key={note._id} className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
+                          <div className="text-sm text-[color:var(--app-fg)]">{note.content}</div>
+                          <div className="mt-2 text-xs text-[color:var(--muted)]">
                             {fmtDate(note.createdAt)} · {fmtTime(note.createdAt)}
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">No notes yet.</div>
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-6 text-center text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">No notes yet.</div>
                     )}
                   </div>
                 </GlassPanel>
@@ -929,13 +939,13 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="space-y-5 lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Upload PDF</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Upload PDF</div>
                   <div className="mt-3">
                     <input
                       type="file"
                       accept="application/pdf"
                       onChange={(e) => setDocFile(e.target.files?.[0] || null)}
-                      className="block w-full rounded-2xl border border-[color:var(--panel-border)] bg-white/60 px-4 py-2 text-xs text-slate-700 shadow-sm backdrop-blur file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900/5 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-900/10"
+                      className="block w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-2 text-xs text-[color:var(--app-fg)] shadow-sm backdrop-blur file:mr-3 file:rounded-xl file:border-0 file:bg-[color:var(--panel-bg)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[color:var(--app-fg)] hover:file:brightness-110"
                     />
                   </div>
                   <button
@@ -945,13 +955,13 @@ export default function PatientDetail() {
                   >
                     {uploading ? 'Uploading...' : 'Upload'}
                   </button>
-                  <div className="mt-2 text-[11px] text-slate-500">Uploaded documents stay private and are only visible to authorized staff.</div>
+                  <div className="mt-2 text-[11px] text-[color:var(--muted)]">Uploaded documents stay private and are only visible to authorized staff.</div>
                 </GlassPanel>
 
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Ask about a document</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Ask about a document</div>
                   {!selectedDoc ? (
-                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-5 text-sm text-slate-600 shadow-sm backdrop-blur">
+                    <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-5 text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                       Select a document to ask questions.
                     </div>
                   ) : (
@@ -973,9 +983,9 @@ export default function PatientDetail() {
                         {querying ? 'Thinking...' : 'Ask'}
                       </button>
                       {answer && (
-                        <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Answer</div>
-                          <div className="mt-2 text-xs leading-relaxed text-slate-700">{answer}</div>
+                        <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">Answer</div>
+                          <div className="mt-2 text-xs leading-relaxed text-[color:var(--muted)]">{answer}</div>
                         </div>
                       )}
                     </>
@@ -986,7 +996,7 @@ export default function PatientDetail() {
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-slate-900">Documents</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Documents</div>
                     <button
                       onClick={fetchDocuments}
                       className="h-9 ui-btn-ghost px-4 text-xs"
@@ -997,7 +1007,7 @@ export default function PatientDetail() {
 
                   <div className="mt-4 space-y-2">
                     {documents.length === 0 ? (
-                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-6 text-center text-sm text-slate-600 shadow-sm backdrop-blur">
+                      <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-6 text-center text-sm text-[color:var(--muted)] shadow-sm backdrop-blur">
                         No documents uploaded yet.
                       </div>
                     ) : (
@@ -1013,12 +1023,12 @@ export default function PatientDetail() {
                             'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition',
                             selectedDoc === doc._id
                               ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] shadow-sm'
-                              : 'border-[color:var(--panel-border)] bg-white/60 hover:bg-white/75 shadow-sm backdrop-blur'
+                              : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] hover:brightness-110 shadow-sm backdrop-blur'
                           ].join(' ')}
                         >
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-slate-900">{doc.originalName}</div>
-                            <div className="mt-1 text-xs text-slate-500">{fmtDate(doc.createdAt)}</div>
+                            <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-[color:var(--muted)]">{fmtDate(doc.createdAt)}</div>
                           </div>
                           {selectedDoc === doc._id && (
                             <span className="ui-pill">
@@ -1038,20 +1048,20 @@ export default function PatientDetail() {
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <GlassPanel className="p-5">
-                  <div className="text-sm font-semibold text-slate-900">Search messages</div>
+                  <div className="text-sm font-semibold text-[color:var(--app-fg)]">Search messages</div>
                   <input
                     value={chatQuery}
                     onChange={(e) => setChatQuery(e.target.value)}
                     placeholder="Type to filter..."
                     className="mt-3 ui-input px-4 text-xs"
                   />
-                  <div className="mt-2 text-[11px] text-slate-500">Showing the most recent 50 matches.</div>
+                  <div className="mt-2 text-[11px] text-[color:var(--muted)]">Showing the most recent 50 matches.</div>
                 </GlassPanel>
               </div>
               <div className="lg:col-span-2">
                 <GlassPanel className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-slate-900">Chat preview</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Chat preview</div>
                     <button
                       onClick={() => setChatOpen(true)}
                       className="h-9 ui-btn-primary px-4 text-xs"
@@ -1060,9 +1070,9 @@ export default function PatientDetail() {
                     </button>
                   </div>
 
-                  <div className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                  <div className="mt-4 h-[420px] space-y-3 overflow-y-auto rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
                     {filteredMessages.length === 0 ? (
-                      <div className="py-10 text-center text-sm text-slate-600">No messages.</div>
+                      <div className="py-10 text-center text-sm text-[color:var(--muted)]">No messages.</div>
                     ) : (
                       filteredMessages.map((msg) => {
                         const fromPatient = String(msg.senderId) === String(patientId);
@@ -1072,12 +1082,12 @@ export default function PatientDetail() {
                               className={[
                                 'max-w-[80%] rounded-2xl px-4 py-3',
                                 fromPatient
-                                  ? 'border border-[color:var(--panel-border)] bg-white/70 text-slate-800 shadow-sm backdrop-blur'
-                                  : 'border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] text-slate-900 shadow-sm'
+                                  ? 'border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm backdrop-blur'
+                                  : 'border border-[color:var(--accent-20)] bg-[color:var(--accent-10)] text-[color:var(--app-fg)] shadow-sm'
                               ].join(' ')}
                             >
                               <div className="text-sm leading-relaxed">{msg.content}</div>
-                              <div className="mt-1 text-[11px] text-slate-500">{fmtTime(msg.createdAt)}</div>
+                              <div className="mt-1 text-[11px] text-[color:var(--muted)]">{fmtTime(msg.createdAt)}</div>
                             </div>
                           </div>
                         );

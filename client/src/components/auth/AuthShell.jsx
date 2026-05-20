@@ -4,8 +4,8 @@ export default function AuthShell({ title, subtitle, children, footer, onBack, b
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 

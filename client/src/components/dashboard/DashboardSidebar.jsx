@@ -9,15 +9,15 @@ const Item = ({ active, disabled, onClick, label, meta }) => (
     className={[
       'group w-full rounded-2xl border px-4 py-3 text-left shadow-sm backdrop-blur transition',
       active
-        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-slate-900 shadow-[0_10px_22px_rgba(15,23,42,0.10)]'
-        : 'border-[color:var(--panel-border)] bg-white/50 text-slate-700 hover:bg-white/70',
+        ? 'border-[color:var(--accent-25)] bg-[color:var(--accent-10)] text-[color:var(--app-fg)] shadow-[0_10px_22px_rgba(15,23,42,0.10)]'
+        : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] hover:brightness-110',
       disabled ? 'opacity-50 cursor-not-allowed' : ''
     ].join(' ')}
   >
     <div className="flex items-center justify-between gap-3">
       <div className="text-sm font-semibold tracking-tight">{label}</div>
       {meta != null && (
-        <div className="rounded-full border border-[color:var(--panel-border)] bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
+        <div className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2 py-0.5 text-[11px] font-semibold text-[color:var(--app-fg)] shadow-sm">
           {meta}
         </div>
       )}
@@ -28,8 +28,6 @@ const Item = ({ active, disabled, onClick, label, meta }) => (
 export default function DashboardSidebar({
   section,
   onSectionChange,
-  onOpenProfile,
-  onOpenNotifications,
   unreadNotifications = 0,
   onGoCalendar,
   onLogout
@@ -41,8 +39,8 @@ export default function DashboardSidebar({
           <div className="flex min-w-0 items-start gap-3">
             <PlatformLogo size={36} className="mt-0.5" />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900">Psychologist</div>
-              <div className="mt-1 text-xs text-slate-500">Dashboard</div>
+              <div className="text-sm font-semibold text-[color:var(--app-fg)]">Psychologist</div>
+              <div className="mt-1 text-xs text-[color:var(--muted)]">Dashboard</div>
             </div>
           </div>
           <button
@@ -80,25 +78,14 @@ export default function DashboardSidebar({
         <div className="mt-4 grid gap-2">
           <Item
             active={false}
-            onClick={onOpenProfile}
-            label="Edit profile"
-          />
-          <Item
-            active={false}
-            onClick={onOpenNotifications}
-            label="Notifications"
-            meta={unreadNotifications > 0 ? unreadNotifications : null}
-          />
-          <Item
-            active={false}
             onClick={onGoCalendar}
             label="Calendar"
           />
         </div>
 
-        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/50 p-4 shadow-sm backdrop-blur">
-          <div className="text-xs font-semibold text-slate-700">Tip</div>
-          <div className="mt-1 text-xs text-slate-500">
+        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
+          <div className="text-xs font-semibold text-[color:var(--app-fg)]">Tip</div>
+          <div className="mt-1 text-xs text-[color:var(--muted)]">
             Keep your availability updated so patients can book from your confirmed slots.
           </div>
         </div>

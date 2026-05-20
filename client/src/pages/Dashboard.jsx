@@ -14,9 +14,9 @@ import ConversationDrawer from '../components/conversation/ConversationDrawer';
 
 const StatCard = ({ label, value, hint }) => (
   <GlassPanel className="p-5">
-    <div className="text-xs font-semibold text-slate-500">{label}</div>
-    <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
-    {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
+    <div className="text-xs font-semibold text-[color:var(--muted)]">{label}</div>
+    <div className="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--app-fg)]">{value}</div>
+    {hint && <div className="mt-1 text-xs text-[color:var(--muted)]">{hint}</div>}
   </GlassPanel>
 );
 
@@ -238,8 +238,8 @@ function Dashboard() {
       {/* Soft light background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
-        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-[color:var(--accent-08)] blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
@@ -250,7 +250,7 @@ function Dashboard() {
               <div className="flex min-w-0 items-center gap-3">
                 <PlatformLogo size={36} />
                 <div className="min-w-0">
-                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
+                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">Dashboard</h1>
                   <div className="mt-1 text-xs text-[color:var(--muted)]">
                     {section === 'patients'
                       ? 'Manage patients and consultations'
@@ -265,6 +265,31 @@ function Dashboard() {
 
               <div className="flex items-center gap-2">
                 <ThemeToggleButton />
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(true)}
+                  className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label="Edit profile"
+                  title="Edit profile"
+                >
+                  <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                </button>
               </div>
             </div>
           </div>
@@ -275,8 +300,6 @@ function Dashboard() {
             <DashboardSidebar
               section={section}
               onSectionChange={setSection}
-              onOpenProfile={() => setProfileOpen(true)}
-              onOpenNotifications={() => setNotificationsOpen(true)}
               unreadNotifications={unreadNotifications}
               onGoCalendar={() => navigate('/calendar')}
               onLogout={logout}
@@ -286,7 +309,7 @@ function Dashboard() {
               {section === 'patients' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Your patients</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Your patients</div>
                     <button
                       type="button"
                       onClick={fetchPatients}
@@ -298,7 +321,7 @@ function Dashboard() {
 
                   <GlassPanel className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-xs font-semibold text-slate-500">
+                      <div className="text-xs font-semibold text-[color:var(--muted)]">
                         {patientsLoading ? 'Loading…' : `${filteredPatients.length} / ${patients.length} shown`}
                       </div>
                       <div className="w-full sm:max-w-sm">
@@ -321,7 +344,7 @@ function Dashboard() {
                   {(!patientsLoading && patients.length === 0) && (
                     <GlassPanel className="p-10 text-center">
                       <div className="text-sm font-semibold">No patients yet</div>
-                      <div className="mt-2 text-sm text-slate-500">
+                      <div className="mt-2 text-sm text-[color:var(--muted)]">
                         When a patient books a consultation, they will appear here.
                       </div>
                     </GlassPanel>
@@ -340,22 +363,22 @@ function Dashboard() {
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <div className="grid h-full w-full place-items-center text-sm font-bold text-slate-700">
+                                <div className="grid h-full w-full place-items-center text-sm font-bold text-[color:var(--app-fg)]">
                                   {(request.fullName || request.email || 'P').slice(0, 2).toUpperCase()}
                                 </div>
                               )}
                             </div>
 
                             <div className="min-w-0">
-                              <div className="truncate text-base font-semibold text-slate-900">
+                              <div className="truncate text-base font-semibold text-[color:var(--app-fg)]">
                                 {request.fullName || request.email}
                               </div>
-                              <div className="mt-0.5 truncate text-xs text-slate-500">{request.email}</div>
-                            <div className="mt-1 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
-                              <div>Sessions: <span className="text-slate-800">{request.sessionCount}</span></div>
+                              <div className="mt-0.5 truncate text-xs text-[color:var(--muted)]">{request.email}</div>
+                            <div className="mt-1 grid gap-1 text-sm text-[color:var(--muted)] sm:grid-cols-2">
+                              <div>Sessions: <span className="text-[color:var(--app-fg)]">{request.sessionCount}</span></div>
                               <div>
                                 Last activity:{' '}
-                                <span className="text-slate-800">
+                                <span className="text-[color:var(--app-fg)]">
                                   {request.lastSession ? new Date(request.lastSession).toLocaleDateString() : 'N/A'}
                                 </span>
                               </div>
@@ -390,7 +413,7 @@ function Dashboard() {
               {section === 'messages' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Messages</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Messages</div>
                     <button
                       type="button"
                       onClick={fetchPatients}
@@ -403,7 +426,7 @@ function Dashboard() {
 
                   <GlassPanel className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-xs font-semibold text-slate-500">
+                      <div className="text-xs font-semibold text-[color:var(--muted)]">
                         {patientsLoading ? 'Loading...' : `${filteredMessagePatients.length} / ${patients.length} shown`}
                       </div>
                       <div className="w-full sm:max-w-sm">
@@ -426,7 +449,7 @@ function Dashboard() {
                   {!patientsLoading && filteredMessagePatients.length === 0 && (
                     <GlassPanel className="p-10 text-center">
                       <div className="text-sm font-semibold">No patients found</div>
-                      <div className="mt-2 text-sm text-slate-500">
+                      <div className="mt-2 text-sm text-[color:var(--muted)]">
                         Try adjusting your search.
                       </div>
                     </GlassPanel>
@@ -437,8 +460,8 @@ function Dashboard() {
                       <GlassPanel key={String(p.patientId)} className="p-5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="truncate text-sm font-semibold text-slate-900">
+                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="truncate text-sm font-semibold text-[color:var(--app-fg)]">
                                 {p.email || p.patientId}
                               </div>
                               <span
@@ -450,11 +473,11 @@ function Dashboard() {
                                 {String(p.status || 'pending')}
                               </span>
                             </div>
-                            <div className="mt-1 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
-                              <div>Sessions: <span className="text-slate-800">{p.sessionCount}</span></div>
+                            <div className="mt-1 grid gap-1 text-sm text-[color:var(--muted)] sm:grid-cols-2">
+                              <div>Sessions: <span className="text-[color:var(--app-fg)]">{p.sessionCount}</span></div>
                               <div>
                                 Last activity:{' '}
-                                <span className="text-slate-800">
+                                <span className="text-[color:var(--app-fg)]">
                                   {p.lastSession ? new Date(p.lastSession).toLocaleDateString() : 'N/A'}
                                 </span>
                               </div>
@@ -487,7 +510,7 @@ function Dashboard() {
               {section === 'statistics' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Statistics</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Statistics</div>
                     <button
                       type="button"
                       onClick={fetchStats}
@@ -506,7 +529,7 @@ function Dashboard() {
 
                   {!stats && statsLoading && (
                     <GlassPanel className="p-6">
-                      <div className="text-sm text-slate-600">Loading statistics...</div>
+                      <div className="text-sm text-[color:var(--muted)]">Loading statistics...</div>
                     </GlassPanel>
                   )}
 
@@ -529,12 +552,12 @@ function Dashboard() {
                       <GlassPanel className="p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900">Sessions (last 14 days)</div>
-                            <div className="mt-1 text-xs text-slate-500">New sessions created per day</div>
+                            <div className="text-sm font-semibold text-[color:var(--app-fg)]">Sessions (last 14 days)</div>
+                            <div className="mt-1 text-xs text-[color:var(--muted)]">New sessions created per day</div>
                           </div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-[color:var(--muted)]">
                             Max:{' '}
-                            <span className="text-slate-800">
+                            <span className="text-[color:var(--app-fg)]">
                               {Math.max(0, ...(Array.isArray(stats.sessionsByDay) ? stats.sessionsByDay.map((d) => Number(d.count || 0)) : [0]))}
                             </span>
                           </div>
@@ -545,8 +568,8 @@ function Dashboard() {
                       </GlassPanel>
 
                       <GlassPanel className="p-5">
-                        <div className="text-sm font-semibold text-slate-900">Session breakdown</div>
-                        <div className="mt-1 text-xs text-slate-500">Active vs pending vs completed</div>
+                        <div className="text-sm font-semibold text-[color:var(--app-fg)]">Session breakdown</div>
+                        <div className="mt-1 text-xs text-[color:var(--muted)]">Active vs pending vs completed</div>
                         <div className="mt-4">
                           <StackedBar segments={breakdownSegments} />
                         </div>
@@ -559,7 +582,7 @@ function Dashboard() {
               {section === 'documents' && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">Credential documents</div>
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">Credential documents</div>
                     <button
                       type="button"
                       onClick={fetchCredentialDocs}
@@ -579,8 +602,8 @@ function Dashboard() {
                   <GlassPanel className="p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">Onboarding status</div>
-                        <div className="mt-1 text-xs text-slate-500">
+                        <div className="text-sm font-semibold text-[color:var(--app-fg)]">Onboarding status</div>
+                        <div className="mt-1 text-xs text-[color:var(--muted)]">
                           {onboardingLoading ? 'Loading...' : onboarding?.profileStatus || '—'}
                         </div>
                         {onboarding?.profileStatus === 'Rejected' && onboarding?.rejectionReason && (
@@ -610,8 +633,8 @@ function Dashboard() {
 
                   {(onboarding?.profileStatus === 'Draft' || onboarding?.profileStatus === 'Rejected') && (
                     <GlassPanel className="p-5">
-                      <div className="text-sm font-semibold text-slate-900">Upload replacements</div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="text-sm font-semibold text-[color:var(--app-fg)]">Upload replacements</div>
+                      <div className="mt-1 text-xs text-[color:var(--muted)]">
                         After admin rejection, upload updated documents here, then click <span className="font-semibold">Resubmit</span>.
                       </div>
                       <div className="mt-4 grid gap-3">
@@ -622,10 +645,10 @@ function Dashboard() {
                           { type: 'idBack', label: 'ID Back (JPG/PNG)', accept: 'image/jpeg,image/png' },
                           { type: 'introVideo', label: 'Intro Video (MP4/MOV/WEBM)', accept: 'video/mp4,video/webm,video/quicktime,.mov' }
                         ].map((item) => (
-                          <div key={item.type} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <div key={item.type} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur">
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold text-slate-900">{item.label}</div>
-                              <div className="mt-1 break-all text-xs text-slate-500">
+                              <div className="text-sm font-semibold text-[color:var(--app-fg)]">{item.label}</div>
+                              <div className="mt-1 break-all text-xs text-[color:var(--muted)]">
                                 {credentialUploadFiles?.[item.type]?.name || 'No file selected'}
                               </div>
                             </div>
@@ -637,7 +660,7 @@ function Dashboard() {
                                   const f = e.target.files?.[0] || null;
                                   setCredentialUploadFiles((prev) => ({ ...prev, [item.type]: f }));
                                 }}
-                                className="block w-full sm:w-auto text-xs text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900/5 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-900/10"
+                                className="block w-full sm:w-auto text-xs text-[color:var(--app-fg)] file:mr-3 file:rounded-xl file:border-0 file:bg-[color:var(--panel-bg)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[color:var(--app-fg)] hover:file:brightness-110"
                               />
                               <button
                                 type="button"
@@ -657,7 +680,7 @@ function Dashboard() {
                   {!credentialDocsLoading && credentialDocs.length === 0 && (
                     <GlassPanel className="p-10 text-center">
                       <div className="text-sm font-semibold">No documents yet</div>
-                      <div className="mt-2 text-sm text-slate-500">
+                      <div className="mt-2 text-sm text-[color:var(--muted)]">
                         Upload your documents during onboarding to submit for verification.
                       </div>
                     </GlassPanel>
@@ -668,11 +691,11 @@ function Dashboard() {
                       <GlassPanel key={doc._id} className="p-5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900">
-                              {String(doc.type || '').toUpperCase()} <span className="text-slate-400">·</span> v{doc.version}
+                            <div className="text-sm font-semibold text-[color:var(--app-fg)]">
+                              {String(doc.type || '').toUpperCase()} <span className="text-[color:var(--muted)]">·</span> v{doc.version}
                             </div>
-                            <div className="mt-1 break-all text-xs text-slate-600">{doc.originalName}</div>
-                            <div className="mt-1 text-xs text-slate-500">
+                            <div className="mt-1 break-all text-xs text-[color:var(--muted)]">{doc.originalName}</div>
+                            <div className="mt-1 text-xs text-[color:var(--muted)]">
                               Uploaded: {doc.createdAt ? new Date(doc.createdAt).toLocaleString() : '—'}
                             </div>
                           </div>

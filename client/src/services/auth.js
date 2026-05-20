@@ -16,6 +16,7 @@ export const storeAuth = ({ accessToken, refreshToken, user }) => {
     if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
     if (user?.role) localStorage.setItem('role', user.role);
     if (user?.id) localStorage.setItem('userId', user.id);
+    if (user?.email) localStorage.setItem('email', user.email);
     if (typeof user?.fullName === 'string') localStorage.setItem('userName', user.fullName);
     if (typeof user?.isVerified !== 'undefined') {
         localStorage.setItem('isVerified', String(user.isVerified));
@@ -25,6 +26,7 @@ export const storeAuth = ({ accessToken, refreshToken, user }) => {
 export const getUser = () => ({
     userId: localStorage.getItem('userId'),
     role: localStorage.getItem('role'),
+    email: localStorage.getItem('email'),
     token: localStorage.getItem('token'),
     refreshToken: localStorage.getItem('refreshToken'),
     isVerified: localStorage.getItem('isVerified') === 'true'
@@ -78,6 +80,7 @@ export const logout = async () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');
+    localStorage.removeItem('email');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('isVerified');
     localStorage.removeItem('userName');

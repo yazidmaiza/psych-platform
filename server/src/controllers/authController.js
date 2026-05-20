@@ -15,8 +15,6 @@ const {
   logAuditEvent
 } = require('../services/authService');
 
-const getClientUrl = () => process.env.CLIENT_URL || 'http://localhost:3000';
-
 const getRequestContext = (req) => ({
   ipAddress: req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.ip || '',
   userAgent: req.get('user-agent') || '',
@@ -93,11 +91,10 @@ exports.register = async (req, res) => {
     });
 
     const verificationToken = await createEmailVerificationToken(user._id);
-    const verifyUrl = `${getClientUrl()}/verify-email?token=${verificationToken}&email=${encodeURIComponent(user.email)}`;
     await sendEmail({
       to: user.email,
-      subject: 'Verify your email',
-      html: `<p>Welcome to Psych Platform.</p><p>Please verify your email to activate your account:</p><p><a href="${verifyUrl}">Verify Email</a></p>`
+      subject: 'Your verification code',
+      html: `<p>Welcome to Psych Platform.</p><p>Your verification code is:</p><p style="font-size:20px"><b>${verificationToken}</b></p><p>This code expires soon. If you didn't request it, you can ignore this email.</p>`
     });
 
     await logAuditEvent({
@@ -326,12 +323,10 @@ exports.requestPasswordReset = async (req, res) => {
 
     if (user) {
       const rawToken = await createPasswordResetToken(user._id);
-      const resetUrl = `${getClientUrl()}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
-
       await sendEmail({
         to: user.email,
-        subject: 'Reset your password',
-        html: `<p>You requested a password reset.</p><p><a href="${resetUrl}">Reset password</a></p>`
+        subject: 'Your password reset code',
+        html: `<p>You requested a password reset.</p><p>Your password reset code is:</p><p style="font-size:20px"><b>${rawToken}</b></p><p>This code expires soon. If you didn't request it, you can ignore this email.</p>`
       });
 
       await logAuditEvent({
@@ -351,17 +346,19 @@ exports.requestPasswordReset = async (req, res) => {
 // @POST /api/auth/password/reset
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
-    const tokenHash = hashToken(token);
-    const resetToken = await PasswordResetToken.findOne({ tokenHash });
+    const { email, password } = req.body;
+    const code = req.body.code || req.body.otp || req.body.token;
 
-    if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
-      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset code' });
     }
 
-    const user = await User.findById(resetToken.userId);
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid reset token' });
+    const tokenHash = hashToken(code);
+    const resetToken = await PasswordResetToken.findOne({ userId: user._id, tokenHash });
+
+    if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired reset code' });
     }
 
     user.password = password;
@@ -385,21 +382,26 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// @GET /api/auth/verify-email
+// @POST /api/auth/verify-email
 exports.verifyEmail = async (req, res) => {
   try {
-    const { token } = req.query;
-    if (!token) return res.status(400).json({ message: 'Verification token is required' });
-
-    const tokenHash = hashToken(token);
-    const verification = await EmailVerificationToken.findOne({ tokenHash });
-
-    if (!verification || verification.usedAt || verification.expiresAt < new Date()) {
-      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    const { email } = req.body;
+    const code = req.body.code || req.body.otp;
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and code are required' });
     }
 
-    const user = await User.findById(verification.userId);
-    if (!user) return res.status(400).json({ message: 'Invalid verification token' });
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    const tokenHash = hashToken(code);
+    const verification = await EmailVerificationToken.findOne({ userId: user._id, tokenHash });
+
+    if (!verification || verification.usedAt || verification.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
 
     user.isVerified = true;
     await user.save();
@@ -435,12 +437,10 @@ exports.resendVerification = async (req, res) => {
     }
 
     const verificationToken = await createEmailVerificationToken(user._id);
-    const verifyUrl = `${getClientUrl()}/verify-email?token=${verificationToken}&email=${encodeURIComponent(user.email)}`;
-
     await sendEmail({
       to: user.email,
-      subject: 'Verify your email',
-      html: `<p>Please verify your email to activate your account:</p><p><a href="${verifyUrl}">Verify Email</a></p>`
+      subject: 'Your verification code',
+      html: `<p>Your verification code is:</p><p style="font-size:20px"><b>${verificationToken}</b></p><p>This code expires soon. If you didn't request it, you can ignore this email.</p>`
     });
 
     res.json({ message: 'Verification email sent.' });
