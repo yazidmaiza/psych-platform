@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
@@ -20,7 +20,7 @@ const RATING_QUESTIONS = [
 
 export default function RateConsultation() {
     const { psychologistId } = useParams();
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [ratings, setRatings] = useState({});
     const [comment, setComment] = useState('');
@@ -28,36 +28,41 @@ export default function RateConsultation() {
     const [loading, setLoading] = useState(false);
     const [psy, setPsy] = useState(null);
     const [psyLoading, setPsyLoading] = useState(true);
+    const [psyError, setPsyError] = useState('');
 
     useEffect(() => {
         let mounted = true;
         const fetchPsy = async () => {
             if (!psychologistId) {
-                if (mounted) setPsy(null);
-                if (mounted) setPsyLoading(false);
+                if (mounted) {
+                    setPsy(null);
+                    setPsyLoading(false);
+                    setPsyError('');
+                }
                 return;
             }
 
-            if (mounted) setPsyLoading(true);
+            if (mounted) {
+                setPsyLoading(true);
+                setPsyError('');
+            }
+
             try {
                 const data = await api.get('/api/psychologists/' + psychologistId);
-                if (data && mounted) {
-                    setPsy(data);
-                    setPsyLoading(false);
-                    return;
+                if (mounted) setPsy(data || null);
+            } catch (e) {
+                try {
+                    const byUser = await api.get('/api/psychologists/by-user/' + psychologistId);
+                    if (mounted) setPsy(byUser || null);
+                } catch (fallbackError) {
+                    if (mounted) {
+                        setPsy(null);
+                        setPsyError('Unable to load psychologist details.');
+                    }
                 }
-            } catch (e) {
-                // ignore and try fallback
+            } finally {
+                if (mounted) setPsyLoading(false);
             }
-
-            try {
-                const byUser = await api.get('/api/psychologists/by-user/' + psychologistId);
-                if (byUser && mounted) setPsy(byUser);
-            } catch (e) {
-                // ignore
-            }
-
-            if (mounted) setPsyLoading(false);
         };
 
         fetchPsy();
@@ -67,11 +72,11 @@ export default function RateConsultation() {
     }, [psychologistId]);
 
     const handleRate = (questionId, value) => {
-        setRatings(prev => ({ ...prev, [questionId]: value }));
+        setRatings((prev) => ({ ...prev, [questionId]: value }));
     };
 
-    const allRated = RATING_QUESTIONS.every(q => ratings[q.id] !== undefined);
-    const averageRating = allRated 
+    const allRated = RATING_QUESTIONS.every((q) => ratings[q.id] !== undefined);
+    const averageRating = allRated
         ? (Object.values(ratings).reduce((a, b) => a + b, 0) / RATING_QUESTIONS.length).toFixed(1)
         : '0.0';
 
@@ -92,6 +97,9 @@ export default function RateConsultation() {
         }
     };
 
+    const displayName = [psy?.firstName, psy?.lastName].filter(Boolean).join(' ').trim();
+    const initials = displayName ? displayName[0] : 'P';
+
     if (submitted) {
         return (
             <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)] flex items-center justify-center p-6">
@@ -101,10 +109,7 @@ export default function RateConsultation() {
                     <p className="text-white/60 mb-6">{t('ratingSubmitted')}</p>
                     <div className="text-4xl font-bold text-fuchsia-400 mb-2">{averageRating}</div>
                     <p className="text-sm text-white/40 mb-6">{t('averageRating')}</p>
-                    <button
-                        onClick={() => navigate('/patient/sessions')}
-                        className="glass-button w-full"
-                    >
+                    <button onClick={() => navigate('/patient/sessions')} className="glass-button w-full">
                         {t('backToSessions')}
                     </button>
                 </GlassPanel>
@@ -120,28 +125,23 @@ export default function RateConsultation() {
             </div>
 
             <div className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-                {/* Psychologist Header */}
                 <div className="flex items-center gap-4 mb-8">
                     <div className="h-16 w-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
                         {!psyLoading && psy?.photo ? (
-                            <img
-                                src={psy.photo}
-                                alt={`${psy.firstName || ''} ${psy.lastName || ''}`}
-                                className="h-full w-full object-cover"
-                            />
+                            <img src={psy.photo} alt={displayName || 'Psychologist'} className="h-full w-full object-cover" />
                         ) : (
-                            <div className="text-white/50">{psyLoading ? '...' : (psy?.firstName?.[0] || 'P')}</div>
+                            <div className="text-white/50">{psyLoading ? '...' : initials}</div>
                         )}
                     </div>
                     <div>
                         <h1 className="text-xl font-semibold text-white">{t('rateYourSession')}</h1>
                         <p className="text-sm text-white/60">
-                            {psyLoading ? t('loading') : (psy ? `${psy.firstName || ''} ${psy.lastName || ''}` : t('psychologist'))}
+                            {psyLoading ? t('loading') : displayName || t('psychologist')}
                         </p>
+                        {psyError && <p className="mt-1 text-xs text-rose-300">{psyError}</p>}
                     </div>
                 </div>
 
-                {/* Average Score */}
                 <GlassPanel className="p-5 mb-6">
                     <div className="flex items-center justify-between">
                         <div>
@@ -157,7 +157,6 @@ export default function RateConsultation() {
                     </div>
                 </GlassPanel>
 
-                {/* Questions */}
                 <div className="space-y-4">
                     {RATING_QUESTIONS.map((q, index) => (
                         <GlassPanel key={q.id} className="p-5">
@@ -167,7 +166,7 @@ export default function RateConsultation() {
                                     <p className="text-sm text-white mt-1">{t(q.text)}</p>
                                 </div>
                                 <div className="flex gap-1.5 shrink-0">
-                                    {[1, 2, 3, 4, 5].map(star => (
+                                    {[1, 2, 3, 4, 5].map((star) => (
                                         <button
                                             key={star}
                                             onClick={() => handleRate(q.id, star)}
@@ -186,18 +185,16 @@ export default function RateConsultation() {
                     ))}
                 </div>
 
-                {/* Comment */}
                 <GlassPanel className="p-5 mt-4">
                     <label className="form-label">{t('additionalComments')}</label>
                     <textarea
                         className="glass-input w-full min-h-[120px] resize-none"
                         placeholder={t('commentPlaceholder')}
                         value={comment}
-                        onChange={e => setComment(e.target.value)}
+                        onChange={(e) => setComment(e.target.value)}
                     />
                 </GlassPanel>
 
-                {/* Submit */}
                 <div className="mt-6">
                     <button
                         onClick={handleSubmit}
@@ -206,9 +203,7 @@ export default function RateConsultation() {
                     >
                         {loading ? t('submitting') : t('submitRating')}
                     </button>
-                    {!allRated && (
-                        <p className="text-center text-xs text-white/40 mt-3">{t('pleaseRateAll')}</p>
-                    )}
+                    {!allRated && <p className="text-center text-xs text-white/40 mt-3">{t('pleaseRateAll')}</p>}
                 </div>
             </div>
         </div>

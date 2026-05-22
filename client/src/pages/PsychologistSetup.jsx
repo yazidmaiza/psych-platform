@@ -15,7 +15,7 @@ const STEPS = [
 ];
 
 export default function PsychologistSetup() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,7 @@ export default function PsychologistSetup() {
   const handleFileUpload = (type, file) => {
     if (!file) return;
     setFormData(prev => ({ ...prev, documents: { ...prev.documents, [type]: file } }));
-    if (file.type && file.type.startsWith('image/')) {
+    if (file.type?.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => setPreviews(p => ({ ...p, [type]: e.target.result }));
       reader.readAsDataURL(file);
@@ -92,14 +92,17 @@ export default function PsychologistSetup() {
         <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
-        {/* Progress */}
+      <div className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-semibold tracking-tight">{t('psychologistSetup')}</h1>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-white">{t('psychologistSetup')}</h1>
+              <p className="mt-1 text-sm text-white/60">{t('completeSetup')} {t('to')} {t('continue')}</p>
+            </div>
             <span className="text-sm text-white/60">{t('step')} {step} {t('of')} {STEPS.length}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+            <div className="flex gap-2">
             {STEPS.map(s => (
               <div key={s.id} className="flex-1">
                 <div className={`h-2 rounded-full transition-all ${
@@ -107,15 +110,16 @@ export default function PsychologistSetup() {
                 }`} />
               </div>
             ))}
-          </div>
-          <div className="flex justify-between mt-2">
-            {STEPS.map(s => (
-              <span key={s.id} className={`text-[10px] font-semibold ${
-                s.id <= step ? 'text-indigo-400' : 'text-white/30'
-              }`}>
-                {t(s.label)}
-              </span>
-            ))}
+            </div>
+            <div className="mt-3 flex justify-between gap-2">
+              {STEPS.map(s => (
+                <span key={s.id} className={`text-[10px] font-semibold uppercase tracking-wide ${
+                  s.id <= step ? 'text-indigo-300' : 'text-white/30'
+                }`}>
+                  {t(s.label)}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -123,8 +127,9 @@ export default function PsychologistSetup() {
         {step === 1 && (
           <div className="space-y-4">
             <GlassPanel className="p-5">
-              <h2 className="text-lg font-semibold text-white mb-4">{t('personalInformation')}</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <h2 className="text-lg font-semibold text-white mb-1">{t('personalInformation')}</h2>
+              <p className="mb-4 text-sm text-white/50">{t('shareYourBackground')}</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="form-label">{t('firstName')}</label>
                   <input
@@ -161,8 +166,9 @@ export default function PsychologistSetup() {
         {step === 2 && (
           <div className="space-y-4">
             <GlassPanel className="p-5">
-              <h2 className="text-lg font-semibold text-white mb-4">{t('locationAndAvailability')}</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <h2 className="text-lg font-semibold text-white mb-1">{t('locationAndAvailability')}</h2>
+              <p className="mb-4 text-sm text-white/50">{t('addYourPracticeLocation')}</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="form-label">{t('city')}</label>
                   <input
@@ -204,7 +210,8 @@ export default function PsychologistSetup() {
         {step === 3 && (
           <div className="space-y-4">
             <GlassPanel className="p-5">
-              <h2 className="text-lg font-semibold text-white mb-4">{t('specializations')}</h2>
+              <h2 className="text-lg font-semibold text-white mb-1">{t('specializations')}</h2>
+              <p className="mb-4 text-sm text-white/50">{t('selectAreasOfPractice')}</p>
               <div className="flex flex-wrap gap-2">
                 {SPECIALIZATIONS.map(spec => (
                   <button
@@ -223,7 +230,8 @@ export default function PsychologistSetup() {
             </GlassPanel>
 
             <GlassPanel className="p-5">
-              <h2 className="text-lg font-semibold text-white mb-4">{t('languages')}</h2>
+              <h2 className="text-lg font-semibold text-white mb-1">{t('languages')}</h2>
+              <p className="mb-4 text-sm text-white/50">{t('chooseLanguagesYouSpeak')}</p>
               <div className="flex flex-wrap gap-2">
                 {LANGUAGES.map(lang => (
                   <button
@@ -247,7 +255,8 @@ export default function PsychologistSetup() {
         {step === 4 && (
           <div className="space-y-4">
             <GlassPanel className="p-5">
-              <h2 className="text-lg font-semibold text-white mb-4">{t('requiredDocuments')}</h2>
+              <h2 className="text-lg font-semibold text-white mb-1">{t('requiredDocuments')}</h2>
+              <p className="mb-4 text-sm text-white/50">{t('uploadYourVerificationFiles')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { key: 'cv', label: t('cv') },
