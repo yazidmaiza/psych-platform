@@ -1,3 +1,5 @@
+import { api } from './api';
+
 // Get current logged in user info from localStorage
 const DEVICE_ID_KEY = 'deviceId';
 
@@ -119,3 +121,45 @@ export const refreshSession = async () => {
 
     return data;
 };
+
+export const authService = {
+    login: async (email, password) => {
+        const data = await api.post('/api/auth/login', { email, password });
+        storeAuth({
+            accessToken: data.accessToken || data.token,
+            refreshToken: data.refreshToken,
+            user: data.user
+        });
+        if (data?.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+        }
+        return data;
+    },
+
+    register: async (userData) => {
+        return api.post('/api/auth/register', userData);
+    },
+
+    logout,
+
+    getCurrentUser: () => {
+        try {
+            return JSON.parse(localStorage.getItem('user'));
+        } catch {
+            return null;
+        }
+    },
+
+    getRole: () => localStorage.getItem('role'),
+    isAuthenticated: () => !!localStorage.getItem('token'),
+
+    verifyEmail: async (token) => {
+        return api.get(`/api/auth/verify-email?token=${encodeURIComponent(token)}`);
+    },
+
+    resendVerification: async (email) => {
+        return api.post('/api/auth/resend-verification', { email });
+    }
+};
+
+export default authService;

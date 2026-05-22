@@ -1,4 +1,5 @@
-export const BASE_URL = 'http://localhost:5000';
+const RAW_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+export const BASE_URL = RAW_API_URL.replace(/\/api\/?$/, '');
 
 const getHeaders = () => ({
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -116,3 +117,5 @@ export const toAbsoluteUrl = (maybeRelativeUrl) => {
     if (value.startsWith('http://') || value.startsWith('https://')) return value;
     return `${BASE_URL}${value.startsWith('/') ? '' : '/'}${value}`;
 };
+
+export default api;

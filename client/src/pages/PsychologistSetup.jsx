@@ -1,465 +1,323 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
+import GlassPanel from '../components/dashboard/GlassPanel';
 
-const SPECIALIZATIONS = [
-  'Anxiety', 'Depression', 'Stress', 'Trauma', 'PTSD',
-  'Relationships', 'Family', 'Addiction', 'Sleep', 'Self-esteem'
-];
-
+const SPECIALIZATIONS = ['Anxiety', 'Depression', 'Stress', 'Trauma', 'PTSD', 'Relationships', 'Family', 'Addiction', 'Sleep', 'Self-esteem'];
 const LANGUAGES = ['Arabic', 'French', 'English', 'Darija'];
 
+const STEPS = [
+  { id: 1, label: 'personalInfo' },
+  { id: 2, label: 'locationAvailability' },
+  { id: 3, label: 'specializationsLanguages' },
+  { id: 4, label: 'documents' },
+];
+
 export default function PsychologistSetup() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1: documents, 2: profile, 3: awaiting admin
-
-  const [checklist, setChecklist] = useState({
-    cv: false,
-    diploma: false,
-    idFront: false,
-    idBack: false,
-    introVideo: false
-  });
-  const [checklistLoading, setChecklistLoading] = useState(false);
-
-  const [form, setForm] = useState({
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     bio: '',
     city: '',
-    availability: '',
+    country: '',
+    availability: {},
     specializations: [],
-    languages: []
+    languages: [],
+    hourlyRate: '',
+    documents: { cv: null, diploma: null, idFront: null, idBack: null, video: null },
   });
+  const [previews, setPreviews] = useState({});
 
-  const [cv, setCv] = useState(null);
-  const [diploma, setDiploma] = useState(null);
-  const [idFront, setIdFront] = useState(null);
-  const [idBack, setIdBack] = useState(null);
-  const [introVideo, setIntroVideo] = useState(null);
-
-  const [idFrontPreview, setIdFrontPreview] = useState('');
-  const [idBackPreview, setIdBackPreview] = useState('');
-  const [introVideoPreview, setIntroVideoPreview] = useState('');
-
-  const [loading, setLoading] = useState(false);
-  const [uploadingType, setUploadingType] = useState('');
-  const [error, setError] = useState('');
-
-  const refreshChecklist = async () => {
-    setChecklistLoading(true);
-    try {
-      const data = await api.get('/api/credential-documents/checklist');
-      setChecklist(
-        data?.checklist || {
-          cv: false,
-          diploma: false,
-          idFront: false,
-          idBack: false,
-          introVideo: false
-        }
-      );
-    } catch (e) {
-      // best-effort; upload calls will surface any errors
-    } finally {
-      setChecklistLoading(false);
-    }
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  useEffect(() => {
-    refreshChecklist();
-  }, []);
-
-  useEffect(() => {
-    if (!idFront) {
-      setIdFrontPreview('');
-      return;
-    }
-    const url = URL.createObjectURL(idFront);
-    setIdFrontPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [idFront]);
-
-  useEffect(() => {
-    if (!idBack) {
-      setIdBackPreview('');
-      return;
-    }
-    const url = URL.createObjectURL(idBack);
-    setIdBackPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [idBack]);
-
-  useEffect(() => {
-    if (!introVideo) {
-      setIntroVideoPreview('');
-      return;
-    }
-    const url = URL.createObjectURL(introVideo);
-    setIntroVideoPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [introVideo]);
-
-  const toggleItem = (field, value) => {
-    setForm((prev) => ({
+  const toggleSpecialization = (spec) => {
+    setFormData(prev => ({
       ...prev,
-      [field]: prev[field].includes(value) ? prev[field].filter((i) => i !== value) : [...prev[field], value]
+      specializations: prev.specializations.includes(spec)
+        ? prev.specializations.filter(s => s !== spec)
+        : [...prev.specializations, spec]
     }));
   };
 
-  const uploadOne = async (type, file) => {
+  const toggleLanguage = (lang) => {
+    setFormData(prev => ({
+      ...prev,
+      languages: prev.languages.includes(lang)
+        ? prev.languages.filter(l => l !== lang)
+        : [...prev.languages, lang]
+    }));
+  };
+
+  const handleFileUpload = (type, file) => {
     if (!file) return;
-    setLoading(true);
-    setUploadingType(type);
-    setError('');
-    try {
-      const formData = new FormData();
-      formData.append('type', type);
-      formData.append('file', file);
-      await api.postForm('/api/credential-documents/upload', formData);
-      await refreshChecklist();
-    } catch (err) {
-      setError(err.message || 'Failed to upload document.');
-    } finally {
-      setLoading(false);
-      setUploadingType('');
+    setFormData(prev => ({ ...prev, documents: { ...prev.documents, [type]: file } }));
+    if (file.type && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreviews(p => ({ ...p, [type]: e.target.result }));
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleDocumentsContinue = () => {
-    const allComplete = Object.values(checklist).every(Boolean);
-    if (!allComplete) {
-      setError('Please upload your CV, diploma, ID front/back, and intro video before continuing.');
-      return;
-    }
-    setError('');
-    setStep(2);
-  };
-
-  const handleProfileSubmit = async () => {
-    if (!form.firstName || !form.lastName || !form.city) {
-      return setError('First name, last name and city are required.');
-    }
+  const handleSubmit = async () => {
     setLoading(true);
-    setError('');
     try {
-      // New signups create a draft psychologist row; fill it in here.
-      // Older accounts may not have one yet.
-      try {
-        await api.put('/api/psychologists/me', form);
-      } catch (e) {
-        if (e?.status === 404) await api.post('/api/psychologists/profile', form);
-        else throw e;
-      }
-
-      await api.post('/api/onboarding/submit', {});
-      navigate('/psychologist/draft-profile');
-    } catch (err) {
-      setError(err.message || 'Failed to submit onboarding. Please try again.');
+      await api.post('/api/psychologist/setup', formData);
+      navigate('/psychologist/dashboard');
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  if (step === 3) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow p-10 max-w-md w-full text-center">
-          <div className="text-2xl mb-4">Submitting...</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Awaiting Admin Approval</h2>
-          <p className="text-gray-500 text-sm">
-            Your onboarding application has been submitted. An admin will review your documents and approve or reject your profile.
-          </p>
-          <button
-            onClick={() => navigate('/psychologist/dashboard')}
-            className="mt-6 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
-          >
-            Go to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const canProceed = () => {
+    if (step === 1) return formData.firstName && formData.lastName && formData.bio;
+    if (step === 2) return formData.city && formData.country;
+    if (step === 3) return formData.specializations.length > 0 && formData.languages.length > 0;
+    if (step === 4) return formData.documents.cv && formData.documents.diploma && formData.documents.idFront;
+    return false;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-blue-700">{step === 1 ? 'Upload Your Credential Documents' : 'Complete Your Profile'}</h1>
-          <span className="text-sm text-gray-400">Step {step} of 2</span>
-        </div>
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 grid grid-cols-1 gap-6">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-4 rounded-xl">
-            {error}
+      <div className="relative mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
+        {/* Progress */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-semibold tracking-tight">{t('psychologistSetup')}</h1>
+            <span className="text-sm text-white/60">{t('step')} {step} {t('of')} {STEPS.length}</span>
           </div>
-        )}
+          <div className="flex gap-2">
+            {STEPS.map(s => (
+              <div key={s.id} className="flex-1">
+                <div className={`h-2 rounded-full transition-all ${
+                  s.id < step ? 'bg-emerald-500' : s.id === step ? 'bg-indigo-500' : 'bg-white/10'
+                }`} />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-2">
+            {STEPS.map(s => (
+              <span key={s.id} className={`text-[10px] font-semibold ${
+                s.id <= step ? 'text-indigo-400' : 'text-white/30'
+              }`}>
+                {t(s.label)}
+              </span>
+            ))}
+          </div>
+        </div>
 
+        {/* Step 1: Personal Info */}
         {step === 1 && (
-          <>
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700">
-              Upload your credential documents first. After that, you’ll complete your profile details and submit for admin review.
-            </div>
-
-            <div className="bg-white rounded-2xl shadow p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-700">Documents</h2>
-                <span className="text-xs text-gray-400">{checklistLoading ? 'Checking...' : ''}</span>
-              </div>
-
-              <div className="flex flex-col gap-6">
+          <div className="space-y-4">
+            <GlassPanel className="p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">{t('personalInformation')}</h2>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">CV (PDF only)</label>
+                  <label className="form-label">{t('firstName')}</label>
                   <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setCv(e.target.files[0] || null)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <div className="text-xs text-gray-500">{checklist.cv ? 'Uploaded' : 'Not uploaded'}</div>
-                    <button
-                      type="button"
-                      onClick={() => uploadOne('cv', cv)}
-                      disabled={loading || !cv}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-                    >
-                      {uploadingType === 'cv' ? 'Uploading...' : checklist.cv ? 'Replace' : 'Upload'}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-gray-600 mb-2 block">Diploma (PDF only)</label>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setDiploma(e.target.files[0] || null)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <div className="text-xs text-gray-500">{checklist.diploma ? 'Uploaded' : 'Not uploaded'}</div>
-                    <button
-                      type="button"
-                      onClick={() => uploadOne('diploma', diploma)}
-                      disabled={loading || !diploma}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-                    >
-                      {uploadingType === 'diploma' ? 'Uploading...' : checklist.diploma ? 'Replace' : 'Upload'}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-bold text-gray-700">ID Card</h3>
-                  <p className="text-xs text-gray-500 mt-1">Upload clear images (JPG/JPEG/PNG, max 5MB each).</p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                    <div>
-                      <label className="text-sm font-semibold text-gray-600 mb-2 block">Front</label>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        onChange={(e) => setIdFront(e.target.files[0] || null)}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                      />
-                      {idFrontPreview && (
-                        <img
-                          src={idFrontPreview}
-                          alt="ID front preview"
-                          className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
-                        />
-                      )}
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <div className="text-xs text-gray-500">{checklist.idFront ? 'Uploaded' : 'Not uploaded'}</div>
-                        <button
-                          type="button"
-                          onClick={() => uploadOne('idFront', idFront)}
-                          disabled={loading || !idFront}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-                        >
-                          {uploadingType === 'idFront' ? 'Uploading...' : checklist.idFront ? 'Replace' : 'Upload'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-gray-600 mb-2 block">Back</label>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        onChange={(e) => setIdBack(e.target.files[0] || null)}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                      />
-                      {idBackPreview && (
-                        <img
-                          src={idBackPreview}
-                          alt="ID back preview"
-                          className="mt-2 w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl"
-                        />
-                      )}
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <div className="text-xs text-gray-500">{checklist.idBack ? 'Uploaded' : 'Not uploaded'}</div>
-                        <button
-                          type="button"
-                          onClick={() => uploadOne('idBack', idBack)}
-                          disabled={loading || !idBack}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-                        >
-                          {uploadingType === 'idBack' ? 'Uploading...' : checklist.idBack ? 'Replace' : 'Upload'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-bold text-gray-700">Introduction Video</h3>
-                  <p className="text-xs text-gray-500 mt-1">Record a short video (1–3 min) introducing yourself to patients.</p>
-
-                  <div className="mt-3">
-                    <input
-                      type="file"
-                      accept="video/mp4,video/webm,video/quicktime,.mov"
-                      onChange={(e) => setIntroVideo(e.target.files[0] || null)}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm"
-                    />
-                    {introVideoPreview && (
-                      <video
-                        src={introVideoPreview}
-                        controls
-                        className="mt-2 w-full max-h-64 bg-gray-50 border border-gray-200 rounded-xl"
-                      />
-                    )}
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="text-xs text-gray-500">{checklist.introVideo ? 'Uploaded' : 'Not uploaded'}</div>
-                      <button
-                        type="button"
-                        onClick={() => uploadOne('introVideo', introVideo)}
-                        disabled={loading || !introVideo}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:bg-slate-200 disabled:text-slate-500 disabled:hover:bg-slate-200"
-                      >
-                        {uploadingType === 'introVideo' ? 'Uploading...' : checklist.introVideo ? 'Replace' : 'Upload'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleDocumentsContinue}
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-            >
-              Continue to Profile -&gt;
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Basic Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">First Name</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="First name"
-                    value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    className="glass-input w-full"
+                    value={formData.firstName}
+                    onChange={e => updateField('firstName', e.target.value)}
+                    placeholder={t('firstNamePlaceholder')}
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Last Name</label>
+                  <label className="form-label">{t('lastName')}</label>
                   <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="Last name"
-                    value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">City</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="City"
-                    value={form.city}
-                    onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Availability</label>
-                  <input
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    placeholder="e.g. Mon-Fri 9am-5pm"
-                    value={form.availability}
-                    onChange={(e) => setForm({ ...form, availability: e.target.value })}
+                    className="glass-input w-full"
+                    value={formData.lastName}
+                    onChange={e => updateField('lastName', e.target.value)}
+                    placeholder={t('lastNamePlaceholder')}
                   />
                 </div>
               </div>
               <div className="mt-4">
-                <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Bio</label>
+                <label className="form-label">{t('bio')}</label>
                 <textarea
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
-                  placeholder="Describe your experience and approach..."
-                  rows={3}
-                  value={form.bio}
-                  onChange={(e) => setForm({ ...form, bio: e.target.value })}
+                  className="glass-input w-full min-h-[120px] resize-none"
+                  value={formData.bio}
+                  onChange={e => updateField('bio', e.target.value)}
+                  placeholder={t('bioPlaceholder')}
                 />
               </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Specializations</h2>
-              <div className="flex flex-wrap gap-2">
-                {SPECIALIZATIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => toggleItem('specializations', s)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                      form.specializations.includes(s)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-700 mb-4">Languages</h2>
-              <div className="flex flex-wrap gap-2">
-                {LANGUAGES.map((l) => (
-                  <button
-                    key={l}
-                    onClick={() => toggleItem('languages', l)}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                      form.languages.includes(l)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                    }`}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={handleProfileSubmit}
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-            >
-              {loading ? 'Submitting...' : 'Submit for Admin Review ->'}
-            </button>
-          </>
+            </GlassPanel>
+          </div>
         )}
+
+        {/* Step 2: Location & Availability */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <GlassPanel className="p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">{t('locationAndAvailability')}</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">{t('city')}</label>
+                  <input
+                    className="glass-input w-full"
+                    value={formData.city}
+                    onChange={e => updateField('city', e.target.value)}
+                    placeholder={t('cityPlaceholder')}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">{t('country')}</label>
+                  <input
+                    className="glass-input w-full"
+                    value={formData.country}
+                    onChange={e => updateField('country', e.target.value)}
+                    placeholder={t('countryPlaceholder')}
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="form-label">{t('hourlyRate')}</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/60">$</span>
+                  <input
+                    className="glass-input w-32"
+                    type="number"
+                    value={formData.hourlyRate}
+                    onChange={e => updateField('hourlyRate', e.target.value)}
+                    placeholder="120"
+                  />
+                  <span className="text-white/60">/ {t('hour')}</span>
+                </div>
+              </div>
+            </GlassPanel>
+          </div>
+        )}
+
+        {/* Step 3: Specializations & Languages */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <GlassPanel className="p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">{t('specializations')}</h2>
+              <div className="flex flex-wrap gap-2">
+                {SPECIALIZATIONS.map(spec => (
+                  <button
+                    key={spec}
+                    onClick={() => toggleSpecialization(spec)}
+                    className={`h-9 rounded-xl px-4 text-sm font-semibold transition ${
+                      formData.specializations.includes(spec)
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                        : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    {spec}
+                  </button>
+                ))}
+              </div>
+            </GlassPanel>
+
+            <GlassPanel className="p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">{t('languages')}</h2>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => toggleLanguage(lang)}
+                    className={`h-9 rounded-xl px-4 text-sm font-semibold transition ${
+                      formData.languages.includes(lang)
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            </GlassPanel>
+          </div>
+        )}
+
+        {/* Step 4: Documents */}
+        {step === 4 && (
+          <div className="space-y-4">
+            <GlassPanel className="p-5">
+              <h2 className="text-lg font-semibold text-white mb-4">{t('requiredDocuments')}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: 'cv', label: t('cv') },
+                  { key: 'diploma', label: t('diploma') },
+                  { key: 'idFront', label: t('idFront') },
+                  { key: 'idBack', label: t('idBack') },
+                  { key: 'video', label: t('introVideo') },
+                ].map(doc => (
+                  <div key={doc.key} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <label className="block text-sm font-semibold text-white mb-3">{doc.label}</label>
+                    <input
+                      type="file"
+                      accept={doc.key === 'video' ? 'video/*' : 'image/*,.pdf'}
+                      onChange={e => handleFileUpload(doc.key, e.target.files[0])}
+                      className="hidden"
+                      id={`file-${doc.key}`}
+                    />
+                    <label
+                      htmlFor={`file-${doc.key}`}
+                      className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/10 bg-white/5 p-6 cursor-pointer hover:bg-white/10 transition"
+                    >
+                      {previews[doc.key] ? (
+                        <img src={previews[doc.key]} alt="preview" className="h-20 w-20 object-cover rounded-lg" />
+                      ) : (
+                        <>
+                          <span className="text-2xl">📎</span>
+                          <span className="text-xs text-white/60">{t('clickToUpload')}</span>
+                        </>
+                      )}
+                    </label>
+                    {formData.documents[doc.key] && (
+                      <p className="text-xs text-emerald-400 mt-2 text-center">
+                        ✓ {formData.documents[doc.key].name}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </GlassPanel>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex gap-3 mt-8">
+          {step > 1 && (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="glass-button-secondary flex-1"
+            >
+              {t('previous')}
+            </button>
+          )}
+          {step < STEPS.length ? (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              disabled={!canProceed()}
+              className="glass-button flex-1 disabled:opacity-50"
+            >
+              {t('next')}
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={!canProceed() || loading}
+              className="glass-button flex-1 disabled:opacity-50"
+            >
+              {loading ? t('submitting') : t('completeSetup')}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

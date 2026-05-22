@@ -7,7 +7,10 @@ const {
   getSummary,
   getMessages,
   generateLogoutSummaries,
-  downloadReportPdf
+  downloadReportPdf,
+  submitSummaryFeedback,
+  getSummaryFeedback,
+  getFeedbackAnalytics
 } = require('../controllers/chatbotController');
 const { exportData, deleteData } = require('../controllers/dataRightsController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
@@ -17,6 +20,9 @@ router.post('/reset', protect, resetConversation);
 router.post('/chatbot/end', protect, endSession);
 router.get('/messages', protect, getMessages);
 router.get('/summary', protect, getSummary);
+router.get('/analytics/feedback', protect, restrictTo('admin'), getFeedbackAnalytics);
+router.get('/summary/:patientId/feedback', protect, restrictTo('psychologist', 'admin'), getSummaryFeedback);
+router.post('/summary/:patientId/feedback', protect, restrictTo('psychologist', 'admin'), submitSummaryFeedback);
 router.post('/logout-summary', protect, generateLogoutSummaries);
 router.get('/reports/:id/pdf', protect, restrictTo('psychologist', 'patient', 'admin'), downloadReportPdf);
 

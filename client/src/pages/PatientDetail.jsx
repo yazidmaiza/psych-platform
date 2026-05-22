@@ -109,8 +109,62 @@ export default function PatientDetail() {
   const [answer, setAnswer] = useState('');
   const [querying, setQuerying] = useState(false);
 
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+  const [hasExistingFeedback, setHasExistingFeedback] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    rating: 0,
+    accuracyFlag: '',
+    correctedEmotion: '',
+    notes: ''
+  });
+
   // Chat preview
   const [chatQuery, setChatQuery] = useState('');
+
+  const currentUserRole = useMemo(() => {
+    const direct = localStorage.getItem('role');
+    if (direct) return direct;
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return '';
+      const user = JSON.parse(raw);
+      return user?.role || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const showSummaryConfidence = currentUserRole === 'psychologist' || currentUserRole === 'admin';
+  const canLeaveFeedback = showSummaryConfidence;
+
+  const loadFeedback = useCallback(async () => {
+    if (!canLeaveFeedback || !patientId) return;
+    setFeedbackLoading(true);
+    setFeedbackError('');
+    try {
+      const data = await api.get(`/api/chatbot/summary/${patientId}/feedback`);
+      const existing = data?.psychologistFeedback || null;
+      setHasExistingFeedback(!!existing);
+      setFeedbackForm({
+        rating: existing?.rating || 0,
+        accuracyFlag: existing?.accuracyFlag || '',
+        correctedEmotion: existing?.correctedEmotion || summary?.emotionalIndicators?.dominantEmotion || '',
+        notes: existing?.notes || ''
+      });
+    } catch (err) {
+      setHasExistingFeedback(false);
+      setFeedbackError(err?.message || 'Failed to load feedback');
+      setFeedbackForm((prev) => ({
+        ...prev,
+        correctedEmotion: summary?.emotionalIndicators?.dominantEmotion || prev.correctedEmotion
+      }));
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [canLeaveFeedback, patientId, summary]);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -182,6 +236,11 @@ export default function PatientDetail() {
     fetchDocuments();
     fetchRiskAlerts();
   }, [fetchAll, fetchDocuments, fetchRiskAlerts]);
+
+  useEffect(() => {
+    if (!summary) return;
+    loadFeedback();
+  }, [summary, loadFeedback]);
 
   // Real-time risk alert updates via Socket.IO
   useEffect(() => {
@@ -531,7 +590,12 @@ export default function PatientDetail() {
                           </div>
                         </div>
                         <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
-                          <div className="text-[11px] font-semibold text-slate-500">Urgency</div>
+                          <div className="text-[11px] font-semibold text-slate-500">
+                            Clinical urgency
+                            <span className="ml-1 text-[10px] text-slate-400" title="Clinical assessment, not a chatbot quality score.">
+                              info
+                            </span>
+                          </div>
                           <div className="mt-1 text-xs font-semibold text-slate-900">
                             {summary.emotionalIndicators?.urgencyScore ? `${summary.emotionalIndicators.urgencyScore} / 5` : '—'}
                           </div>
@@ -542,6 +606,24 @@ export default function PatientDetail() {
                             {summary.emotionalIndicators?.sentimentTrend || '—'}
                           </div>
                         </div>
+                        {showSummaryConfidence && (
+                          <div className="rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-3 text-center shadow-sm backdrop-blur">
+                            <div className="text-[11px] font-semibold text-slate-500">
+                              Summary confidence
+                              <span
+                                className="ml-1 text-[10px] text-slate-400"
+                                title="AI self-assessed reliability of the generated summary."
+                              >
+                                info
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs font-semibold text-slate-900">
+                              {summary.confidenceScore !== null && summary.confidenceScore !== undefined
+                                ? `${summary.confidenceScore} / 5`
+                                : '—'}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {summary.keyThemes?.length > 0 && (
@@ -592,6 +674,158 @@ export default function PatientDetail() {
                           <div className="text-xs text-slate-500">
                             Generated {fmtDate(summary.latestReport.createdAt)}
                           </div>
+                        </div>
+                      )}
+
+                      {canLeaveFeedback && (
+                        <div className="mt-4 rounded-2xl border border-[color:var(--panel-border)] bg-white/60 p-4 shadow-sm backdrop-blur">
+                          <button
+                            type="button"
+                            onClick={() => setFeedbackOpen((prev) => !prev)}
+                            className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          >
+                            Summary feedback
+                            <span className="text-[11px] text-slate-400">
+                              {feedbackOpen ? 'Hide' : 'Show'}
+                            </span>
+                          </button>
+
+                          {feedbackOpen && (
+                            <div className="mt-4">
+                              {feedbackError && (
+                                <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                                  {feedbackError}
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                <div>
+                                  <div className="text-[11px] font-semibold text-slate-500">Rating</div>
+                                  <div className="mt-2 flex gap-2">
+                                    {[1, 2, 3, 4, 5].map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setFeedbackForm((prev) => ({ ...prev, rating: value }))}
+                                        disabled={feedbackSaved}
+                                        className={[
+                                          'h-8 w-8 rounded-full border text-xs font-semibold transition',
+                                          feedbackForm.rating >= value
+                                            ? 'border-[color:var(--accent-40)] bg-[color:var(--accent-10)] text-slate-900'
+                                            : 'border-[color:var(--panel-border)] bg-white/70 text-slate-500',
+                                          feedbackSaved ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'
+                                        ].join(' ')}
+                                        aria-label={`Rate summary ${value} out of 5`}
+                                      >
+                                        {value}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-[11px] font-semibold text-slate-500">Accuracy</div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {[
+                                      { value: 'accurate', label: 'Accurate' },
+                                      { value: 'partially_accurate', label: 'Partially accurate' },
+                                      { value: 'inaccurate', label: 'Inaccurate' }
+                                    ].map((option) => (
+                                      <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => setFeedbackForm((prev) => ({ ...prev, accuracyFlag: option.value }))}
+                                        disabled={feedbackSaved}
+                                        className={[
+                                          'h-8 rounded-full border px-3 text-xs font-semibold transition',
+                                          feedbackForm.accuracyFlag === option.value
+                                            ? 'border-[color:var(--accent-40)] bg-[color:var(--accent-10)] text-slate-900'
+                                            : 'border-[color:var(--panel-border)] bg-white/70 text-slate-500',
+                                          feedbackSaved ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'
+                                        ].join(' ')}
+                                      >
+                                        {option.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                <div>
+                                  <div className="text-[11px] font-semibold text-slate-500">Corrected dominant emotion</div>
+                                  <input
+                                    type="text"
+                                    value={feedbackForm.correctedEmotion}
+                                    onChange={(e) => setFeedbackForm((prev) => ({ ...prev, correctedEmotion: e.target.value }))}
+                                    disabled={feedbackSaved}
+                                    className="mt-2 h-9 w-full rounded-2xl border border-[color:var(--panel-border)] bg-white/70 px-3 text-xs text-slate-700 shadow-sm focus:outline-none"
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-[11px] font-semibold text-slate-500">Additional notes</div>
+                                  <textarea
+                                    value={feedbackForm.notes}
+                                    onChange={(e) => setFeedbackForm((prev) => ({ ...prev, notes: e.target.value }))}
+                                    disabled={feedbackSaved}
+                                    maxLength={500}
+                                    rows={3}
+                                    className="mt-2 w-full rounded-2xl border border-[color:var(--panel-border)] bg-white/70 px-3 py-2 text-xs text-slate-700 shadow-sm focus:outline-none"
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap items-center gap-3">
+                                <button
+                                  type="button"
+                                  disabled={feedbackSaved || feedbackLoading}
+                                  onClick={async () => {
+                                    setFeedbackError('');
+                                    if (feedbackForm.notes && feedbackForm.notes.length > 500) {
+                                      setFeedbackError('Notes must be 500 characters or fewer.');
+                                      return;
+                                    }
+
+                                    if (feedbackForm.rating && (feedbackForm.rating < 1 || feedbackForm.rating > 5)) {
+                                      setFeedbackError('Rating must be between 1 and 5.');
+                                      return;
+                                    }
+
+                                    const allowedAccuracy = ['', 'accurate', 'partially_accurate', 'inaccurate'];
+                                    if (!allowedAccuracy.includes(feedbackForm.accuracyFlag)) {
+                                      setFeedbackError('Accuracy must be accurate, partially_accurate, or inaccurate.');
+                                      return;
+                                    }
+
+                                    setFeedbackLoading(true);
+                                    try {
+                                      await api.post(`/api/chatbot/summary/${patientId}/feedback`, {
+                                        rating: feedbackForm.rating || null,
+                                        accuracyFlag: feedbackForm.accuracyFlag || null,
+                                        correctedEmotion: feedbackForm.correctedEmotion || null,
+                                        correctedThemes: [],
+                                        notes: feedbackForm.notes || null
+                                      });
+                                      setFeedbackSaved(true);
+                                      setHasExistingFeedback(true);
+                                    } catch (err) {
+                                      setFeedbackError(err?.message || 'Failed to save feedback');
+                                    } finally {
+                                      setFeedbackLoading(false);
+                                    }
+                                  }}
+                                  className="h-9 rounded-2xl bg-slate-900 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {hasExistingFeedback ? 'Update feedback' : 'Submit feedback'}
+                                </button>
+                                {feedbackSaved && (
+                                  <span className="text-xs font-semibold text-emerald-600">Feedback saved — thank you</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>

@@ -142,11 +142,11 @@ const generateSummaryForPatient = async ({ patientId, includeRecommendations }) 
 // a critiqueNote is stored. Psychologists are expected to verify low-confidence
 // summaries before using them clinically.
 //
-// This is non-blocking: if the critique call fails, the primary summary
-// is still saved and the error is logged but not propagated.
+// If the critique call fails, the primary summary is still saved and the
+// error is logged. Callers can choose whether to await this step.
 //
 const critiqueSummary = async (patientId, summary) => {
-  if (!summary || !summary.rawSummary) return;
+  if (!summary || !summary.rawSummary) return { success: false, confidenceScore: null };
   try {
     // [DATA: PHI — patient summary sent to Groq Cloud for quality critique.
     // Ensure Groq DPA is in place. No additional patient message content is sent.]
@@ -195,19 +195,27 @@ const critiqueSummary = async (patientId, summary) => {
       }
     }
 
-    const confidence = Number(critique?.confidenceScore) || 5;
-    const note       = String(critique?.critiqueNote || '').slice(0, 500);
+    const parsedScore = Number(critique?.confidenceScore);
+    const confidence = Number.isFinite(parsedScore)
+      ? Math.max(1, Math.min(5, Math.round(parsedScore)))
+      : null;
+    const note = String(critique?.critiqueNote || '').slice(0, 500);
+    const lowConfidence = confidence !== null && confidence <= 2;
 
-    if (confidence <= 2) {
-      await ChatbotSummary.findOneAndUpdate(
-        { patientId },
-        { lowConfidence: true, critiqueNote: note }
-      );
+    await ChatbotSummary.findOneAndUpdate(
+      { patientId },
+      { confidenceScore: confidence, lowConfidence, critiqueNote: note }
+    );
+
+    if (lowConfidence) {
       console.warn(`[CritiqueSummary] Low confidence (${confidence}/5) for patient ${patientId}: ${note}`);
     }
+
+    return { success: true, confidenceScore: confidence, lowConfidence };
   } catch (err) {
     // Non-fatal — critique failure must not block the calling request
     console.error('[CritiqueSummary] Failed (non-fatal):', err.message);
+    return { success: false, confidenceScore: null };
   }
 };
 
@@ -558,6 +566,7 @@ exports.getSummary = async (req, res) => {
 
     res.status(200).json({
       ...summary.toObject(),
+      confidenceScore: summary.confidenceScore ?? null,
       latestReport: latestReport ? latestReport.toObject() : null,
       pdfUrl,
       appUrl
@@ -580,6 +589,298 @@ exports.getMessages = async (req, res) => {
       .select('role content createdAt');
 
     res.status(200).json(messages);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+const validateFeedbackPayload = ({ rating, accuracyFlag, notes, correctedThemes }) => {
+  if (rating !== undefined && rating !== null) {
+    const num = Number(rating);
+    if (!Number.isFinite(num) || num < 1 || num > 5) {
+      return 'Rating must be a number between 1 and 5.';
+    }
+  }
+
+  if (accuracyFlag !== undefined && accuracyFlag !== null) {
+    const allowed = ['accurate', 'partially_accurate', 'inaccurate'];
+    if (!allowed.includes(String(accuracyFlag))) {
+      return 'Accuracy flag must be accurate, partially_accurate, or inaccurate.';
+    }
+  }
+
+  if (notes !== undefined && notes !== null) {
+    if (String(notes).length > 500) return 'Notes must be 500 characters or fewer.';
+  }
+
+  if (correctedThemes !== undefined && correctedThemes !== null) {
+    if (!Array.isArray(correctedThemes)) return 'Corrected themes must be an array of strings.';
+  }
+
+  return null;
+};
+
+const assertPsychologistAccess = async (req, patientId) => {
+  if (req.user.role === 'admin') return true;
+
+  const session = await Session.findOne({
+    patientId,
+    status: {
+      $in: ['active', 'completed', 'verified', 'paid', 'pending_payment', 'pending', 'requested']
+    }
+  }).sort({ createdAt: -1 });
+
+  if (!session) return false;
+
+  return String(session.psychologistId) === String(req.user.id);
+};
+
+exports.submitSummaryFeedback = async (req, res) => {
+  try {
+    if (req.user.role !== 'psychologist' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const patientId = req.params.patientId;
+    const summary = await ChatbotSummary.findOne({ patientId });
+    if (!summary) return res.status(404).json({ message: 'Summary not found' });
+
+    const hasAccess = await assertPsychologistAccess(req, patientId);
+    if (!hasAccess) return res.status(403).json({ message: 'Access denied' });
+
+    const { rating, accuracyFlag, correctedEmotion, correctedThemes, notes } = req.body || {};
+    const validationError = validateFeedbackPayload({ rating, accuracyFlag, notes, correctedThemes });
+    if (validationError) return res.status(400).json({ message: validationError });
+
+    if (summary.psychologistFeedback) {
+      console.info('[SummaryFeedback] Overwriting existing feedback:', {
+        patientId,
+        previousFeedback: summary.psychologistFeedback,
+        submittedBy: req.user.id
+      });
+    }
+
+    const nextFeedback = {
+      rating: rating === undefined ? null : Number(rating),
+      accuracyFlag: accuracyFlag === undefined ? null : String(accuracyFlag),
+      correctedEmotion: correctedEmotion === undefined ? null : String(correctedEmotion),
+      correctedThemes: Array.isArray(correctedThemes)
+        ? correctedThemes.map((t) => String(t))
+        : [],
+      notes: notes === undefined ? null : String(notes),
+      submittedBy: req.user._id,
+      submittedAt: new Date()
+    };
+
+    const updated = await ChatbotSummary.findOneAndUpdate(
+      { patientId },
+      { psychologistFeedback: nextFeedback },
+      { new: true }
+    );
+
+    // FEEDBACK LOOP HOOK: In a future iteration, send this payload
+    // to a retraining queue or prompt-tuning pipeline to improve
+    // GenerateEmpatheticResponse and the summary generation prompt.
+    // For now, logging creates the audit trail needed for that work.
+    console.info('[SummaryFeedback] Saved', {
+      patientId,
+      rating: updated?.psychologistFeedback?.rating ?? null,
+      accuracyFlag: updated?.psychologistFeedback?.accuracyFlag ?? null,
+      confidenceScore: updated?.confidenceScore ?? null,
+      correctedEmotion: updated?.psychologistFeedback?.correctedEmotion ?? null,
+      submittedBy: String(req.user.id),
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(200).json(updated);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.getSummaryFeedback = async (req, res) => {
+  try {
+    if (req.user.role !== 'psychologist' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const patientId = req.params.patientId;
+    const summary = await ChatbotSummary.findOne({ patientId });
+    if (!summary) return res.status(404).json({ message: 'Summary not found' });
+
+    const hasAccess = await assertPsychologistAccess(req, patientId);
+    if (!hasAccess) return res.status(403).json({ message: 'Access denied' });
+
+    res.status(200).json({
+      psychologistFeedback: summary.psychologistFeedback || null,
+      confidenceScore: summary.confidenceScore ?? null,
+      lowConfidence: summary.lowConfidence ?? false
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.getFeedbackAnalytics = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // ANALYTICS HOOK: extend this pipeline to feed a
+    // prompt-improvement dashboard when active learning
+    // is implemented
+    const pipeline = [
+      {
+        $facet: {
+          totals: [
+            {
+              $group: {
+                _id: null,
+                totalSummaries: { $sum: 1 },
+                totalWithFeedback: {
+                  $sum: {
+                    $cond: [{ $ne: ['$psychologistFeedback.submittedAt', null] }, 1, 0]
+                  }
+                }
+              }
+            }
+          ],
+          ratingAvg: [
+            { $match: { 'psychologistFeedback.submittedAt': { $ne: null } } },
+            { $group: { _id: null, average: { $avg: '$psychologistFeedback.rating' } } }
+          ],
+          ratingDist: [
+            { $match: { 'psychologistFeedback.submittedAt': { $ne: null } } },
+            { $group: { _id: '$psychologistFeedback.rating', count: { $sum: 1 } } },
+            { $project: { _id: 0, k: { $toString: '$_id' }, v: '$count' } },
+            { $group: { _id: null, items: { $push: { k: '$k', v: '$v' } } } }
+          ],
+          accuracyCounts: [
+            { $match: { 'psychologistFeedback.submittedAt': { $ne: null } } },
+            { $group: { _id: '$psychologistFeedback.accuracyFlag', count: { $sum: 1 } } },
+            { $project: { _id: 0, k: '$_id', v: '$count' } },
+            { $group: { _id: null, items: { $push: { k: '$k', v: '$v' } } } }
+          ],
+          confidenceStats: [
+            {
+              $group: {
+                _id: null,
+                averageScore: { $avg: '$confidenceScore' },
+                lowConfidenceCount: { $sum: { $cond: [{ $eq: ['$lowConfidence', true] }, 1, 0] } }
+              }
+            }
+          ],
+          ratingByConfidence: [
+            { $match: { 'psychologistFeedback.submittedAt': { $ne: null } } },
+            {
+              $group: {
+                _id: null,
+                avgRatingWhenLowConfidence: {
+                  $avg: {
+                    $cond: [{ $eq: ['$lowConfidence', true] }, '$psychologistFeedback.rating', null]
+                  }
+                },
+                avgRatingWhenHighConfidence: {
+                  $avg: {
+                    $cond: [{ $ne: ['$lowConfidence', true] }, '$psychologistFeedback.rating', null]
+                  }
+                }
+              }
+            }
+          ],
+          topCorrectedEmotions: [
+            {
+              $match: {
+                'psychologistFeedback.submittedAt': { $ne: null },
+                'psychologistFeedback.correctedEmotion': { $ne: null, $ne: '' }
+              }
+            },
+            { $group: { _id: { $toLower: '$psychologistFeedback.correctedEmotion' }, count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 5 },
+            { $project: { _id: 0, emotion: '$_id', count: 1 } }
+          ],
+          recentFeedback: [
+            { $match: { 'psychologistFeedback.submittedAt': { $ne: null } } },
+            { $sort: { 'psychologistFeedback.submittedAt': -1 } },
+            { $limit: 5 },
+            {
+              $project: {
+                _id: 0,
+                patientId: { $toString: '$patientId' },
+                rating: '$psychologistFeedback.rating',
+                accuracyFlag: '$psychologistFeedback.accuracyFlag',
+                confidenceScore: '$confidenceScore',
+                submittedAt: '$psychologistFeedback.submittedAt'
+              }
+            }
+          ]
+        }
+      }
+    ];
+
+    const result = await ChatbotSummary.aggregate(pipeline);
+    const analytics = result?.[0] || {};
+
+    const totals = analytics.totals?.[0] || { totalSummaries: 0, totalWithFeedback: 0 };
+    const ratingAvg = analytics.ratingAvg?.[0]?.average || 0;
+    const ratingDistItems = analytics.ratingDist?.[0]?.items || [];
+    const accuracyItems = analytics.accuracyCounts?.[0]?.items || [];
+    const confidenceStats = analytics.confidenceStats?.[0] || { averageScore: 0, lowConfidenceCount: 0 };
+    const ratingByConfidence = analytics.ratingByConfidence?.[0] || { avgRatingWhenLowConfidence: 0, avgRatingWhenHighConfidence: 0 };
+
+    const ratingDistribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+    ratingDistItems.forEach((item) => {
+      if (item?.k && ratingDistribution[item.k] !== undefined) {
+        ratingDistribution[item.k] = item.v || 0;
+      }
+    });
+
+    const accuracyCounts = { accurate: 0, partially_accurate: 0, inaccurate: 0 };
+    accuracyItems.forEach((item) => {
+      if (item?.k && accuracyCounts[item.k] !== undefined) {
+        accuracyCounts[item.k] = item.v || 0;
+      }
+    });
+
+    const totalSummaries = totals.totalSummaries || 0;
+    const totalWithFeedback = totals.totalWithFeedback || 0;
+    const coveragePercent = totalSummaries
+      ? Number(((totalWithFeedback / totalSummaries) * 100).toFixed(1))
+      : 0;
+    const accuratePercent = totalWithFeedback
+      ? Number(((accuracyCounts.accurate / totalWithFeedback) * 100).toFixed(1))
+      : 0;
+    const lowConfidencePercent = totalSummaries
+      ? Number(((confidenceStats.lowConfidenceCount / totalSummaries) * 100).toFixed(1))
+      : 0;
+    const averageConfidenceScore = confidenceStats.averageScore
+      ? Number(confidenceStats.averageScore.toFixed(2))
+      : 0;
+
+    res.status(200).json({
+      totalSummaries,
+      totalWithFeedback,
+      feedbackCoveragePercent: coveragePercent,
+      ratings: {
+        average: Number(ratingAvg ? ratingAvg.toFixed(1) : 0),
+        distribution: ratingDistribution
+      },
+      accuracy: {
+        ...accuracyCounts,
+        accuratePercent
+      },
+      confidence: {
+        averageScore: averageConfidenceScore,
+        lowConfidenceCount: confidenceStats.lowConfidenceCount || 0,
+        lowConfidencePercent,
+        avgRatingWhenLowConfidence: Number((ratingByConfidence.avgRatingWhenLowConfidence || 0).toFixed(1)),
+        avgRatingWhenHighConfidence: Number((ratingByConfidence.avgRatingWhenHighConfidence || 0).toFixed(1))
+      },
+      topCorrectedEmotions: analytics.topCorrectedEmotions || [],
+      recentFeedback: analytics.recentFeedback || []
+    });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -622,8 +923,21 @@ exports.generateLogoutSummaries = async (req, res) => {
       );
     }
 
-    // Q3: Two-pass quality critique (non-blocking)
-    if (summary) critiqueSummary(req.user.id, summary).catch(() => {});
+    // Q3: Two-pass quality critique (blocking before distribution)
+    if (summary) {
+      const critiqueResult = await critiqueSummary(req.user.id, summary);
+      if (!critiqueResult?.success) {
+        await ChatbotSummary.findOneAndUpdate(
+          { patientId: req.user.id },
+          { confidenceScore: null, lowConfidence: false }
+        );
+      }
+
+      summary = await ChatbotSummary.findOne({ patientId: req.user.id });
+      if (summary?.lowConfidence) {
+        console.warn(`[LogoutSummary] Low-confidence summary for patient ${req.user.id} distributed to psychologist.`);
+      }
+    }
 
     // Audit: logout summary generated
     audit(req, {

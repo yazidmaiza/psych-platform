@@ -275,7 +275,12 @@ export default function PatientDashboard() {
 
               <Card className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">{t('careScore')}</span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+                    {t('careScore')}
+                    <span className="ml-1 text-[10px] text-on-surface-variant/70" title="Clinical engagement indicator, not a chatbot quality score.">
+                      info
+                    </span>
+                  </span>
                   <BadgeIcon className="text-tertiary-container bg-tertiary-fixed/30">health_and_safety</BadgeIcon>
                 </div>
                 <div>
