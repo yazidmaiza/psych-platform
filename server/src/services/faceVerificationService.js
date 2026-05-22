@@ -127,22 +127,59 @@ const extractFrameAt3s = async (videoPath, outFramePath) => {
   if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
   if (ffprobePath) ffmpeg.setFfprobePath(ffprobePath);
 
-  await new Promise((resolve, reject) => {
-    const outDir = path.dirname(outFramePath);
-    const outName = path.basename(outFramePath);
+  const probe = () =>
+    new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(videoPath, (err, data) => (err ? reject(err) : resolve(data)));
+    });
 
-    fs.mkdirSync(outDir, { recursive: true });
-    if (fs.existsSync(outFramePath)) fs.unlinkSync(outFramePath);
+  const runExtract = (seekSeconds) =>
+    new Promise((resolve, reject) => {
+      const outDir = path.dirname(outFramePath);
 
-    ffmpeg(videoPath)
-      .on('end', resolve)
-      .on('error', reject)
-      .screenshots({
-        timestamps: ['3'],
-        filename: outName,
-        folder: outDir
-      });
-  });
+      fs.mkdirSync(outDir, { recursive: true });
+      if (fs.existsSync(outFramePath)) fs.unlinkSync(outFramePath);
+
+      ffmpeg(videoPath)
+        .seekInput(Math.max(0, Number(seekSeconds) || 0))
+        .outputOptions(['-frames:v 1', '-q:v 2'])
+        .output(outFramePath)
+        .on('end', resolve)
+        .on('error', reject)
+        .run();
+    });
+
+  let durationSec = null;
+  try {
+    const meta = await probe();
+    const d = Number(meta?.format?.duration);
+    durationSec = Number.isFinite(d) ? d : null;
+  } catch (e) {
+    // Best effort: if probing fails, we still try extraction at a safe timestamp.
+  }
+
+  const primarySeek = durationSec
+    ? Math.min(3, Math.max(0, durationSec * 0.25))
+    : 0.1;
+
+  const attempts = Array.from(new Set([primarySeek, 0.1, 0]));
+  let lastErr = null;
+
+  for (const seek of attempts) {
+    try {
+      await runExtract(seek);
+      if (fs.existsSync(outFramePath) && fs.statSync(outFramePath).size > 0) return;
+      lastErr = new Error('Extracted frame is empty');
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  const hint =
+    durationSec !== null
+      ? ` (video duration: ~${durationSec.toFixed(2)}s)`
+      : '';
+
+  throw new Error(`ffmpeg frame extraction failed${hint}: ${lastErr?.message || 'unknown error'}`);
 };
 
 const getFaceDescriptorFromImage = async (imagePath) => {

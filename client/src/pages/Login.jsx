@@ -68,7 +68,7 @@ export default function Login() {
       }
     >
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--primary-container)] text-[color:var(--on-primary)] shadow-lg shadow-[color:var(--accent-20)]">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--accent-12)] text-[color:var(--app-fg)] shadow-lg shadow-[color:var(--accent-20)]">
           <span className="text-xl font-semibold">✦</span>
         </div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Psych Platform</p>
@@ -92,7 +92,7 @@ export default function Login() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="name@example.com"
-              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--surface-container-lowest)]/80 pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
             />
           </div>
         </label>
@@ -106,12 +106,10 @@ export default function Login() {
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="••••••••"
-              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--surface-container-lowest)]/80 pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+              className="h-12 w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] pl-10 pr-4 text-sm text-[color:var(--app-fg)] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
             />
           </div>
         </label>
-
-        {/* Only email and password fields for login */}
 
         <button
           type="button"
@@ -125,7 +123,7 @@ export default function Login() {
           type="button"
           onClick={handleLogin}
           disabled={!canSubmit}
-          className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--primary)] px-5 text-sm font-semibold text-white shadow-lg shadow-[color:var(--accent-20)] transition hover:brightness-110 disabled:opacity-50"
+          className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-5 text-sm font-semibold text-white shadow-lg shadow-[color:var(--accent-20)] transition hover:brightness-110 disabled:opacity-50"
         >
           {loading ? 'Logging in...' : 'Login'}
           {!loading && <span className="text-[18px] leading-none">→</span>}
@@ -134,3 +132,4 @@ export default function Login() {
     </AuthShell>
   );
 }
+

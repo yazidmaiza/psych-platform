@@ -45,11 +45,31 @@ const validatePasswordResetRequest = [
 ];
 
 const validatePasswordReset = [
-    body('token')
-        .notEmpty().withMessage('Reset token is required'),
+    body('email')
+        .isEmail().withMessage('Please provide a valid email address')
+        .normalizeEmail(),
+    body(['code', 'otp', 'token'])
+        .custom((value, { req }) => {
+            const candidate = value ?? req.body.code ?? req.body.otp ?? req.body.token;
+            return typeof candidate === 'string' && /^\d{4,10}$/.test(candidate);
+        })
+        .withMessage('Reset code is required (4 to 10 digits)'),
     body('password')
         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
         .matches(/\d/).withMessage('Password must contain at least one number'),
+    handleValidationErrors
+];
+
+const validateVerifyEmail = [
+    body('email')
+        .isEmail().withMessage('Please provide a valid email address')
+        .normalizeEmail(),
+    body(['code', 'otp'])
+        .custom((value, { req }) => {
+            const candidate = value ?? req.body.code ?? req.body.otp;
+            return typeof candidate === 'string' && /^\d{4,10}$/.test(candidate);
+        })
+        .withMessage('Verification code is required (4 to 10 digits)'),
     handleValidationErrors
 ];
 
@@ -91,6 +111,7 @@ module.exports = {
     validateRefreshToken,
     validatePasswordResetRequest,
     validatePasswordReset,
+    validateVerifyEmail,
     validateResendVerification,
     validateSession,
     validateRating,

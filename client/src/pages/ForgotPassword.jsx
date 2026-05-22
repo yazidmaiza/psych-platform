@@ -19,7 +19,8 @@ export default function ForgotPassword() {
     setStatus('');
     try {
       await axios.post('http://localhost:5000/api/auth/password/forgot', { email });
-      setStatus('If the email exists, a reset link has been sent.');
+      setStatus('If the email exists, a reset code has been sent.');
+      setTimeout(() => navigate(`/reset-password?email=${encodeURIComponent(email)}`), 600);
     } catch (err) {
       setStatus(err.response?.data?.message || 'Unable to send reset email.');
     } finally {
@@ -30,7 +31,7 @@ export default function ForgotPassword() {
   return (
     <AuthShell
       title="Reset your password"
-      subtitle="We will email you a secure reset link."
+      subtitle="We will email you a reset code."
       onBack={() => navigate('/login')}
       backLabel="Back to login"
     >
@@ -57,7 +58,7 @@ export default function ForgotPassword() {
           disabled={!canSubmit}
           className="mt-2 h-11 rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition disabled:opacity-50"
         >
-          {loading ? 'Sending...' : 'Send reset link'}
+          {loading ? 'Sending...' : 'Send reset code'}
         </button>
       </div>
     </AuthShell>

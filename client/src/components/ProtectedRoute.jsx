@@ -9,7 +9,8 @@ function ProtectedRoute({ children, role }) {
 
     const isVerified = localStorage.getItem('isVerified');
     if (isVerified === 'false') {
-        return <Navigate to="/verify-email" />;
+        const email = localStorage.getItem('email') || '';
+        return <Navigate to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'} />;
     }
 
     const userRole = localStorage.getItem('role');

@@ -21,6 +21,7 @@ const {
 	validateRefreshToken,
 	validatePasswordResetRequest,
 	validatePasswordReset,
+	validateVerifyEmail,
 	validateResendVerification
 } = require('../middleware/validateMiddleware');
 
@@ -33,7 +34,7 @@ router.get('/sessions', protect, listSessions);
 router.post('/sessions/:id/revoke', protect, revokeSessionById);
 router.post('/password/forgot', validatePasswordResetRequest, requestPasswordReset);
 router.post('/password/reset', validatePasswordReset, resetPassword);
-router.get('/verify-email', verifyEmail);
+router.post('/verify-email', validateVerifyEmail, verifyEmail);
 router.post('/verify-email/resend', validateResendVerification, resendVerification);
 router.get('/me', protect, getMe);
 

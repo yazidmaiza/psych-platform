@@ -3,22 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --app-bg: #020617; /* slate-950 */
-  --app-bg-70: rgba(2, 6, 23, 0.7);
-  --app-bg-85: rgba(2, 6, 23, 0.85);
-  --app-fg: #ffffff;
-  --muted: rgba(255, 255, 255, 0.6);
-  --panel-bg: rgba(255, 255, 255, 0.08);
-  --panel-border: rgba(255, 255, 255, 0.14);
-  --accent: #6366f1; /* indigo-500 */
-  --accent-90: rgba(99, 102, 241, 0.9);
-  --accent-50: rgba(99, 102, 241, 0.5);
-  --accent-25: rgba(99, 102, 241, 0.25);
-  --accent-20: rgba(99, 102, 241, 0.2);
-  --accent-15: rgba(99, 102, 241, 0.15);
-  --accent-12: rgba(99, 102, 241, 0.12);
-  --accent-10: rgba(99, 102, 241, 0.1);
-  --accent-08: rgba(99, 102, 241, 0.08);
+  /* Dark mode palette (user-provided): 684756, 5E4253, 48374D, 3D314A, 2C2337, 231C2D, 1A1423 */
+  --app-bg: #1a1423;
+  --app-bg-70: rgba(26, 20, 35, 0.7);
+  --app-bg-85: rgba(26, 20, 35, 0.85);
+  --app-fg: #f7f3ff;
+  --muted: rgba(247, 243, 255, 0.62);
+  --panel-bg: rgba(44, 35, 55, 0.92);
+  --panel-border: rgba(72, 55, 77, 0.9);
+  --accent: #684756;
+  --accent-90: rgba(104, 71, 86, 0.9);
+  --accent-50: rgba(104, 71, 86, 0.5);
+  --accent-25: rgba(104, 71, 86, 0.25);
+  --accent-20: rgba(104, 71, 86, 0.2);
+  --accent-15: rgba(104, 71, 86, 0.15);
+  --accent-12: rgba(104, 71, 86, 0.12);
+  --accent-10: rgba(104, 71, 86, 0.1);
+  --accent-08: rgba(104, 71, 86, 0.08);
 }
 
 :root[data-theme='light'] {
@@ -202,8 +203,14 @@
   }
 
   .ui-input {
-    @apply h-10 w-full rounded-2xl border bg-white/60 px-3 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm backdrop-blur outline-none transition focus:ring-2;
+    @apply h-10 w-full rounded-2xl border px-3 text-sm shadow-sm backdrop-blur outline-none transition focus:ring-2;
     border-color: var(--panel-border);
+    background-color: var(--panel-bg);
+    color: var(--app-fg);
+  }
+
+  .ui-input::placeholder {
+    color: var(--muted);
   }
 
   .ui-btn-primary:focus {

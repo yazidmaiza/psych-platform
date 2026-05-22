@@ -5,7 +5,9 @@ import AuthShell from '../components/auth/AuthShell';
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
-  const token = params.get('token') || '';
+  const initialEmail = params.get('email') || '';
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,15 +15,15 @@ export default function ResetPassword() {
 
   const canSubmit = useMemo(() => {
     const trimmed = password.trim();
-    return trimmed.length >= 8 && /\d/.test(trimmed) && token && !loading;
-  }, [password, token, loading]);
+    return trimmed.length >= 8 && /\d/.test(trimmed) && email.trim() && code.trim() && !loading;
+  }, [password, email, code, loading]);
 
   const handleReset = async () => {
     if (!canSubmit) return;
     setLoading(true);
     setStatus('');
     try {
-      await axios.post('http://localhost:5000/api/auth/password/reset', { token, password });
+      await axios.post('http://localhost:5000/api/auth/password/reset', { email, code, password });
       setStatus('Password updated. You can log in now.');
       setTimeout(() => navigate('/login'), 1200);
     } catch (err) {
@@ -45,6 +47,27 @@ export default function ResetPassword() {
       )}
 
       <div className="mt-4 grid gap-3">
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Reset code</span>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            inputMode="numeric"
+            placeholder="123456"
+            className="h-11 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-white/40 focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </label>
+
         <label className="grid gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">New password</span>
           <input

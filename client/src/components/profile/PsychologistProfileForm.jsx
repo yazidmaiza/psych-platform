@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from '../../services/api';
+import { api, toAbsoluteUrl } from '../../services/api';
 import GlassPanel from '../dashboard/GlassPanel';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 
@@ -62,7 +62,7 @@ export default function PsychologistProfileForm({ onSaved }) {
       if (!userId) throw new Error('Missing user id');
       const p = await api.get('/api/psychologists/by-user/' + userId);
       setProfileExists(true);
-      setCurrentPhotoUrl(p.photo || '');
+      setCurrentPhotoUrl(toAbsoluteUrl(p.photo || ''));
       setForm({
         firstName: p.firstName || '',
         lastName: p.lastName || '',
@@ -101,7 +101,7 @@ export default function PsychologistProfileForm({ onSaved }) {
     try {
       const data = await api.get('/api/profile-photos/me');
       setPhotoModeration(data || null);
-      if (data?.approvedPhotoUrl) setCurrentPhotoUrl(data.approvedPhotoUrl);
+      if (data?.approvedPhotoUrl) setCurrentPhotoUrl(toAbsoluteUrl(data.approvedPhotoUrl));
     } catch (e) {
       // Avoid blocking profile UI if moderation endpoint fails.
       setPhotoModeration(null);
