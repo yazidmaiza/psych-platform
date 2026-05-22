@@ -25,6 +25,29 @@ const chatbotSummarySchema = new mongoose.Schema({
     default: []
   },
 
+  // Migration note: existing documents will have confidenceScore undefined
+  // until a backfill or a new critique run updates them.
+  confidenceScore: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null
+  },
+
+  psychologistFeedback: {
+    rating: { type: Number, min: 1, max: 5, default: null },
+    accuracyFlag: {
+      type: String,
+      enum: ['accurate', 'partially_accurate', 'inaccurate'],
+      default: null
+    },
+    correctedEmotion: { type: String, default: null },
+    correctedThemes: { type: [String], default: [] },
+    notes: { type: String, default: null },
+    submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    submittedAt: { type: Date, default: null }
+  },
+
   // ── Two-pass quality fields (Q3) ─────────────────────────────────────────
   // Set by critiqueSummary() in chatbotController.js after the primary
   // summary generation. lowConfidence: true means the second LLM pass rated
