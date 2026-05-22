@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 import DashboardSidebar from '../components/dashboard/DashboardSidebar';
 
@@ -26,45 +26,60 @@ export default function EditProfile() {
   const { t } = useTranslation();
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [error, setError] = useState('');
 
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
     let mounted = true;
+
+    const mapProfile = (p) => ({
+      firstName: p.firstName || '',
+      lastName: p.lastName || '',
+      email: p.email || '',
+      phone: p.phone || '',
+      bio: p.bio || '',
+      city: p.city || '',
+      country: p.country || '',
+      hourlyRate: p.sessionPrice != null ? String(p.sessionPrice) : '',
+      specializations: p.specializations || [],
+      languages: p.languages || [],
+      availability: p.availability || {},
+      photo: p.photo || ''
+    });
+
     const fetchProfile = async () => {
+      if (mounted) {
+        setLoading(true);
+        setError('');
+      }
+
       if (!userId) {
         if (mounted) setLoading(false);
         return;
       }
-      if (mounted) setLoading(true);
+
       try {
         const p = await api.get('/api/psychologists/by-user/' + userId);
         if (!mounted) return;
-        setProfile({
-          firstName: p.firstName || '',
-          lastName: p.lastName || '',
-          email: p.email || '',
-          phone: p.phone || '',
-          bio: p.bio || '',
-          city: p.city || '',
-          country: p.country || '',
-          hourlyRate: p.sessionPrice != null ? p.sessionPrice : '',
-          specializations: p.specializations || [],
-          languages: p.languages || [],
-          availability: p.availability || {},
-          photo: p.photo || ''
-        });
+        setProfile(mapProfile(p || {}));
       } catch (e) {
-        // if 404 or not found, keep empty profile
+        try {
+          const me = await api.get('/api/psychologists/me');
+          if (mounted) setProfile(mapProfile(me || {}));
+        } catch {
+          if (mounted) setError(t('failedToLoadProfile'));
+        }
       } finally {
         if (mounted) setLoading(false);
       }
     };
     fetchProfile();
     return () => { mounted = false; };
-  }, [userId]);
+  }, [userId, t]);
 
   const updateField = (field, value) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -92,15 +107,29 @@ export default function EditProfile() {
   };
 
   const handleSave = async () => {
-    setLoading(true);
+    setSaving(true);
+    setError('');
     try {
-      await api.put('/api/profile', profile);
+      await api.put('/api/psychologists/me', {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        email: profile.email,
+        phone: profile.phone,
+        bio: profile.bio,
+        city: profile.city,
+        country: profile.country,
+        specializations: profile.specializations,
+        languages: profile.languages,
+        availability: profile.availability,
+        sessionPrice: profile.hourlyRate !== '' ? Number(profile.hourlyRate) : 0,
+        photo: profile.photo
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
-      console.error(e);
+      setError(e.message || t('failedToSaveProfile'));
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -117,6 +146,12 @@ export default function EditProfile() {
 
       <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl">
+          {error && (
+            <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {error}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
               <h1 className="page-title">{t('editProfile')}</h1>
@@ -128,21 +163,27 @@ export default function EditProfile() {
               )}
               <button
                 onClick={handleSave}
-                disabled={loading}
+                disabled={loading || saving}
                 className="glass-button disabled:opacity-50"
               >
-                {loading ? t('saving') : t('saveChanges')}
+                {saving ? t('saving') : t('saveChanges')}
               </button>
             </div>
           </div>
 
           <div className="flex items-center gap-4 mb-8">
             <div className="h-20 w-20 rounded-2xl overflow-hidden border border-white/10">
-              <img
-                src={profile.photo}
-                alt="Profile"
-                className="h-full w-full object-cover"
-              />
+              {profile.photo ? (
+                <img
+                  src={toAbsoluteUrl(profile.photo)}
+                  alt="Profile"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="h-full w-full bg-white/5 text-white/50 flex items-center justify-center text-lg font-semibold">
+                  {(profile.firstName?.[0] || 'P').toUpperCase()}
+                </div>
+              )}
             </div>
             <div>
               <h2 className="font-semibold text-white">{profile.firstName} {profile.lastName}</h2>
