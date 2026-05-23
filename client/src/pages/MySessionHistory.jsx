@@ -200,6 +200,13 @@ export default function MySessionHistory() {
               <nav className="hidden md:flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => navigate('/')}
+                  className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
+                >
+                  {t('navHome')}
+                </button>
+                <button
+                  type="button"
                   onClick={() => navigate('/patient/discovery')}
                   className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
                 >

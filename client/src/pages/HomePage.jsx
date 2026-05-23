@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api, toAbsoluteUrl } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
@@ -7,6 +7,7 @@ import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
 import PlatformLogo from '../components/branding/PlatformLogo';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
+import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 import { getUser, isLoggedIn, logout } from '../services/auth';
 
 const StarRating = ({ rating = 0, total = 0 }) => {
@@ -71,10 +72,56 @@ function MapCenterControl({ lat, lng, recenterTrigger }) {
   return null;
 }
 
+function PatientNavTabs({ navigate, t }) {
+  const location = useLocation();
+  const path = location.pathname || '';
+  const isHome = path === '/' || path.startsWith('/home');
+  const isDiscovery = path.startsWith('/patient/discovery');
+  const isDashboard = path.startsWith('/patient/dashboard') || path === '/patient' || path === '/patient/';
+  const isHistory = path.startsWith('/history') || path.startsWith('/patient/history');
+
+  const common = 'px-3 py-1 text-sm font-semibold transition';
+
+  return (
+    <div className="flex items-center gap-6">
+      <button
+        type="button"
+        onClick={() => navigate('/')}
+        className={`${common} ${isHome ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navHome')}
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/patient/discovery')}
+        className={`${common} ${isDiscovery ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navDiscovery')}
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/patient/dashboard')}
+        className={`${common} ${isDashboard ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navDashboard')}
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/history')}
+        className={`${common} ${isHistory ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navHistory')}
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const currentRole = isLoggedIn() ? getUser().role : null;
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [psychologists, setPsychologists] = useState([]);
   const [filters, setFilters] = useState({ search: '', distance: 10, lat: null, lng: null, sort: 'rating' });
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
@@ -148,6 +195,23 @@ export default function HomePage() {
       if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [useLocation]);
+
+  useEffect(() => {
+    const refreshUnreadNotifications = async () => {
+      if (currentRole !== 'patient') {
+        setUnreadNotifications(0);
+        return;
+      }
+      try {
+        const data = await api.get('/api/notifications/unread-count');
+        setUnreadNotifications(Number(data?.count || 0));
+      } catch {
+        setUnreadNotifications(0);
+      }
+    };
+
+    refreshUnreadNotifications();
+  }, [currentRole]);
 
   const visible = useMemo(() => psychologists.slice(0, 9), [psychologists]);
 
@@ -268,30 +332,98 @@ export default function HomePage() {
       <div className="relative">
         {/* Top nav */}
         <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-          <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <PlatformLogo size={36} />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold tracking-tight text-[color:var(--app-fg)]">{t('navTitle')}</div>
-                  <div className="mt-1 text-xs text-[color:var(--muted)]">{t('navSubtitle')}</div>
+          {currentRole === 'patient' ? (
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <PlatformLogo size={36} />
+                  <div className="min-w-0">
+                    <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">
+                      {t('mySessions')}
+                    </h1>
+                    <div className="mt-1 text-xs text-[color:var(--muted)]">
+                      Review bookings, continue active sessions, and revisit completed notes.
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="hidden md:flex items-center justify-center gap-3">
+                  <PatientNavTabs navigate={navigate} t={t} />
+                </nav>
+
+                <div className="flex items-center gap-2">
+                  <ThemeToggleButton />
+                  <select
+                    className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 cursor-pointer"
+                    value={i18n.language}
+                    onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  >
+                    <option value="en">EN</option>
+                    <option value="fr">FR</option>
+                    <option value="ar">AR</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsOpen(true)}
+                    className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                    aria-label={t('notifications')}
+                    title={t('notifications')}
+                  >
+                    <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                        {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/patient/profile')}
+                    className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                    aria-label={t('editProfile')}
+                    title={t('editProfile')}
+                  >
+                    <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
+                  >
+                    {t('logout')}
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ThemeToggleButton />
-                <select
-                  className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 rtl:ml-2 ltr:mr-2 cursor-pointer"
-                  value={i18n.language}
-                  onChange={(e) => i18n.changeLanguage(e.target.value)}
-                >
-                  <option value="en">EN</option>
-                  <option value="fr">FR</option>
-                  <option value="ar">AR</option>
-                </select>
-                {renderAuthActions()}
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <PlatformLogo size={36} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold tracking-tight text-[color:var(--app-fg)]">{t('navTitle')}</div>
+                    <div className="mt-1 text-xs text-[color:var(--muted)]">{t('navSubtitle')}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ThemeToggleButton />
+                  <select
+                    className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 rtl:ml-2 ltr:mr-2 cursor-pointer"
+                    value={i18n.language}
+                    onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  >
+                    <option value="en">EN</option>
+                    <option value="fr">FR</option>
+                    <option value="ar">AR</option>
+                  </select>
+                  {renderAuthActions()}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </header>
 
         {/* Hero */}
@@ -398,6 +530,13 @@ export default function HomePage() {
             </GlassPanel>
           </div>
         </section>
+
+        {currentRole === 'patient' && (
+          <NotificationsDrawer
+            open={notificationsOpen}
+            onClose={() => setNotificationsOpen(false)}
+          />
+        )}
 
         {/* Psychologists grid */}
         <section className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6">

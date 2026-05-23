@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { api, toAbsoluteUrl } from '../services/api';
 import { logout } from '../services/auth';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
@@ -23,7 +22,6 @@ const StatCard = ({ label, value, hint }) => (
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
 
   const [section, setSection] = useState('patients');
   const [patientSearch, setPatientSearch] = useState('');
@@ -51,6 +49,9 @@ function Dashboard() {
   });
   const [onboarding, setOnboarding] = useState(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [psychologistProfile, setPsychologistProfile] = useState(null);
+  const [psychologistProfileLoading, setPsychologistProfileLoading] = useState(false);
+  const [credentialChecklist, setCredentialChecklist] = useState(null);
 
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -135,6 +136,27 @@ function Dashboard() {
     }
   }, []);
 
+  const fetchPsychologistProfile = useCallback(async () => {
+    setPsychologistProfileLoading(true);
+    try {
+      const data = await api.get('/api/psychologists/me');
+      setPsychologistProfile(data || null);
+    } catch {
+      setPsychologistProfile(null);
+    } finally {
+      setPsychologistProfileLoading(false);
+    }
+  }, []);
+
+  const fetchCredentialChecklist = useCallback(async () => {
+    try {
+      const data = await api.get('/api/credential-documents/checklist');
+      setCredentialChecklist(data || null);
+    } catch {
+      setCredentialChecklist(null);
+    }
+  }, []);
+
   const uploadCredentialDoc = useCallback(async (type) => {
     const file = credentialUploadFiles?.[type] || null;
     if (!file) return;
@@ -147,14 +169,14 @@ function Dashboard() {
       formData.append('file', file);
       await api.postForm('/api/credential-documents/upload', formData);
       setCredentialUploadFiles((prev) => ({ ...prev, [type]: null }));
-      await Promise.all([fetchCredentialDocs(), fetchOnboarding()]);
+      await Promise.all([fetchCredentialDocs(), fetchOnboarding(), fetchPsychologistProfile(), fetchCredentialChecklist()]);
     } catch (e) {
       setCredentialDocsError(e.message || 'Failed to upload document');
     } finally {
       setCredentialUploadLoading(false);
       setCredentialUploadType('');
     }
-  }, [credentialUploadFiles, fetchCredentialDocs, fetchOnboarding]);
+  }, [credentialUploadFiles, fetchCredentialDocs, fetchCredentialChecklist, fetchOnboarding, fetchPsychologistProfile]);
 
   const openChatForPatient = useCallback((patient) => {
     const id = patient?.patientId?.toString?.() || patient?.patientId;
@@ -190,10 +212,12 @@ function Dashboard() {
     if (section !== 'documents') return;
     fetchCredentialDocs();
     fetchOnboarding();
+    fetchPsychologistProfile();
+    fetchCredentialChecklist();
     // Important: do NOT depend on `credentialDocsLoading` here.
     // Depending on loading state creates a fetch loop (loading false -> fetch -> false -> fetch ...),
     // which quickly hits the API rate limiter (429).
-  }, [fetchCredentialDocs, fetchOnboarding, section]);
+  }, [fetchCredentialDocs, fetchCredentialChecklist, fetchOnboarding, fetchPsychologistProfile, section]);
 
   const openCredentialDoc = useCallback(async (doc) => {
     try {
@@ -210,6 +234,22 @@ function Dashboard() {
   }, []);
 
   const submitOnboarding = useCallback(async () => {
+    const missingProfileFields = ['firstName', 'lastName', 'city'].filter((field) => {
+      const value = psychologistProfile?.[field];
+      return !value || String(value).trim().length === 0;
+    });
+    const missingDocuments = Object.entries(credentialChecklist?.checklist || {})
+      .filter(([, complete]) => !complete)
+      .map(([field]) => field);
+
+    if (missingProfileFields.length > 0 || missingDocuments.length > 0) {
+      const parts = [];
+      if (missingProfileFields.length > 0) parts.push(`profile fields: ${missingProfileFields.join(', ')}`);
+      if (missingDocuments.length > 0) parts.push(`documents: ${missingDocuments.join(', ')}`);
+      setCredentialDocsError(`Complete ${parts.join(' and ')} before submitting.`);
+      return;
+    }
+
     try {
       setCredentialDocsError('');
       await api.post('/api/onboarding/submit', {});
@@ -218,7 +258,22 @@ function Dashboard() {
     } catch (e) {
       setCredentialDocsError(e.message || 'Submission failed');
     }
-  }, [fetchOnboarding]);
+  }, [credentialChecklist?.checklist, fetchOnboarding, psychologistProfile]);
+
+  const missingProfileFields = useMemo(() => {
+    return ['firstName', 'lastName', 'city'].filter((field) => {
+      const value = psychologistProfile?.[field];
+      return !value || String(value).trim().length === 0;
+    });
+  }, [psychologistProfile]);
+
+  const missingDocuments = useMemo(() => {
+    return Object.entries(credentialChecklist?.checklist || {})
+      .filter(([, complete]) => !complete)
+      .map(([field]) => field);
+  }, [credentialChecklist]);
+
+  const canSubmitOnboarding = !psychologistProfileLoading && !onboardingLoading && missingProfileFields.length === 0 && missingDocuments.length === 0;
 
   const statusBadge = useCallback((status) => {
     const s = String(status || '').toLowerCase();
@@ -247,93 +302,55 @@ function Dashboard() {
 
       <div className="relative">
         <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-                  <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <PlatformLogo size={36} />
-                        <div className="min-w-0">
-                          <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">
-                            {t('mySessions')}
-                          </h1>
-                          <div className="mt-1 text-xs text-[color:var(--muted)]">
-                            Review bookings, continue active sessions, and revisit completed notes.
-                          </div>
-                        </div>
-                      </div>
-        
-                      <nav className="hidden md:flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate('/patient/discovery')}
-                          className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
-                        >
-                          {t('navDiscovery')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate('/patient/dashboard')}
-                          className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
-                        >
-                          {t('navDashboard')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate('/history')}
-                          className="border-b-2 border-[color:var(--accent)] pb-1 px-2 text-sm font-semibold text-[color:var(--app-fg)] transition"
-                        >
-                          {t('navHistory')}
-                        </button>
-                      </nav>
-        
-                      <div className="flex items-center gap-2">
-                        <ThemeToggleButton />
-        
-                        <select
-                          className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 cursor-pointer"
-                          value={i18n.language}
-                          onChange={(e) => i18n.changeLanguage(e.target.value)}
-                        >
-                          <option value="en">EN</option>
-                          <option value="fr">FR</option>
-                          <option value="ar">AR</option>
-                        </select>
-        
-                        <button
-                          type="button"
-                          onClick={() => setNotificationsOpen(true)}
-                          className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
-                          aria-label={t('notifications')}
-                          title={t('notifications')}
-                        >
-                          <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
-                          {unreadNotifications > 0 && (
-                            <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
-                              {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                            </span>
-                          )}
-                        </button>
-        
-                        <button
-                          type="button"
-                          onClick={() => navigate('/patient/profile')}
-                          className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
-                          aria-label={t('editProfile')}
-                          title={t('editProfile')}
-                        >
-                          <span className="material-symbols-outlined text-[22px]">account_circle</span>
-                        </button>
-        
-                        <button
-                          type="button"
-                          onClick={logout}
-                          className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
-                        >
-                          {t('logout')}
-                        </button>
-                      </div>
-                    </div>
+          <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <PlatformLogo size={28} className="rounded-none" />
+                <div className="min-w-0">
+                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">Dashboard</h1>
+                  <div className="mt-1 text-xs text-[color:var(--muted)]">
+                    {section === 'patients'
+                      ? 'Manage patients and consultations'
+                      : section === 'messages'
+                        ? 'Messages with your patients'
+                        : section === 'documents'
+                          ? 'Upload and manage credential documents'
+                          : 'Your performance at a glance'}
                   </div>
-                </header>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ThemeToggleButton />
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(true)}
+                  className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label="Edit profile"
+                  title="Edit profile"
+                >
+                  <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
 
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
           <div className="grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start">
@@ -662,7 +679,8 @@ function Dashboard() {
                           <button
                             type="button"
                             onClick={submitOnboarding}
-                            className="h-10 ui-btn-primary"
+                            disabled={!canSubmitOnboarding}
+                            className="h-10 ui-btn-primary disabled:opacity-50"
                           >
                             {onboarding?.profileStatus === 'Rejected' ? 'Resubmit' : 'Submit'}
                           </button>
@@ -714,6 +732,22 @@ function Dashboard() {
                           </div>
                         ))}
                       </div>
+                    </GlassPanel>
+                  )}
+
+                  {(missingProfileFields.length > 0 || missingDocuments.length > 0) && (
+                    <GlassPanel className="p-5 border border-amber-500/20 bg-amber-500/10">
+                      <div className="text-sm font-semibold text-[color:var(--app-fg)]">Before submitting</div>
+                      {missingProfileFields.length > 0 && (
+                        <div className="mt-2 text-xs text-[color:var(--muted)]">
+                          Missing profile fields: {missingProfileFields.join(', ')}
+                        </div>
+                      )}
+                      {missingDocuments.length > 0 && (
+                        <div className="mt-2 text-xs text-[color:var(--muted)]">
+                          Missing documents: {missingDocuments.join(', ')}
+                        </div>
+                      )}
                     </GlassPanel>
                   )}
 
