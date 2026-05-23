@@ -90,7 +90,7 @@ const StarRating = ({ rating = 0, total = 0 }) => {
 };
 
 export default function PsychologistList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   const [psychologists, setPsychologists] = useState([]);
@@ -241,8 +241,42 @@ export default function PsychologistList() {
               </div>
             </div>
 
+            <nav className="hidden flex-1 items-center justify-center gap-10 md:flex">
+              <button
+                type="button"
+                onClick={() => navigate('/patient/discovery')}
+                className="border-b-2 border-[color:var(--accent)] pb-1 px-2 text-sm font-semibold text-[color:var(--app-fg)] transition"
+              >
+                {t('navDiscovery')}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/patient/dashboard')}
+                className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
+              >
+                {t('navDashboard')}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/history')}
+                className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
+              >
+                {t('navHistory')}
+              </button>
+            </nav>
+
             <div className="flex items-center gap-2">
               <ThemeToggleButton />
+
+              <select
+                className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 cursor-pointer"
+                value={i18n.language}
+                onChange={(e) => i18n.changeLanguage(e.target.value)}
+              >
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+                <option value="ar">AR</option>
+              </select>
 
               <button
                 type="button"
@@ -261,8 +295,18 @@ export default function PsychologistList() {
 
               <button
                 type="button"
+                onClick={() => navigate('/patient/profile')}
+                className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                aria-label={t('editProfile')}
+                title={t('editProfile')}
+              >
+                <span className="material-symbols-outlined text-[22px]">account_circle</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={logout}
-                className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
               >
                 {t('logout')}
               </button>

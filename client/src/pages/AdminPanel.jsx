@@ -145,10 +145,7 @@ const formatRelativeTime = (value) => {
   return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
 };
 
-const toPercentRating = (rating = 0) => {
-  const normalized = Math.max(0, Math.min(5, Number(rating) || 0));
-  return Math.round((normalized / 5) * 100);
-};
+// removed unused `toPercentRating` helper
 
 const toStarString = (rating = 0) => {
   const normalized = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
@@ -673,9 +670,9 @@ export default function AdminPanel() {
             <PlatformLogo size={44} />
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-white/50">Admin center</div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Platform operations dashboard</h1>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Admin Dashboard</h1>
               <p className="mt-1 max-w-2xl text-sm text-white/60">
-                Review users, approve psychologist onboarding, and monitor platform health from one place.
+                Manage users, approve psychologist onboarding, and monitor platform health.
               </p>
             </div>
           </div>

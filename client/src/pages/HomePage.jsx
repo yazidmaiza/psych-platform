@@ -7,6 +7,7 @@ import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
 import PlatformLogo from '../components/branding/PlatformLogo';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
+import { getUser, isLoggedIn, logout } from '../services/auth';
 
 const StarRating = ({ rating = 0, total = 0 }) => {
   const stars = [1, 2, 3, 4, 5];
@@ -16,7 +17,7 @@ const StarRating = ({ rating = 0, total = 0 }) => {
       <div className="flex items-center gap-1">
         {stars.map((s) => (
           <span key={s} className={s <= rounded ? 'text-amber-300 text-sm' : 'text-white/20 text-sm'}>
-            *
+            ★
           </span>
         ))}
       </div>
@@ -73,6 +74,7 @@ function MapCenterControl({ lat, lng, recenterTrigger }) {
 export default function HomePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const currentRole = isLoggedIn() ? getUser().role : null;
   const [psychologists, setPsychologists] = useState([]);
   const [filters, setFilters] = useState({ search: '', distance: 10, lat: null, lng: null, sort: 'rating' });
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
@@ -149,31 +151,136 @@ export default function HomePage() {
 
   const visible = useMemo(() => psychologists.slice(0, 9), [psychologists]);
 
+  const renderAuthActions = () => {
+    if (!isLoggedIn()) {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+          >
+            {t('login')}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/register')}
+            className="rounded-2xl bg-[color:var(--accent)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
+          >
+            {t('createAccount')}
+          </button>
+        </>
+      );
+    }
+
+    if (currentRole === 'psychologist') {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => navigate('/psychologist/dashboard')}
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+          >
+            Psychologist dashboard
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/calendar')}
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+          >
+            Calendar
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-2xl bg-[color:var(--accent)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
+          >
+            {t('logout')}
+          </button>
+        </>
+      );
+    }
+
+    if (currentRole === 'admin') {
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+          >
+            Admin panel
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/audit')}
+            className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+          >
+            Audit log
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-2xl bg-[color:var(--accent)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
+          >
+            {t('logout')}
+          </button>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => navigate('/patient/dashboard')}
+          className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+        >
+          {t('patientDashboard')}
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/my-sessions')}
+          className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
+        >
+          {t('mySessions')}
+        </button>
+        <button
+          type="button"
+          onClick={logout}
+          className="rounded-2xl bg-[color:var(--accent)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
+        >
+          {t('logout')}
+        </button>
+      </>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)]">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-15)] blur-3xl" />
+        <div className="absolute -bottom-32 right-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
         <div className="absolute inset-0 bg-[var(--app-bg)]" />
       </div>
 
       <div className="relative">
         {/* Top nav */}
-        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 <PlatformLogo size={36} />
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold tracking-tight">{t('navTitle')}</div>
+                  <div className="text-sm font-semibold tracking-tight text-[color:var(--app-fg)]">{t('navTitle')}</div>
                   <div className="mt-1 text-xs text-[color:var(--muted)]">{t('navSubtitle')}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggleButton />
                 <select
-                  className="rounded-2xl border border-white/10 bg-white/10 px-2 py-2 text-sm font-semibold text-white/90 hover:bg-white/15 transition outline-none rtl:ml-2 ltr:mr-2 cursor-pointer"
+                  className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 rtl:ml-2 ltr:mr-2 cursor-pointer"
                   value={i18n.language}
                   onChange={(e) => i18n.changeLanguage(e.target.value)}
                 >
@@ -181,20 +288,7 @@ export default function HomePage() {
                   <option value="fr">FR</option>
                   <option value="ar">AR</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-                >
-                  {t('login')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="rounded-2xl bg-[color:var(--accent-90)] px-3 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
-                >
-                  {t('createAccount')}
-                </button>
+                {renderAuthActions()}
               </div>
             </div>
           </div>
@@ -204,20 +298,20 @@ export default function HomePage() {
         <section className="mx-auto w-full max-w-7xl px-4 pt-10 pb-8 sm:px-6">
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
-              <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+              <div className="inline-flex items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--muted)] shadow-sm">
                 {t('badge')}
               </div>
-              <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight">
+              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[color:var(--app-fg)] sm:text-4xl lg:text-5xl">
                 {t('heroTitle')}
               </h1>
-              <p className="mt-4 max-w-xl text-sm sm:text-base text-white/60 leading-relaxed">
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[color:var(--muted)] sm:text-base">
                 {t('heroSubtitle')}
               </p>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => navigate('/register')}
-                  className="h-11 rounded-2xl bg-emerald-500/90 px-5 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition"
+                  className="h-11 rounded-2xl bg-[color:var(--accent)] px-5 text-sm font-semibold text-white shadow hover:brightness-110 transition"
                 >
                   {t('getStarted')}
                 </button>
@@ -225,7 +319,7 @@ export default function HomePage() {
                   type="button"
                   onClick={() => navigate('/p/psychologist/' + (visible[0]?._id || ''))}
                   disabled={!visible[0]?._id}
-                  className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/80 hover:bg-white/10 transition disabled:opacity-50"
+                  className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-5 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110 disabled:opacity-50"
                 >
                   {t('exploreProfile')}
                 </button>
@@ -237,28 +331,28 @@ export default function HomePage() {
                   { k: t('booking'), v: t('bookingText') },
                   { k: t('insights'), v: t('insightsText') }
                 ].map((x) => (
-                  <div key={x.k} className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-                    <div className="text-sm font-semibold">{x.k}</div>
-                    <div className="mt-1 text-xs text-white/60">{x.v}</div>
+                  <div key={x.k} className="rounded-3xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-4 shadow-sm backdrop-blur-xl">
+                    <div className="text-sm font-semibold text-[color:var(--app-fg)]">{x.k}</div>
+                    <div className="mt-1 text-xs text-[color:var(--muted)]">{x.v}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <GlassPanel className="p-5 flex flex-col justify-end">
-              <div className="text-sm font-semibold">{t('findPsychologist')}</div>
-              <div className="mt-1 text-xs text-white/60">{t('liveSearchText')}</div>
+            <GlassPanel className="flex flex-col justify-end p-5 sm:p-6">
+              <div className="text-sm font-semibold text-[color:var(--app-fg)]">{t('findPsychologist')}</div>
+              <div className="mt-1 text-xs text-[color:var(--muted)]">{t('liveSearchText')}</div>
 
               <div className="mt-4 grid gap-3">
                 <input
-                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white placeholder:text-white/60 outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+                  className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] placeholder:text-[color:var(--muted)] outline-none shadow-sm transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   placeholder={t('searchPlaceholder')}
                   value={filters.search}
                   onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                 />
                 
                 <select
-                  className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-4 text-sm text-white outline-none focus:border-[color:var(--accent-50)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+                  className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none shadow-sm transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                   value={filters.sort}
                   onChange={e => setFilters({ ...filters, sort: e.target.value })}
                 >
@@ -267,7 +361,7 @@ export default function HomePage() {
                 </select>
 
                 <div className="flex gap-2 items-center text-sm font-semibold mt-1">
-                  <label className="flex items-center gap-2 cursor-pointer flex-1">
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 text-[color:var(--app-fg)]">
                     <div className="relative inline-block w-10 h-6 shrink-0">
                       <input 
                         type="checkbox" 
@@ -275,18 +369,18 @@ export default function HomePage() {
                         checked={useLocation}
                         onChange={(e) => setUseLocation(e.target.checked)}
                       />
-                      <div className="absolute inset-0 rounded-full bg-white/10 peer-checked:bg-indigo-500 transition"></div>
+                      <div className="absolute inset-0 rounded-full bg-[color:var(--panel-border)] peer-checked:bg-[color:var(--accent)] transition"></div>
                       <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></div>
                     </div>
                     {t('useMyLocation')}
                   </label>
                   
                   {useLocation && filters.lat && (
-                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/30 px-3 text-sm text-white/50 h-[38px] rtl:flex-row-reverse rtl:gap-1">
+                    <div className="flex h-[38px] items-center gap-2 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 text-sm text-[color:var(--muted)] shadow-sm rtl:flex-row-reverse rtl:gap-1">
                       <span>{t('within')}</span>
                       <input
                         type="number"
-                        className="w-16 h-8 rounded-xl border border-white/10 bg-transparent px-2 text-center text-white outline-none focus:border-indigo-400/40"
+                        className="h-8 w-16 rounded-xl border border-[color:var(--panel-border)] bg-transparent px-2 text-center text-[color:var(--app-fg)] outline-none focus:border-[color:var(--accent)]"
                         min="1"
                         value={filters.distance}
                         onChange={e => setFilters(f => ({ ...f, distance: Number(e.target.value) || 1 }))}
@@ -297,7 +391,7 @@ export default function HomePage() {
                 </div>
               </div>
               {error && (
-                <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50">
+                <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
                   {error}
                 </div>
               )}
@@ -309,20 +403,20 @@ export default function HomePage() {
         <section className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-tight">{t('availablePsychologists')}</h2>
-              <p className="mt-1 text-sm text-white/60">{t('browseProfiles')}</p>
+              <h2 className="text-lg font-semibold tracking-tight text-[color:var(--app-fg)]">{t('availablePsychologists')}</h2>
+              <p className="mt-1 text-sm text-[color:var(--muted)]">{t('browseProfiles')}</p>
             </div>
             
             <div className="mt-4 sm:mt-0 flex gap-2">
               <button
                 onClick={() => setViewMode('list')}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-[color:var(--accent)] text-white' : 'border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)] shadow-sm hover:brightness-110'}`}
               >
                 {t('listView')}
               </button>
               <button
                 onClick={() => setViewMode('map')}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-indigo-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-[color:var(--accent)] text-white' : 'border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)] shadow-sm hover:brightness-110'}`}
               >
                 {t('mapView')}
               </button>
@@ -331,17 +425,17 @@ export default function HomePage() {
 
           <div className="mt-4">
             {viewMode === 'map' ? (
-              <div className="h-[600px] rounded-3xl overflow-hidden border border-white/10 relative z-0">
+              <div className="relative z-0 h-[600px] overflow-hidden rounded-3xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] shadow-sm">
                 {filters.lat && (
                   <button
                     onClick={() => setRecenterTrigger(t => t + 1)}
-                    className="absolute bottom-6 left-6 z-[400] rounded-xl bg-slate-900/90 backdrop-blur border border-white/20 px-4 py-3 text-sm font-bold text-white shadow-xl hover:bg-slate-800 transition rtl:right-6 rtl:left-auto"
+                    className="absolute bottom-6 left-6 z-[400] rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm font-bold text-[color:var(--app-fg)] shadow-lg backdrop-blur transition hover:brightness-110 rtl:right-6 rtl:left-auto"
                   >
                     {t('recenterLocation')}
                   </button>
                 )}
                 {locationDenied && (
-                  <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-bold text-white shadow-xl text-center w-max max-w-xs">
+                  <div className="absolute top-6 left-1/2 z-[400] w-max max-w-xs -translate-x-1/2 rounded-xl bg-amber-500/90 px-4 py-2 text-center text-sm font-bold text-white shadow-xl">
                     {t('deniedLocation')}
                   </div>
                 )}
@@ -361,21 +455,28 @@ export default function HomePage() {
                     psy.location && psy.location.coordinates ? (
                       <Marker key={psy._id} position={[psy.location.coordinates[1], psy.location.coordinates[0]]}>
                         <Popup>
-                          <div className="font-semibold text-slate-800 rtl:text-right" dir={i18n.dir()}>{psy.firstName} {psy.lastName}</div>
-                          <div className="text-xs text-slate-600 mt-1 rtl:text-right" dir={i18n.dir()}>
-                            {psy.city || t('cityNotSet')}
-                            {useLocation && filters.lat && filters.lng && (
-                              <span className="block mt-1 font-semibold text-indigo-600">
-                                {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
-                              </span>
-                            )}
+                          <div className="space-y-2 text-slate-800 rtl:text-right" dir={i18n.dir()}>
+                            <div className="font-semibold">
+                              {psy.firstName} {psy.lastName}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              {psy.city || t('cityNotSet')}
+                              {useLocation && filters.lat && filters.lng && (
+                                <span className="mt-1 block font-semibold text-[color:var(--accent)]">
+                                  {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/p/psychologist/${psy._id}`)}
+                                className="rounded-xl bg-[color:var(--accent)] px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                {t('viewProfile')}
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => navigate(`/p/psychologist/${psy._id}`)}
-                            className="mt-2 text-indigo-600 underline text-xs w-full rtl:text-right" dir={i18n.dir()}
-                          >
-                            {t('viewProfile')}
-                          </button>
                         </Popup>
                       </Marker>
                     ) : null
@@ -385,10 +486,10 @@ export default function HomePage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {loading && Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                <div className="h-4 w-2/3 rounded bg-white/10" />
-                <div className="mt-3 h-3 w-1/2 rounded bg-white/10" />
-                <div className="mt-5 h-9 w-full rounded-2xl bg-white/10" />
+              <div key={i} className="rounded-3xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-5 shadow-sm backdrop-blur-xl">
+                <div className="h-4 w-2/3 rounded bg-[color:var(--accent-10)]" />
+                <div className="mt-3 h-3 w-1/2 rounded bg-[color:var(--accent-10)]" />
+                <div className="mt-5 h-9 w-full rounded-2xl bg-[color:var(--accent-10)]" />
               </div>
             ))}
 
@@ -396,13 +497,13 @@ export default function HomePage() {
               const initials = `${psy.firstName?.[0] || ''}${psy.lastName?.[0] || ''}`.toUpperCase() || 'P';
               const photoUrl = toAbsoluteUrl(psy.photo);
               return (
-                <GlassPanel key={psy._id} className="p-5 transition hover:bg-white/10">
+                <GlassPanel key={psy._id} className="p-5 transition hover:brightness-105">
                   <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] shadow-sm">
                       {photoUrl ? (
                         <img src={photoUrl} alt={`${psy.firstName} ${psy.lastName}`} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="grid h-full w-full place-items-center text-sm font-bold">
+                        <div className="grid h-full w-full place-items-center text-sm font-bold text-[color:var(--app-fg)]">
                           {initials}
                         </div>
                       )}
@@ -411,10 +512,10 @@ export default function HomePage() {
                       <div className="truncate text-base font-semibold">
                         {psy.firstName} {psy.lastName}
                       </div>
-                      <div className="mt-1 text-sm text-white/60 flex flex-wrap gap-1 items-center">
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-[color:var(--muted)]">
                         {psy.city || t('notSet')}
                         {useLocation && filters.lat && filters.lng && psy.location?.coordinates && (
-                          <span className="font-semibold text-indigo-400">
+                          <span className="font-semibold text-[color:var(--accent)]">
                             | {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
                           </span>
                         )}
@@ -422,12 +523,12 @@ export default function HomePage() {
                       <div className="mt-3">
                         <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
                       </div>
-                      <div className="mt-3 text-sm text-white/70 truncate">
-                        <span className="text-white/50">{t('languages')}</span>{' '}
+                      <div className="mt-3 truncate text-sm text-[color:var(--muted)]">
+                        <span className="text-[color:var(--muted)]">{t('languages')}</span>{' '}
                         {Array.isArray(psy.languages) ? psy.languages.join(', ') : (psy.languages || t('notSet'))}
                       </div>
-                      <div className="mt-2 text-sm text-white/70 truncate">
-                        <span className="text-white/50">{t('specializations')}</span>{' '}
+                      <div className="mt-2 truncate text-sm text-[color:var(--muted)]">
+                        <span className="text-[color:var(--muted)]">{t('specializations')}</span>{' '}
                         {Array.isArray(psy.specializations) ? psy.specializations.slice(0, 3).join(', ') : (psy.specializations || t('notSet'))}
                         {Array.isArray(psy.specializations) && psy.specializations.length > 3 ? '...' : ''}
                       </div>
@@ -435,7 +536,7 @@ export default function HomePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/p/psychologist/${psy._id}`)}
-                        className="mt-5 h-11 w-full rounded-2xl bg-indigo-500/90 px-4 text-sm font-semibold text-white shadow hover:bg-indigo-500 transition"
+                        className="mt-5 h-11 w-full rounded-2xl bg-[color:var(--accent)] px-4 text-sm font-semibold text-white shadow hover:brightness-110 transition"
                       >
                         {t('viewProfile')}
                       </button>
@@ -449,38 +550,25 @@ export default function HomePage() {
           </div>
 
           {!loading && psychologists.length > visible.length && (
-            <div className="mt-6 text-center text-sm text-white/60">
+            <div className="mt-6 text-center text-sm text-[color:var(--muted)]">
               {t('showingTop', { count: visible.length })}
             </div>
           )}
         </section>
 
         {/* Footer CTA */}
-        <footer className="border-t border-white/10 bg-slate-950/40 backdrop-blur-xl">
+        <footer className="border-t border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-sm font-semibold">{t('readyToStart')}</div>
-                <div className="mt-1 text-sm text-white/60">{t('createAccountToBook')}</div>
+                <div className="text-sm font-semibold text-[color:var(--app-fg)]">{t('readyToStart')}</div>
+                <div className="mt-1 text-sm text-[color:var(--muted)]">{t('createAccountToBook')}</div>
               </div>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-                >
-                  {t('login')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="h-11 rounded-2xl bg-emerald-500/90 px-5 text-sm font-semibold text-white shadow hover:bg-emerald-500 transition"
-                >
-                  {t('createAccount')}
-                </button>
+                {renderAuthActions()}
               </div>
             </div>
-            <div className="mt-8 text-xs text-white/40">
+            <div className="mt-8 text-xs text-[color:var(--muted)]/70">
               {t('footerNote')}
             </div>
           </div>

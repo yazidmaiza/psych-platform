@@ -125,9 +125,9 @@ export default function Notifications() {
                 Notifications
                 <span className={`h-1.5 w-1.5 rounded-full ${unreadCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'}`} />
               </div>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Your notification center</h1>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Notifications</h1>
               <p className="mt-1 max-w-2xl text-sm text-white/60">
-                Review recent alerts, open linked pages, and fine-tune delivery preferences.
+                Review recent alerts, open linked pages, and adjust delivery preferences.
               </p>
             </div>
           </div>

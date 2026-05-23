@@ -1,7 +1,12 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
+import PlatformLogo from '../components/branding/PlatformLogo';
+import ThemeToggleButton from '../components/branding/ThemeToggleButton';
+import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
+import { logout } from '../services/auth';
 
 const SESSION_TYPE_LABELS = {
   preparation: 'First consultation preparation',
@@ -41,6 +46,7 @@ const formatDate = (value) => {
 
 export default function MySessionHistory() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const userId = localStorage.getItem('userId');
   const [sessions, setSessions] = useState([]);
   const [summaries, setSummaries] = useState({});
@@ -50,6 +56,8 @@ export default function MySessionHistory() {
   const [cancelingId, setCancelingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const fetchAll = useCallback(async () => {
     if (!userId) {
@@ -99,9 +107,23 @@ export default function MySessionHistory() {
     }
   }, [userId]);
 
+  const refreshUnreadNotifications = useCallback(async () => {
+    try {
+      const data = await api.get('/api/notifications');
+      const list = Array.isArray(data) ? data : [];
+      setUnreadNotifications(list.filter((item) => !item.isRead).length);
+    } catch {
+      setUnreadNotifications(0);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    refreshUnreadNotifications();
+  }, [refreshUnreadNotifications]);
 
   const cancelBooking = async (sessionId) => {
     if (!window.confirm('Cancel this booking?')) return;
@@ -153,45 +175,101 @@ export default function MySessionHistory() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 left-1/2 h-72 w-[540px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute -top-24 left-1/2 h-80 w-[620px] -translate-x-1/2 rounded-full bg-[color:var(--accent-12)] blur-3xl" />
+        <div className="absolute -bottom-28 right-[-160px] h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+        <div className="absolute -bottom-16 left-[-120px] h-72 w-72 rounded-full bg-[color:var(--accent-08)] blur-3xl" />
         <div className="absolute inset-0 bg-[color:var(--app-bg)]" />
       </div>
 
       <div className="relative">
-        <div className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)]/90 backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/50">
-                  Session history
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <PlatformLogo size={36} />
+                <div className="min-w-0">
+                  <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">
+                    {t('mySessions')}
+                  </h1>
+                  <div className="mt-1 text-xs text-[color:var(--muted)]">
+                    Review bookings, continue active sessions, and revisit completed notes.
+                  </div>
                 </div>
-                <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">My sessions</h1>
-                <p className="mt-1 max-w-2xl text-sm text-white/60">
-                  Review bookings, continue active sessions, complete payments, and revisit completed notes.
-                </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/patient/dashboard')}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
-                >
-                  Back to dashboard
-                </button>
+              <nav className="hidden md:flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => navigate('/patient/discovery')}
-                  className="rounded-2xl bg-indigo-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                  className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
                 >
-                  Book new session
+                  {t('navDiscovery')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/patient/dashboard')}
+                  className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
+                >
+                  {t('navDashboard')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/history')}
+                  className="border-b-2 border-[color:var(--accent)] pb-1 px-2 text-sm font-semibold text-[color:var(--app-fg)] transition"
+                >
+                  {t('navHistory')}
+                </button>
+              </nav>
+
+              <div className="flex items-center gap-2">
+                <ThemeToggleButton />
+
+                <select
+                  className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 cursor-pointer"
+                  value={i18n.language}
+                  onChange={(e) => i18n.changeLanguage(e.target.value)}
+                >
+                  <option value="en">EN</option>
+                  <option value="fr">FR</option>
+                  <option value="ar">AR</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(true)}
+                  className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label={t('notifications')}
+                  title={t('notifications')}
+                >
+                  <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/patient/profile')}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                  aria-label={t('editProfile')}
+                  title={t('editProfile')}
+                >
+                  <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
+                >
+                  {t('logout')}
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </header>
 
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -488,6 +566,14 @@ export default function MySessionHistory() {
           </div>
         </main>
       </div>
+
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => {
+          setNotificationsOpen(false);
+          refreshUnreadNotifications();
+        }}
+      />
     </div>
   );
 }
