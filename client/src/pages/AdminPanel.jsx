@@ -263,6 +263,9 @@ export default function AdminPanel() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
   const [dismissLowConfidenceBanner, setDismissLowConfidenceBanner] = useState(false);
+  const [knowledgeGaps, setKnowledgeGaps] = useState(null);
+  const [gapsLoading, setGapsLoading] = useState(false);
+  const [gapsError, setGapsError] = useState('');
 
   const [activeTab, setActiveTab] = useState('overview');
   const [userSearch, setUserSearch] = useState('');
@@ -376,6 +379,34 @@ export default function AdminPanel() {
   }, [queueFilters]);
 
   useEffect(() => {
+    if (!feedbackAnalytics) return;
+
+    let cancelled = false;
+    const loadKnowledgeGaps = async () => {
+      setKnowledgeGaps({ gaps: [], covered: [], summary: { totalFlagged: 0, gapCount: 0, coveredCount: 0, checkedAt: '' } });
+      setGapsLoading(true);
+      setGapsError('');
+      try {
+        const data = await api.get('/api/chatbot/analytics/knowledge-gaps');
+        if (!cancelled) setKnowledgeGaps(data || null);
+      } catch (err) {
+        if (!cancelled) {
+          setKnowledgeGaps(null);
+          setGapsError(err.message || 'Failed to load knowledge base gaps');
+        }
+      } finally {
+        if (!cancelled) setGapsLoading(false);
+      }
+    };
+
+    loadKnowledgeGaps();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [feedbackAnalytics]);
+
+  useEffect(() => {
     if (!selectedApplication) {
       setPreviewState({ loading: false, error: '', url: '', doc: null });
       setSelectedDocKey('');
@@ -457,6 +488,22 @@ export default function AdminPanel() {
 
     return feedbackAnalytics;
   }, [feedbackAnalytics]);
+
+  const refreshKnowledgeGaps = useCallback(async () => {
+    setKnowledgeGaps({ gaps: [], covered: [], summary: { totalFlagged: 0, gapCount: 0, coveredCount: 0, checkedAt: '' } });
+    setGapsLoading(true);
+    setGapsError('');
+    try {
+      const data = await api.get('/api/chatbot/analytics/knowledge-gaps');
+      setKnowledgeGaps(data || null);
+    } catch (err) {
+      setKnowledgeGaps({ gaps: [], covered: [], summary: { totalFlagged: 0, gapCount: 0, coveredCount: 0, checkedAt: '' } });
+      setKnowledgeGaps({ gaps: [], covered: [], summary: { totalFlagged: 0, gapCount: 0, coveredCount: 0, checkedAt: '' } });
+      setGapsError(err.message || 'Failed to load knowledge base gaps');
+    } finally {
+      setGapsLoading(false);
+    }
+  }, []);
 
   const ratingDistribution = chatbotQuality.ratings?.distribution || { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
   const ratingCounts = [1, 2, 3, 4, 5].map((star) => ratingDistribution[String(star)] || 0);
@@ -876,6 +923,103 @@ export default function AdminPanel() {
                               });
                             })()}
                           </div>
+                        </div>
+                      )}
+
+                      {knowledgeGaps !== null && (
+                        <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-white/50">Knowledge base gaps</div>
+                              <div className="mt-1 text-sm text-white/60">
+                                {knowledgeGaps?.summary?.gapCount || 0} gaps detected · {knowledgeGaps?.summary?.coveredCount || 0} covered
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={refreshKnowledgeGaps}
+                              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/75 transition hover:bg-white/10"
+                            >
+                              Refresh
+                            </button>
+                          </div>
+
+                          {gapsLoading ? (
+                            <div className="mt-4 space-y-3">
+                              {[1, 2, 3].map((item) => (
+                                <div key={item} className="h-16 rounded-2xl border border-white/10 bg-white/5 animate-pulse" />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-4 space-y-3">
+                              {gapsError && (
+                                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+                                  {gapsError}
+                                </div>
+                              )}
+
+                              {!(knowledgeGaps?.gaps || []).length && !(knowledgeGaps?.covered || []).length && !gapsError && (
+                                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-3 text-sm text-white/60">
+                                  No gaps detected
+                                </div>
+                              )}
+
+                              {(knowledgeGaps?.gaps || []).map((item) => {
+                                const emotionKey = String(item.emotion || '').toLowerCase();
+                                const autoTriggered = Number(item.correctionCount || 0) >= 3;
+
+                                return (
+                                  <div key={emotionKey} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-white">{emotionKey.replace(/\b\w/g, (char) => char.toUpperCase())}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                          <span className="rounded-full border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 font-semibold text-amber-200">
+                                            corrected {item.correctionCount}×
+                                          </span>
+                                          <span>best match {Number(item.topSimilarity || 0).toFixed(2)}</span>
+                                          <span className={`rounded-full border px-2 py-0.5 font-semibold ${item.status === 'GAP' ? 'border-rose-500/25 bg-rose-500/15 text-rose-200' : 'border-emerald-500/25 bg-emerald-500/15 text-emerald-200'}`}>
+                                            {item.status}
+                                          </span>
+                                        </div>
+                                        {item.recommendation && (
+                                          <div className="mt-2 text-xs text-white/55">{item.recommendation}</div>
+                                        )}
+                                        <div className={[
+                                          'mt-2 text-xs font-semibold',
+                                          autoTriggered ? 'text-emerald-300' : 'text-white/50'
+                                        ].join(' ')}>
+                                          {autoTriggered
+                                            ? '✓ Auto-reseed triggered'
+                                            : `Auto-reseed triggers at 3 corrections (${item.correctionCount}/3)`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {(knowledgeGaps?.covered || []).map((item) => {
+                                const emotionKey = String(item.emotion || '').toLowerCase();
+                                return (
+                                  <div key={emotionKey} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <div>
+                                        <div className="text-sm font-semibold text-white">{emotionKey.replace(/\b\w/g, (char) => char.toUpperCase())}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                          <span className="rounded-full border border-emerald-500/25 bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-200">COVERED</span>
+                                          <span>best match {Number(item.topSimilarity || 0).toFixed(2)}</span>
+                                          <span className="rounded-full border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 font-semibold text-amber-200">
+                                            corrected {item.correctionCount}×
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </>

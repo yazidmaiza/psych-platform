@@ -326,7 +326,8 @@ exports.requestPasswordReset = async (req, res) => {
       await sendEmail({
         to: user.email,
         subject: 'Your password reset code',
-        html: `<p>You requested a password reset.</p><p>Your password reset code is:</p><p style="font-size:20px"><b>${rawToken}</b></p><p>This code expires soon. If you didn't request it, you can ignore this email.</p>`
+        text: `You requested a password reset.\n\nYour password reset code is: ${rawToken}\n\nThis code expires soon. If you didn't request it, you can ignore this email.`,
+        html: `<p>You requested a password reset.</p><p>Your password reset code is:</p><p style="font-size:20px"><b>${rawToken}</b></p><p>Enter this code on the reset password page.</p><p>This code expires soon. If you didn't request it, you can ignore this email.</p>`
       });
 
       await logAuditEvent({
@@ -337,7 +338,7 @@ exports.requestPasswordReset = async (req, res) => {
       });
     }
 
-    res.status(200).json({ message: 'If the email exists, a reset link has been sent.' });
+    res.status(200).json({ message: 'If the email exists, a reset code has been sent.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

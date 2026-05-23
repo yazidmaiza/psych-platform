@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getUser } from '../services/auth';
 import { api, toAbsoluteUrl } from '../services/api';
 import { socket } from '../services/socket';
+import GlassPanel from '../components/dashboard/GlassPanel';
 
 const fmtTime = (d) => {
   try {
@@ -30,6 +32,7 @@ const sameDay = (a, b) => {
 function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [participant, setParticipant] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -43,12 +46,25 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
   const { otherUserId: otherUserIdParam } = useParams();
   const otherUserId = otherUserIdProp || otherUserIdParam;
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const messagesContainerRef = useRef(null);
   const recorderRef = useRef(null);
   const composerRef = useRef(null);
 
   const { userId, role } = getUser();
   const roomId = otherUserId ? [userId, otherUserId].sort().join('_') : null;
+  const participantName = useMemo(() => {
+    const firstName = participant?.firstName || '';
+    const lastName = participant?.lastName || '';
+    const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+    return name || t('conversation') || 'Conversation';
+  }, [participant?.firstName, participant?.lastName, t]);
+  const participantInitials = useMemo(() => {
+    const first = participant?.firstName?.[0] || '';
+    const last = participant?.lastName?.[0] || '';
+    return `${first}${last}`.toUpperCase() || 'P';
+  }, [participant?.firstName, participant?.lastName]);
+  const participantPhoto = useMemo(() => toAbsoluteUrl(participant?.photo || ''), [participant?.photo]);
 
   useEffect(() => {
     if (!embedded) return;
@@ -82,6 +98,15 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
 
   useEffect(() => {
     if (!otherUserId) return undefined;
+    const fetchParticipant = async () => {
+      try {
+        const data = await api.get('/api/psychologists/by-user/' + otherUserId);
+        setParticipant(data || null);
+      } catch {
+        setParticipant(null);
+      }
+    };
+
     const fetchMessages = async () => {
       try {
         setLoading(true);
@@ -115,6 +140,7 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
     };
 
     if (roomId) socket.emit('join_room', roomId);
+  fetchParticipant();
     fetchMessages();
     fetchSession();
 
@@ -289,26 +315,40 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
   };
 
   return (
-    <div className={[embedded ? 'h-full bg-white' : 'min-h-screen bg-gray-50', 'flex flex-col'].join(' ')}>
+    <div className={[embedded ? 'h-full bg-[var(--app-bg)]' : 'min-h-screen bg-[var(--app-bg)]', 'flex flex-col text-[var(--app-fg)]'].join(' ')}>
       {!embedded && (
-        <div className="bg-white shadow-sm">
-          <div className="max-w-3xl mx-auto px-6 py-5 flex items-center gap-4">
+        <div className="border-b border-white/10 bg-[var(--app-bg-70)] backdrop-blur-xl">
+          <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4 sm:px-6">
             <button
               onClick={() => navigate(-1)}
-              className="text-blue-600 text-sm font-semibold hover:underline"
+              className="text-sm font-semibold text-white/70 hover:text-white"
             >
-              Back
+              {t('back') || 'Back'}
             </button>
-            <h1 className="text-xl font-bold text-gray-800">Conversation</h1>
-            <span className="text-xs text-green-500 font-semibold">Live</span>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                  {participantPhoto ? (
+                    <img src={participantPhoto} alt={participantName} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-semibold text-white/50">{participantInitials}</span>
+                  )}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--app-bg)] bg-emerald-500" />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold text-white">{participantName}</h1>
+                <p className="text-xs text-white/60">{t('online') || 'Live chat'}</p>
+              </div>
+            </div>
             <button
               onClick={() => {
                 setIsMuted(!isMuted);
                 window.speechSynthesis.cancel();
               }}
-              className="ml-auto text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              className="ml-auto rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-white/70 transition hover:bg-white/10"
             >
-              {isMuted ? 'Muted' : 'Sound on'}
+              {isMuted ? (t('muted') || 'Muted') : (t('soundOn') || 'Sound on')}
             </button>
           </div>
         </div>
@@ -316,7 +356,7 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
 
       <div
         className={[
-          embedded ? 'h-full px-4 py-4' : 'max-w-3xl w-full mx-auto px-6 py-6',
+          embedded ? 'h-full px-4 py-4' : 'max-w-4xl w-full mx-auto px-4 sm:px-6 py-6',
           'flex flex-col'
         ].join(' ')}
         style={embedded ? undefined : { height: 'calc(100vh - 80px)' }}
@@ -324,28 +364,28 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
         <div
           ref={messagesContainerRef}
           className={[
-            'flex-1 rounded-2xl p-5 overflow-y-auto mb-4',
-            embedded ? 'bg-gray-50 border border-gray-100' : 'bg-white shadow'
+            'flex-1 rounded-3xl p-4 sm:p-5 overflow-y-auto mb-4 border border-white/10',
+            embedded ? 'bg-white/5' : 'bg-white/5 shadow-[0_20px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl'
           ].join(' ')}
         >
           {loading && (
             <div className="space-y-3">
               {Array.from({ length: 6 }).map((_, idx) => (
                 <div key={idx} className={`flex ${idx % 2 ? 'justify-end' : 'justify-start'}`}>
-                  <div className="h-14 w-[70%] max-w-[420px] rounded-2xl bg-gray-100 animate-pulse" />
+                  <div className="h-14 w-[70%] max-w-[420px] rounded-2xl bg-white/10 animate-pulse" />
                 </div>
               ))}
             </div>
           )}
 
           {!loading && fetchError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-50">
               {fetchError}
             </div>
           )}
 
           {!loading && !fetchError && renderedMessages.length === 0 && (
-            <p className="text-center text-gray-400 mt-20">No messages yet. Say hello!</p>
+            <p className="mt-20 text-center text-white/40">{t('noMessagesYet') || 'No messages yet. Say hello!'}</p>
           )}
 
           {!loading && renderedMessages.map((msg, index) => {
@@ -366,8 +406,8 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
                 <div className={`flex mb-3 ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={[
-                      'px-4 py-3 rounded-2xl max-w-[80%] sm:max-w-[70%]',
-                      mine ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800',
+                      'px-4 py-3 rounded-2xl max-w-[80%] sm:max-w-[70%] border',
+                      mine ? 'bg-indigo-600/90 text-white border-indigo-400/20' : 'bg-white/5 text-white border-white/10',
                       localStatus === 'failed' ? 'ring-2 ring-rose-300' : ''
                     ].join(' ')}
                   >
@@ -383,7 +423,7 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
                             onClick={() => ensureVoiceAccessUrl(msg._id)}
                             className={[
                               'w-full rounded-xl px-3 py-2 text-xs font-semibold transition',
-                              mine ? 'bg-blue-500/20 text-white hover:bg-blue-500/25' : 'bg-white/70 text-slate-700 hover:bg-white/80',
+                              mine ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-white/10 text-white hover:bg-white/15',
                               voiceUrlLoading[msg._id] ? 'opacity-70 cursor-wait' : ''
                             ].join(' ')}
                             disabled={voiceUrlLoading[msg._id]}
@@ -397,9 +437,9 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
                       <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                     )}
 
-                    <div className={`mt-1 flex items-center gap-2 text-xs ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+                    <div className={`mt-1 flex items-center gap-2 text-xs ${mine ? 'text-blue-200' : 'text-white/40'}`}>
                       <span>{fmtTime(msg.createdAt)}</span>
-                      {mine && localStatus === 'sending' && <span className="opacity-80">Sendingâ€¦</span>}
+                      {mine && localStatus === 'sending' && <span className="opacity-80">Sending...</span>}
                       {mine && localStatus === 'failed' && (
                         <>
                           <span className="text-rose-200">Failed</span>
@@ -425,22 +465,22 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
             <button
               type="button"
               onClick={() => scrollToBottom('smooth')}
-              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 shadow-sm hover:bg-white/10"
             >
-              New messages â†“
+              {t('newMessages') || 'New messages ↓'}
             </button>
           </div>
         )}
 
-      <div className={[
-          'rounded-2xl px-4 py-3 flex gap-3 items-center',
-          embedded ? 'bg-white border border-gray-100' : 'bg-white shadow'
+      <GlassPanel className={[
+          'rounded-3xl px-4 py-3 flex gap-3 items-center border border-white/10',
+          embedded ? 'bg-white/5' : 'bg-white/5 backdrop-blur-xl'
         ].join(' ')}>
           <textarea
             ref={composerRef}
             rows={1}
-            className="flex-1 resize-none bg-transparent text-sm leading-relaxed focus:outline-none"
-            placeholder="Type a message..."
+            className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-white placeholder:text-white/35 focus:outline-none"
+            placeholder={t('typeMessage') || 'Type a message...'}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={(e) => {
@@ -453,12 +493,12 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
           {hasActiveSession && sessionId && (
             <button
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${isRecording
-                ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-rose-500 text-white hover:bg-rose-600 animate-pulse'
+                  : 'bg-white/5 text-white/70 hover:bg-white/10'
                 }`}
               onClick={isRecording ? stopRecording : startRecording}
             >
-              {isRecording ? 'Stop' : 'Record'}
+                {isRecording ? (t('stop') || 'Stop') : (t('record') || 'Record')}
             </button>
           )}
           {embedded && (
@@ -468,20 +508,20 @@ function Conversation({ otherUserId: otherUserIdProp, embedded = false, onClose 
                 setIsMuted(!isMuted);
                 window.speechSynthesis.cancel();
               }}
-              className="hidden sm:inline-flex px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              className="hidden sm:inline-flex px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white/70 hover:bg-white/10 transition"
               title={isMuted ? 'Enable text-to-speech' : 'Mute text-to-speech'}
             >
-              {isMuted ? 'Muted' : 'Sound on'}
+              {isMuted ? (t('muted') || 'Muted') : (t('soundOn') || 'Sound on')}
             </button>
           )}
           <button
-            className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:opacity-60"
+            className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => sendMessage()}
             disabled={sendBusy || !String(newMessage || '').trim()}
           >
-            {sendBusy ? 'Sendingâ€¦' : 'Send'}
+            {sendBusy ? (t('sending') || 'Sending...') : (t('send') || 'Send')}
           </button>
-        </div>
+        </GlassPanel>
       </div>
     </div>
   );
