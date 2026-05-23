@@ -153,9 +153,9 @@ export default function AuditLog() {
                 Audit trail
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               </div>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Audit log dashboard</h1>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Audit Log</h1>
               <p className="mt-1 max-w-2xl text-sm text-white/60">
-                Review the real backend audit feed, narrow the timeline, and inspect event payloads on demand.
+                Review the backend audit feed, narrow the timeline, and inspect event payloads.
               </p>
             </div>
           </div>

@@ -157,7 +157,6 @@ export default function RiskAlertBanner() {
         const { cfg }        = toast;
         const categoryText   = CATEGORY_LABELS[toast.riskCategory] || toast.riskCategory;
         const isCritical     = toast.requiresAck;   // use requiresAck as the UX gate
-        const isSessionPaused = toast.sessionPaused;
 
         const triggerId = `risk-trigger-${toast.key}`;
         const reasonId  = `risk-reason-${toast.key}`;

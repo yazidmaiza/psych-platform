@@ -8,7 +8,7 @@ import ThemeToggleButton from '../components/branding/ThemeToggleButton';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-white/70 backdrop-blur-md border border-white p-8 rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)] ${className}`}>
+  <div className={`rounded-[2rem] border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)]/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8 ${className}`}>
     {children}
   </div>
 );
@@ -125,32 +125,37 @@ export default function PatientEditProfile() {
   };
 
   return (
-    <div className="bg-background text-on-background antialiased min-h-screen flex flex-col">
-      <header className="bg-surface/70 dark:bg-surface-container/70 backdrop-blur-xl top-0 sticky z-50 border-b border-white/20 dark:border-outline-variant/20 shadow-[0_8px_30px_rgba(27,77,92,0.08)]">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-fg)] antialiased">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-28 left-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-15)] blur-3xl" />
+        <div className="absolute -bottom-28 right-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+      </div>
+
+      <header className="sticky top-0 z-50 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
         <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-          <div className="font-display-lg text-title-md font-bold text-primary dark:text-primary-fixed-dim">
-            PsychPlatform
+          <div className="font-display-lg text-title-md font-bold text-[color:var(--app-fg)]">
+            {t('navTitle')}
           </div>
 
           <nav className="hidden md:flex gap-8 items-center">
             <button
               type="button"
               onClick={() => navigate('/patient/discovery')}
-              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
+              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
             >
               {t('navDiscovery')}
             </button>
             <button
               type="button"
               onClick={() => navigate('/patient/dashboard')}
-              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
+              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
             >
               {t('navDashboard')}
             </button>
             <button
               type="button"
               onClick={() => navigate('/history')}
-              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
+              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
             >
               {t('navHistory')}
             </button>
@@ -159,7 +164,7 @@ export default function PatientEditProfile() {
           <div className="flex items-center gap-2" dir={i18n.dir()}>
             <ThemeToggleButton />
             <select
-              className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-2 py-2 text-sm font-semibold text-on-surface hover:brightness-110 transition outline-none cursor-pointer"
+              className="cursor-pointer rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110"
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
             >
@@ -171,7 +176,7 @@ export default function PatientEditProfile() {
             <button
               type="button"
               onClick={() => setNotificationsOpen(true)}
-              className="text-primary dark:text-primary-fixed-dim p-2 rounded-full hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-all duration-300"
+              className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] p-2 text-[color:var(--app-fg)] shadow-sm transition hover:brightness-110"
               aria-label={t('notifications')}
               title={t('notifications')}
             >
@@ -181,7 +186,7 @@ export default function PatientEditProfile() {
             <button
               type="button"
               onClick={logout}
-              className="ml-1 rounded-2xl bg-error px-4 py-2 text-sm font-semibold text-on-error hover:brightness-110 transition"
+              className="ml-1 rounded-2xl bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow hover:brightness-110 transition"
             >
               {t('logout')}
             </button>
@@ -189,47 +194,71 @@ export default function PatientEditProfile() {
         </div>
       </header>
 
-      <main className="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
+      <main className="relative flex-grow w-full max-w-7xl mx-auto px-4 md:px-6 py-10 sm:py-12">
         <div className="mb-8" dir={i18n.dir()}>
-          <h1 className="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-2">{t('editProfile')}</h1>
-          <p className="font-body-md text-body-md text-on-surface-variant">{t('editProfileDesc')}</p>
+          <div className="inline-flex items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)] shadow-sm">
+            {t('editProfile')}
+          </div>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[color:var(--app-fg)] sm:text-4xl lg:text-5xl">
+            {t('editProfile')}
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[color:var(--muted)] sm:text-base">
+            {t('editProfileDesc')}
+          </p>
         </div>
 
         {loading ? (
-          <div className="glass-card px-6 py-4 text-on-surface-variant">{t('loading')}...</div>
+          <div className="rounded-3xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-6 py-4 text-[color:var(--muted)] shadow-sm backdrop-blur-xl">{t('loading')}...</div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
-            <div className="lg:col-span-7 flex flex-col gap-gutter">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="lg:col-span-7 flex flex-col gap-6">
               <Card>
-                <div className="font-title-md text-title-md text-primary mb-6">{t('profileInfo')}</div>
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">{t('profileInfo')}</div>
+                    <div className="mt-2 text-lg font-semibold text-[color:var(--app-fg)]">{profile.fullName || `${profile.firstName} ${profile.lastName}`.trim() || t('patient')}</div>
+                  </div>
+                  <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--accent-10)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)]">
+                    {t('profilePhoto')}
+                  </div>
+                </div>
 
                 {error && (
-                  <div className="mb-4 rounded-2xl border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-on-error-container">
+                  <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
                     {error}
                   </div>
                 )}
                 {success && (
-                  <div className="mb-4 rounded-2xl border border-secondary/20 bg-secondary-container/40 px-4 py-3 text-sm text-on-secondary-container">
+                  <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">
                     {success}
                   </div>
                 )}
 
-                <div className="grid gap-4">
-                  <label className="grid gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">{t('firstName')}</span>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-1 sm:col-span-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">{t('firstName')}</span>
                     <input
                       value={profile.firstName}
                       onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))}
-                      className="h-12 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
+                      className="h-12 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none shadow-sm transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
                     />
                   </label>
 
-                  <label className="grid gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">{t('lastName')}</span>
+                  <label className="grid gap-1 sm:col-span-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">{t('lastName')}</span>
                     <input
                       value={profile.lastName}
                       onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))}
-                      className="h-12 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
+                      className="h-12 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm text-[color:var(--app-fg)] outline-none shadow-sm transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent-20)]"
+                    />
+                  </label>
+
+                  <label className="grid gap-1 sm:col-span-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Full name</span>
+                    <input
+                      value={profile.fullName}
+                      readOnly
+                      className="h-12 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--accent-08)] px-4 text-sm text-[color:var(--muted)] outline-none shadow-sm"
                     />
                   </label>
 
@@ -237,7 +266,7 @@ export default function PatientEditProfile() {
                     type="button"
                     disabled={saving}
                     onClick={saveProfile}
-                    className="h-12 rounded-2xl bg-primary px-5 text-sm font-semibold text-on-primary hover:brightness-110 transition disabled:opacity-50"
+                    className="h-12 rounded-2xl bg-[color:var(--accent)] px-5 text-sm font-semibold text-white shadow hover:brightness-110 transition disabled:opacity-50 sm:col-span-2"
                   >
                     {saving ? t('saving') : t('saveChanges')}
                   </button>
@@ -245,11 +274,20 @@ export default function PatientEditProfile() {
               </Card>
             </div>
 
-            <div className="lg:col-span-5 flex flex-col gap-gutter">
+            <div className="lg:col-span-5 flex flex-col gap-6">
               <Card>
-                <div className="font-title-md text-title-md text-primary mb-6">{t('profilePhoto')}</div>
-                <div className="flex items-center gap-5">
-                  <div className="w-20 h-20 rounded-full overflow-hidden border border-outline-variant/40 bg-surface-container-lowest/70 flex items-center justify-center text-primary font-title-md text-title-md">
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">{t('profilePhoto')}</div>
+                    <div className="mt-2 text-lg font-semibold text-[color:var(--app-fg)]">Update your picture</div>
+                  </div>
+                  <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[color:var(--muted)] shadow-sm">
+                    PNG, JPG, WEBP
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-5">
+                  <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] shadow-sm">
                     {displayPhoto ? (
                       <img src={displayPhoto} alt={t('profilePhoto')} className="w-full h-full object-cover" />
                     ) : (
@@ -257,31 +295,45 @@ export default function PatientEditProfile() {
                     )}
                   </div>
 
-                  <div className="flex-1">
+                  <div className="flex-1 space-y-4">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-on-surface-variant"
+                      className="block w-full cursor-pointer rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm text-[color:var(--muted)] shadow-sm file:mr-4 file:rounded-xl file:border-0 file:bg-[color:var(--accent)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:brightness-110"
                     />
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
                         disabled={!photoFile || uploading}
                         onClick={uploadPhoto}
-                        className="h-11 rounded-2xl bg-secondary px-4 text-sm font-semibold text-on-secondary hover:brightness-110 transition disabled:opacity-50"
+                        className="h-11 rounded-2xl bg-[color:var(--accent)] px-4 text-sm font-semibold text-white shadow hover:brightness-110 transition disabled:opacity-50"
                       >
                         {uploading ? t('uploading') : t('uploadPhoto')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setPhotoFile(null)}
-                        className="h-11 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 text-sm font-semibold text-on-surface hover:brightness-110 transition"
+                        className="h-11 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
                       >
                         {t('cancel')}
                       </button>
                     </div>
-                    <p className="mt-2 text-sm text-on-surface-variant">{t('photoHint')}</p>
+                    <p className="mt-2 text-sm text-[color:var(--muted)]">{t('photoHint')}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Account summary</div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">First name</div>
+                    <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">{profile.firstName || '—'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Last name</div>
+                    <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">{profile.lastName || '—'}</div>
                   </div>
                 </div>
               </Card>

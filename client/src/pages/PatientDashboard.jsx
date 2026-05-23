@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import moment from 'moment';
 
 import { api } from '../services/api';
 import { logout } from '../services/auth';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
+import PlatformLogo from '../components/branding/PlatformLogo';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 
 const Card = ({ children, className = '' }) => (
@@ -29,6 +30,42 @@ function getInitials(name) {
   const first = parts[0]?.[0] || 'S';
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] || 'C') : (parts[0]?.[1] || 'C');
   return (first + last).toUpperCase();
+}
+
+function NavTabs({ navigate, t }) {
+  const location = useLocation();
+  const path = location.pathname || '';
+  const isDiscovery = path.startsWith('/patient/discovery');
+  const isDashboard = path.startsWith('/patient/dashboard') || path === '/patient' || path === '/patient/';
+  const isHistory = path.startsWith('/history') || path.startsWith('/patient/history');
+
+  const common = 'px-3 py-1 text-sm font-semibold transition';
+
+  return (
+    <div className="flex items-center gap-6">
+      <button
+        type="button"
+        onClick={() => navigate('/patient/discovery')}
+        className={`${common} ${isDiscovery ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navDiscovery')}
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/patient/dashboard')}
+        className={`${common} ${isDashboard ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navDashboard')}
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/history')}
+        className={`${common} ${isHistory ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navHistory')}
+      </button>
+    </div>
+  );
 }
 
 export default function PatientDashboard() {
@@ -157,88 +194,74 @@ export default function PatientDashboard() {
 
   return (
     <div className="bg-[var(--app-bg)] text-[var(--app-fg)] antialiased min-h-screen flex flex-col">
-      <header className="bg-[color:var(--app-bg-70)] backdrop-blur-xl top-0 sticky z-50 border-b border-[color:var(--panel-border)] shadow-sm">
-        <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-          <div className="font-display-lg text-title-md font-bold text-[color:var(--accent)]">
-            PsychPlatform
-          </div>
-
-          <nav className="hidden md:flex gap-8 items-center">
-            <button
-              type="button"
-              onClick={() => navigate('/patient/discovery')}
-              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
-            >
-              {t('navDiscovery')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/patient/dashboard')}
-              className="text-[color:var(--app-fg)] font-bold border-b-2 border-[color:var(--accent)] pb-1 font-body-md text-body-md"
-            >
-              {t('navDashboard')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/history')}
-              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
-            >
-              {t('navHistory')}
-            </button>
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <ThemeToggleButton />
-
-            <select
-              className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2 py-2 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition outline-none cursor-pointer focus:ring-2"
-              style={{ '--tw-ring-color': 'var(--accent-20)' }}
-              value={i18n.language}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
-            >
-              <option value="en">EN</option>
-              <option value="fr">FR</option>
-              <option value="ar">AR</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => {
-                setNotificationsOpen(true);
-                refreshUnreadNotifications();
-              }}
-              className="relative text-[color:var(--accent)] p-2 rounded-full hover:bg-[color:var(--accent-10)] transition-all duration-300"
-              aria-label="Notifications"
-              title={t('notifications')}
-            >
-              <span className="material-symbols-outlined">notifications</span>
-              {unreadNotifications > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-[color:var(--accent)] px-1 text-[11px] font-bold text-white">
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/patient/profile')}
-              className="text-[color:var(--accent)] p-2 rounded-full hover:bg-[color:var(--accent-10)] transition-all duration-300"
-              aria-label={t('editProfile')}
-              title={t('editProfile')}
-            >
-              <span className="material-symbols-outlined">account_circle</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={logout}
-              className="ml-1 rounded-2xl bg-error px-4 py-2 text-sm font-semibold text-on-error hover:brightness-110 transition"
-            >
-              {t('logout')}
-            </button>
-          </div>
-        </div>
-      </header>
+      <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <PlatformLogo size={36} />
+                      <div className="min-w-0">
+                        <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">
+                          {t('mySessions')}
+                        </h1>
+                        <div className="mt-1 text-xs text-[color:var(--muted)]">
+                          Review bookings, continue active sessions, and revisit completed notes.
+                        </div>
+                      </div>
+                    </div>
+      
+                    <nav className="hidden md:flex items-center justify-center gap-3">
+                      <NavTabs navigate={navigate} t={t} />
+                    </nav>
+      
+                    <div className="flex items-center gap-2">
+                      <ThemeToggleButton />
+      
+                      <select
+                        className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm outline-none transition hover:brightness-110 cursor-pointer"
+                        value={i18n.language}
+                        onChange={(e) => i18n.changeLanguage(e.target.value)}
+                      >
+                        <option value="en">EN</option>
+                        <option value="fr">FR</option>
+                        <option value="ar">AR</option>
+                      </select>
+      
+                      <button
+                        type="button"
+                        onClick={() => setNotificationsOpen(true)}
+                        className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                        aria-label={t('notifications')}
+                        title={t('notifications')}
+                      >
+                        <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                        {unreadNotifications > 0 && (
+                          <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                            {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                          </span>
+                        )}
+                      </button>
+      
+                      <button
+                        type="button"
+                        onClick={() => navigate('/patient/profile')}
+                        className="grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                        aria-label={t('editProfile')}
+                        title={t('editProfile')}
+                      >
+                        <span className="material-symbols-outlined text-[22px]">account_circle</span>
+                      </button>
+      
+                      <button
+                        type="button"
+                        onClick={logout}
+                        className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
+                      >
+                        {t('logout')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </header>
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
         <div className="mb-12" dir={i18n.dir()}>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 import ConversationDrawer from '../components/conversation/ConversationDrawer';
@@ -65,6 +66,7 @@ const TabButton = ({ active, children, onClick }) => (
 export default function PatientDetail() {
   const { patientId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -494,7 +496,7 @@ export default function PatientDetail() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <PlatformLogo size={30} />
-                <div className="text-xs font-semibold text-[color:var(--muted)]">PsychPlatform</div>
+                <div className="text-xs font-semibold text-[color:var(--muted)]">{t('navTitle')}</div>
               </div>
               <ThemeToggleButton />
             </div>
@@ -505,7 +507,7 @@ export default function PatientDetail() {
                   ← Back
                 </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <h1 className="truncate text-lg font-semibold tracking-tight text-[color:var(--app-fg)]">Patient details</h1>
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-[color:var(--app-fg)]">Patient Details</h1>
                   <span className="ui-pill">
                     {patientMeta?.email || patientId}
                   </span>
