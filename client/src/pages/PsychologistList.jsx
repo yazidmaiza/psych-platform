@@ -1,42 +1,16 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { logout } from '../services/auth';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, toAbsoluteUrl } from '../services/api';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { api, toAbsoluteUrl } from '../services/api';
+import { logout, isLoggedIn } from '../services/auth';
 import NotificationsDrawer from '../components/notifications/NotificationsDrawer';
 import PlatformLogo from '../components/branding/PlatformLogo';
 import ThemeToggleButton from '../components/branding/ThemeToggleButton';
-import moment from 'moment';
+import GlassPanel from '../components/dashboard/GlassPanel';
 
-const StarRating = ({ rating, total }) => {
-  const { t } = useTranslation();
-  const stars = [1, 2, 3, 4, 5];
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1">
-        {stars.map((star) => (
-          <span
-            key={star}
-            className={`text-sm ${star <= Math.round(rating) ? 'text-tertiary-container' : 'text-outline-variant'}`}
-          >
-            *
-          </span>
-        ))}
-      </div>
-      <span className="text-xs text-on-surface-variant">
-        {rating > 0 ? `${rating.toFixed(1)} (${total})` : t('noRatingsYet')}
-      </span>
-    </div>
-  );
-};
-
-const Glass = ({ children, className = '' }) => (
-  <div className={`bg-white/70 backdrop-blur-md border border-white rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)] ${className}`}>
-    {children}
-  </div>
-);
+const SPECIALTIES = ['Anxiety', 'Depression', 'Stress', 'Trauma', 'PTSD', 'Relationships', 'Family', 'Addiction', 'Sleep', 'Self-esteem'];
 
 const redIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -47,380 +21,162 @@ const redIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-function MapEventHandler({ locationDenied, setFilters }) {
-  useMapEvents({
-    click(e) {
-      if (locationDenied) {
-        setFilters(f => ({ ...f, lat: e.latlng.lat, lng: e.latlng.lng }));
-      }
-    }
-  });
-  return null;
-}
-
-function MapCenterControl({ lat, lng, recenterTrigger }) {
-  const map = useMap();
-  useEffect(() => {
-    if (lat && lng && recenterTrigger > 0) {
-      map.flyTo([lat, lng], 14, { animate: true });
-    }
-  }, [lat, lng, recenterTrigger, map]);
-  return null;
-}
-
-/* ─── Helpers ───────────────────────────────────────────────────────── */
-
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; 
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  return R * c;
-}
-
-// Generate 30-min-step start times within [slotStart, slotEnd - minDuration]
-// Returns array of Date objects
-function generateWindows(slotStart, slotEnd, durationMinutes) {
-  const windows = [];
-  const stepMs = 30 * 60 * 1000; // 30-min steps
-  const durationMs = durationMinutes * 60 * 1000;
-  let cursor = new Date(slotStart);
-  while (cursor.getTime() + durationMs <= new Date(slotEnd).getTime()) {
-    windows.push(new Date(cursor));
-    cursor = new Date(cursor.getTime() + stepMs);
+function getPsychologistPosition(psychologist) {
+  const coords = psychologist?.location?.coordinates;
+  if (Array.isArray(coords) && coords.length >= 2) {
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
   }
-  return windows;
+
+  const lat = Number(psychologist?.location?.lat ?? psychologist?.latitude);
+  const lng = Number(psychologist?.location?.lng ?? psychologist?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
+
+  return null;
 }
 
-/* ─── Slot Picker Modal ─────────────────────────────────────────────── */
-function SlotPickerModal({ psychologistUserId, psychologistName, sessionPrice, onClose, onBooked }) {
-  const { t, i18n } = useTranslation();
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [booking, setBooking] = useState(false);
-  const [duration, setDuration] = useState(60); // 60 or 90 minutes
-  const [selectedWindow, setSelectedWindow] = useState(null); // { slotId, start: Date }
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+function getDistanceKm(lat1, lng1, lat2, lng2) {
+  if ([lat1, lng1, lat2, lng2].some((value) => !Number.isFinite(Number(value)))) return null;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function MapBounds({ points }) {
+  const map = useMap();
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await api.get(`/api/calendar/slots/${psychologistUserId}`);
-        const available = (Array.isArray(data) ? data : []).filter(
-          s => !s.isBooked && !s.pendingSessionId && new Date(s.end) > new Date()
-        );
-        setSlots(available);
-      } catch (e) {
-        setError(e.message || 'Failed to load available slots.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [psychologistUserId]);
-
-  // Reset selection when duration changes
-  useEffect(() => {
-    setSelectedWindow(null);
-  }, [duration]);
-
-  // Build all time windows across all slots for the chosen duration
-  const allWindows = useMemo(() => {
-    const result = [];
-    for (const slot of slots) {
-      const windows = generateWindows(slot.start, slot.end, duration);
-      for (const w of windows) {
-        result.push({ slotId: slot._id, start: w });
-      }
+    if (!points.length) {
+      map.setView([36.8065, 10.1815], 7);
+      return;
     }
-    return result;
-  }, [slots, duration]);
 
-  // Group windows by date for display
-  const groupedByDay = useMemo(() => {
-    const map = new Map();
-    for (const w of allWindows) {
-      const key = moment(w.start).format('YYYY-MM-DD');
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(w);
+    if (points.length === 1) {
+      map.setView(points[0], 10);
+      return;
     }
-    return [...map.entries()]; // [ [dateKey, [windows...]], ... ]
-  }, [allWindows]);
 
-  const handleBook = async () => {
-    if (!selectedWindow) return;
-    setBooking(true);
-    setError('');
-    try {
-      await api.post(`/api/calendar/slots/${selectedWindow.slotId}/request`, {
-        chosenStart: selectedWindow.start.toISOString(),
-        chosenDuration: duration
-      });
-      setSuccess(t('bookingRequestSent'));
-      setTimeout(() => {
-        onBooked();
-        onClose();
-      }, 2000);
-    } catch (e) {
-      setError(e.message || t('bookingRequestFailed'));
-    } finally {
-      setBooking(false);
-    }
-  };
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds.pad(0.18));
+  }, [map, points]);
 
-  const fmtTime = (d) => moment(d).format('HH:mm');
-  const endTime = (start) => moment(start).add(duration, 'minutes').format('HH:mm');
+  return null;
+}
+
+const StarRating = ({ rating = 0, total = 0 }) => {
+  const stars = [1, 2, 3, 4, 5];
+  const rounded = Math.round(Number(rating) || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      {/* Backdrop */}
-      <button
-        type="button"
-        aria-label={t('close')}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      <div className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl backdrop-blur-xl">
-        {/* Header */}
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-white">{t('chooseSessionTime')}</h2>
-          <p className="mt-1 text-sm text-white/60">
-            {t('with')} <span className="font-semibold text-white">{psychologistName}</span>
-            {sessionPrice > 0 && (
-              <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/70">
-                {sessionPrice} TND
-              </span>
-            )}
-          </p>
-        </div>
-
-        {/* Duration selector */}
-        <div className="mb-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-white/50 mb-2 rtl:text-right" dir={i18n.dir()}>{t('sessionDuration')}</div>
-          <div className="flex gap-2">
-            {[60, 90].map(d => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDuration(d)}
-                className={[
-                  'flex-1 rounded-2xl border py-2.5 text-sm font-semibold transition',
-                  duration === d
-                    ? 'border-indigo-400/40 bg-indigo-500/20 text-white'
-                    : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
-                ].join(' ')}
-              >
-                {d === 60 ? t('1hour') : t('1h30min')}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Feedback */}
-        {error && (
-          <div className="mb-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-            {success}
-          </div>
-        )}
-
-        {/* Time slots grouped by day */}
-        <div className="max-h-64 overflow-y-auto pr-1">
-          {loading && (
-            <div className="py-8 text-center text-sm text-white/50 rtl:text-right" dir={i18n.dir()}>{t('loadingTimes')}</div>
-          )}
-          {!loading && groupedByDay.length === 0 && !error && (
-            <div className="py-8 text-center text-sm text-white/50 rtl:text-right" dir={i18n.dir()}>
-              {t('noSlots')}
-            </div>
-          )}
-
-          {!loading && groupedByDay.map(([dayKey, windows]) => (
-            <div key={dayKey} className="mb-4">
-              {/* Day label */}
-              <div className="mb-2 text-xs font-semibold text-white/50 uppercase tracking-wide">
-                {moment(dayKey).format('ddd, D MMMM YYYY')}
-              </div>
-              {/* Time chips grid */}
-              <div className="flex flex-wrap gap-2">
-                {windows.map((w, i) => {
-                  const isSelected =
-                    selectedWindow?.slotId === w.slotId &&
-                    selectedWindow?.start.getTime() === w.start.getTime();
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setSelectedWindow(w)}
-                      className={[
-                        'rounded-2xl border px-3 py-2 text-xs font-semibold transition',
-                        isSelected
-                          ? 'border-indigo-400/40 bg-indigo-500/20 text-white'
-                          : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
-                      ].join(' ')}
-                    >
-                      {fmtTime(w.start)} – {endTime(w.start)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Selected summary */}
-        {selectedWindow && (
-          <div className="mt-3 rounded-2xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100 rtl:text-right" dir={i18n.dir()}>
-            <span className="font-semibold">{t('selected')}</span>{' '}
-            {moment(selectedWindow.start).format('ddd D MMM, HH:mm')} – {endTime(selectedWindow.start)}
-            {' '}({duration === 60 ? t('1hour') : t('1h30min')})
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="mt-4 flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
-          >
-            {t('cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={handleBook}
-            disabled={!selectedWindow || booking || !!success}
-            className="flex-1 rounded-2xl bg-emerald-500/90 py-3 text-sm font-semibold text-white hover:bg-emerald-500 transition disabled:opacity-50"
-          >
-            {booking ? t('sending') : t('confirmBooking')}
-          </button>
-        </div>
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5">
+        {stars.map((star) => (
+          <span key={star} className={star <= rounded ? 'text-amber-300 text-xs' : 'text-white/20 text-xs'}>
+            ★
+          </span>
+        ))}
       </div>
+      <span className="text-xs text-white/60">
+        {Number(total) > 0 ? `${Number(rating || 0).toFixed(1)} (${total})` : 'Not yet rated'}
+      </span>
     </div>
   );
-}
+};
 
-/* ─── Main Page ─────────────────────────────────────────────────────── */
-function PsychologistList() {
-  const { t, i18n } = useTranslation();
+export default function PsychologistList() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
   const [psychologists, setPsychologists] = useState([]);
-  const [filters, setFilters] = useState({ search: '', distance: 10, lat: null, lng: null, sort: 'rating' });
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-  const [viewMode, setViewMode] = useState('map'); // 'list' or 'map'
-  const [openPsychologistUserIds, setOpenPsychologistUserIds] = useState(new Set());
-  const [useLocation, setUseLocation] = useState(false);
-  const [locationDenied, setLocationDenied] = useState(false);
-  const [recenterTrigger, setRecenterTrigger] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [sortBy, setSortBy] = useState('rating');
+  const [selectedSpecialties, setSelectedSpecialties] = useState([]);
+  const [priceRange, setPriceRange] = useState(200);
+  const [distanceKm, setDistanceKm] = useState(25);
+  const [useLocation, setUseLocation] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [location, setLocation] = useState({ lat: null, lng: null });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  // Slot picker modal state
-  const [slotPickerTarget, setSlotPickerTarget] = useState(null); // { userId, name, sessionPrice }
-
-  const navigate = useNavigate();
-  const myUserId = localStorage.getItem('userId');
-
-  // Debounce logic for search
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 400); // 400ms debounce
+    const handler = setTimeout(() => setDebouncedSearch(searchInput.trim()), 350);
     return () => clearTimeout(handler);
-  }, [filters]);
-
-  const fetchPsychologists = useCallback(async (currentFilters) => {
-    try {
-      setError('');
-      let url = '/api/psychologists/search?';
-
-      if (currentFilters.search) url += `search=${encodeURIComponent(currentFilters.search)}&`;
-      if (currentFilters.lat && currentFilters.lng) {
-        url += `lat=${currentFilters.lat}&lng=${currentFilters.lng}&distance=${currentFilters.distance}&`;
-      }
-
-      const data = await api.get(url);
-      setPsychologists(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setPsychologists([]);
-      setError(err.message || 'Failed to load psychologists');
-    }
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    fetchPsychologists(debouncedFilters).then(() => {
-      if (mounted) setLoading(false);
-    });
-    return () => { mounted = false; };
-  }, [debouncedFilters, fetchPsychologists]);
+  }, [searchInput]);
 
   useEffect(() => {
     let watchId;
+
     if (useLocation) {
       if (!navigator.geolocation) {
         setLocationDenied(true);
-        return;
+        setLocation({ lat: null, lng: null });
+        return undefined;
       }
+
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        (position) => {
           setLocationDenied(false);
-          setFilters(f => ({ ...f, lat: pos.coords.latitude, lng: pos.coords.longitude }));
+          setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
         },
-        (err) => {
-          console.warn('Geolocation error:', err);
+        () => {
           setLocationDenied(true);
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
-      setFilters(f => ({ ...f, lat: null, lng: null, sort: f.sort === 'distance' ? 'rating' : f.sort }));
+      setLocation({ lat: null, lng: null });
       setLocationDenied(false);
     }
+
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [useLocation]);
 
-  const fetchOpenSessions = useCallback(async () => {
-    if (!myUserId) return;
+  const fetchPsychologists = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
     try {
-      const sessions = await api.get('/api/sessions/patient/' + myUserId);
-      const open = (Array.isArray(sessions) ? sessions : [])
-        .filter(s => !['completed', 'canceled'].includes(s.status))
-        .map(s => String(s.psychologistId));
-      setOpenPsychologistUserIds(new Set(open));
+      const params = new URLSearchParams();
+      params.set('limit', '100');
+
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (useLocation && location.lat != null && location.lng != null) {
+        params.set('lat', String(location.lat));
+        params.set('lng', String(location.lng));
+        params.set('distance', String(distanceKm));
+      }
+
+      const data = await api.get(`/api/psychologists/search?${params.toString()}`);
+      setPsychologists(Array.isArray(data) ? data : []);
     } catch (err) {
-      setOpenPsychologistUserIds(new Set());
+      setPsychologists([]);
+      setError(err.message || 'Unable to load psychologist profiles.');
+    } finally {
+      setLoading(false);
     }
-  }, [myUserId]);
+  }, [debouncedSearch, distanceKm, location.lat, location.lng, useLocation]);
 
   useEffect(() => {
-    const run = async () => {
-      await fetchOpenSessions();
-    };
-    run();
-  }, [fetchOpenSessions]);
+    fetchPsychologists();
+  }, [fetchPsychologists]);
 
   const refreshUnreadNotifications = useCallback(async () => {
     try {
       const data = await api.get('/api/notifications');
       const list = Array.isArray(data) ? data : [];
-      setUnreadNotifications(list.filter(n => !n.isRead).length);
+      setUnreadNotifications(list.filter((notification) => !notification.isRead).length);
     } catch {
       setUnreadNotifications(0);
     }
@@ -430,374 +186,440 @@ function PsychologistList() {
     refreshUnreadNotifications();
   }, [refreshUnreadNotifications]);
 
-  const visiblePsychologists = useMemo(() => {
-    return psychologists.filter(psy => {
-      const psyUserId = String(psy.userId?._id || psy.userId || '');
-      return !openPsychologistUserIds.has(psyUserId);
+  const filtered = useMemo(() => {
+    let result = [...psychologists];
+
+    if (selectedSpecialties.length > 0) {
+      result = result.filter((psychologist) =>
+        Array.isArray(psychologist.specializations)
+          ? psychologist.specializations.some((specialty) => selectedSpecialties.includes(specialty))
+          : selectedSpecialties.includes(psychologist.specializations)
+      );
+    }
+
+    result = result.filter((psychologist) => {
+      const price = Number(psychologist.sessionPrice ?? psychologist.hourlyRate ?? psychologist.price ?? 0);
+      return price === 0 || price <= priceRange;
     });
-  }, [psychologists, openPsychologistUserIds]);
+
+    if (sortBy === 'price') {
+      result.sort((a, b) => Number(a.sessionPrice ?? a.hourlyRate ?? a.price ?? 0) - Number(b.sessionPrice ?? b.hourlyRate ?? b.price ?? 0));
+    } else {
+      result.sort((a, b) => Number(b.averageRating || 0) - Number(a.averageRating || 0));
+    }
+
+    return result;
+  }, [psychologists, selectedSpecialties, sortBy, priceRange]);
+
+  const mapPoints = useMemo(() => {
+    const points = filtered.map(getPsychologistPosition).filter(Boolean);
+    if (useLocation && location.lat != null && location.lng != null) {
+      return [[location.lat, location.lng], ...points];
+    }
+    return points;
+  }, [filtered, location.lat, location.lng, useLocation]);
 
   return (
-    <div className="bg-background text-on-background antialiased min-h-screen">
-      <header className="bg-surface/70 dark:bg-surface-container/70 backdrop-blur-xl top-0 sticky z-50 border-b border-white/20 dark:border-outline-variant/20 shadow-[0_8px_30px_rgba(27,77,92,0.08)]">
-        <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-          <div className="flex items-center gap-3">
-            <PlatformLogo size={34} className="mt-0.5" />
-            <div className="font-display-lg text-title-md font-bold text-primary dark:text-primary-fixed-dim">
-              PsychPlatform
+    <div className="min-h-screen bg-[var(--app-bg)] text-[color:var(--app-fg)]">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-15)] blur-3xl" />
+        <div className="absolute -bottom-32 right-1/4 h-96 w-96 rounded-full bg-[color:var(--accent-10)] blur-3xl" />
+      </div>
+
+      <header className="sticky top-0 z-40 border-b border-[color:var(--panel-border)] bg-[color:var(--app-bg-70)] backdrop-blur-xl shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+        <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <PlatformLogo size={36} />
+              <div className="min-w-0">
+                <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight text-[color:var(--app-fg)]">
+                  {t('allPsychologists')}
+                </h1>
+                <div className="mt-1 text-xs text-[color:var(--muted)]">
+                  {t('browseAllProfiles')}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <nav className="hidden md:flex gap-8 items-center">
-            <button
-              type="button"
-              onClick={() => navigate('/patient/discovery')}
-              className="text-primary dark:text-primary-fixed-dim font-bold border-b-2 border-primary dark:border-primary-fixed-dim pb-1 font-body-md text-body-md"
-            >
-              {t('navDiscovery')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/patient/dashboard')}
-              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
-            >
-              {t('navDashboard')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/history')}
-              className="text-on-surface-variant dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-body-md text-body-md"
-            >
-              {t('navHistory')}
-            </button>
-          </nav>
+            <div className="flex items-center gap-2">
+              <ThemeToggleButton />
 
-          <div className="flex items-center gap-2" dir={i18n.dir()}>
-            <ThemeToggleButton />
-            <select
-              className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-2 py-2 text-sm font-semibold text-on-surface hover:brightness-110 transition outline-none cursor-pointer"
-              value={i18n.language}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
-            >
-              <option value="en">EN</option>
-              <option value="fr">FR</option>
-              <option value="ar">AR</option>
-            </select>
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(true)}
+                className="relative grid h-10 w-10 place-items-center rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+                {unreadNotifications > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-sky-600 px-1 text-[11px] font-bold text-white">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setNotificationsOpen(true);
-                refreshUnreadNotifications();
-              }}
-              className="relative text-primary dark:text-primary-fixed-dim p-2 rounded-full hover:bg-surface-container-low dark:hover:bg-surface-container-highest transition-all duration-300"
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <span className="material-symbols-outlined">notifications</span>
-              {unreadNotifications > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-on-primary">
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={logout}
-              className="ml-1 rounded-2xl bg-error px-4 py-2 text-sm font-semibold text-on-error hover:brightness-110 transition"
-            >
-              {t('logout')}
-            </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-2 text-sm font-semibold text-[color:var(--app-fg)] shadow-sm hover:brightness-110 transition"
+              >
+                {t('logout')}
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-section-padding">
-          {/* Filters */}
-          <Glass className="p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" dir={i18n.dir()}>
-              <div>
-                <h2 className="font-title-md text-title-md text-primary">{t('searchFilters')}</h2>
-                <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
-                  {t('useFiltersThenSearch')}
-                </p>
-              </div>
+      <main className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold tracking-tight text-[color:var(--app-fg)] sm:text-4xl">
+            {t('allPsychologists')}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-[color:var(--muted)]">
+            Discover mental health professionals by specialty, session fee, and distance. Map results are synchronized with live backend data.
+          </p>
+        </div>
 
-              <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end flex-wrap">
-                <input
-                  className="w-full lg:max-w-[280px] rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
-                  placeholder={t('searchPlaceholder')}
-                  value={filters.search}
-                  onChange={e => setFilters({ ...filters, search: e.target.value })}
-                />
-                
-                <select
-                  className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-4 py-3 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary-fixed/40"
-                  value={filters.sort}
-                  onChange={e => setFilters({ ...filters, sort: e.target.value })}
-                >
-                  {filters.lat && <option value="distance">{t('sortByDistance')}</option>}
-                  <option value="rating">{t('sortByRating')}</option>
-                </select>
+        <div className="grid gap-6 xl:grid-cols-[320px_1fr] xl:items-start">
+          <GlassPanel className="sticky top-[92px] h-fit p-5 sm:p-6">
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                {t('searchPsychologists')}
+              </label>
+              <input
+                className="ui-input"
+                placeholder={t('searchPsychologists')}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
 
-                <div className="flex gap-2 items-center">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold rtl:ml-2 ltr:mr-2">
-                    <div className="relative inline-block w-10 h-6">
-                      <input 
-                        type="checkbox" 
-                        className="peer sr-only"
-                        checked={useLocation}
-                        onChange={(e) => setUseLocation(e.target.checked)}
-                      />
-                      <div className="absolute inset-0 rounded-full bg-outline-variant/40 peer-checked:bg-primary transition"></div>
-                      <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4"></div>
-                    </div>
-                    {t('useMyLocation')}
-                  </label>
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                {t('sortBy')}
+              </label>
+              <select className="ui-input" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="rating">{t('sortByRating')}</option>
+                <option value="price">{t('sortByPrice')}</option>
+              </select>
+            </div>
 
-                  {useLocation && (
-                    <div className={`flex h-[46px] items-center rounded-2xl border px-4 text-sm font-semibold ${locationDenied ? 'border-amber-500/50 bg-amber-500/10 text-amber-200' : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'}`}>
-                      {locationDenied ? '📍 ' + t('denied') : '📍 ' + (filters.lat ? t('gps') : t('locating'))}
-                    </div>
-                  )}
-                  {useLocation && filters.lat && (
-                    <div className="flex items-center gap-2 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70 px-3 text-sm text-on-surface-variant h-[46px] rtl:flex-row-reverse">
-                      <span>{t('within')}</span>
-                      <input
-                        type="number"
-                        className="w-16 h-9 rounded-xl border border-outline-variant/40 bg-transparent px-2 text-center text-on-surface outline-none focus:border-primary/40"
-                        min="1"
-                        value={filters.distance}
-                        onChange={e => setFilters(f => ({ ...f, distance: Number(e.target.value) || 1 }))}
-                      />
-                      <span>{t('km')}</span>
-                    </div>
-                  )}
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                {t('priceRange')}
+              </label>
+              <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3">
+                <div className="mb-2 flex items-center justify-between text-xs text-[color:var(--muted)]">
+                  <span>50</span>
+                  <span>{priceRange} TND</span>
+                  <span>200</span>
                 </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="200"
+                  step="10"
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(Number(e.target.value))}
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full"
+                  style={{
+                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((priceRange - 50) / 150) * 100}%, rgba(148,163,184,0.28) ${((priceRange - 50) / 150) * 100}%, rgba(148,163,184,0.28) 100%)`
+                  }}
+                />
               </div>
             </div>
 
+            <div className="mb-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                {t('specializations')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {SPECIALTIES.map((specialty) => {
+                  const active = selectedSpecialties.includes(specialty);
+                  return (
+                    <button
+                      key={specialty}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSpecialties((previous) =>
+                          previous.includes(specialty)
+                            ? previous.filter((value) => value !== specialty)
+                            : [...previous, specialty]
+                        );
+                      }}
+                      className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+                      style={{
+                        borderColor: active ? 'var(--accent)' : 'var(--panel-border)',
+                        backgroundColor: active ? 'var(--accent-10)' : 'var(--panel-bg)',
+                        color: 'var(--app-fg)'
+                      }}
+                    >
+                      {specialty}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm font-semibold">
+              <span className="min-w-0 whitespace-nowrap text-[color:var(--app-fg)]">{t('useMyLocation')}</span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[color:var(--accent)]"
+                checked={useLocation}
+                onChange={(e) => setUseLocation(e.target.checked)}
+              />
+            </label>
+
+            <div className="mt-4 flex items-center gap-3 text-sm text-[color:var(--muted)]">
+              {useLocation && locationDenied && (
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-700">
+                  {t('denied')}
+                </span>
+              )}
+              {useLocation && !locationDenied && location.lat != null && location.lng != null && (
+                <span className="rounded-full border border-[color:var(--accent-25)] bg-[color:var(--accent-10)] px-3 py-1 text-xs font-semibold text-[color:var(--app-fg)]">
+                  {t('gps')}
+                </span>
+              )}
+            </div>
+
+            {useLocation && (
+              <div className="mt-3 rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                  <span>{t('within')}</span>
+                  <span>{distanceKm} km</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="5"
+                  value={distanceKm}
+                  onChange={(e) => setDistanceKm(Number(e.target.value))}
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full"
+                  style={{
+                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((distanceKm - 5) / 95) * 100}%, rgba(148,163,184,0.28) ${((distanceKm - 5) / 95) * 100}%, rgba(148,163,184,0.28) 100%)`
+                  }}
+                />
+              </div>
+            )}
+
             {error && (
-              <div className="mt-4 rounded-2xl border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-on-error-container rtl:text-right" dir={i18n.dir()}>
+              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
                 {error}
               </div>
             )}
-          </Glass>
+          </GlassPanel>
 
-          {/* View Toggle */}
-          <div className="mt-6 flex gap-2">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-primary text-on-primary' : 'bg-white/70 border border-white text-on-surface-variant hover:brightness-110'}`}
-            >
-              {t('listView')}
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${viewMode === 'map' ? 'bg-primary text-on-primary' : 'bg-white/70 border border-white text-on-surface-variant hover:brightness-110'}`}
-            >
-              {t('mapView')}
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between gap-3 min-w-0" dir={i18n.dir()}>
-              <h3 className="text-sm font-semibold text-primary">
-                {t('availablePsychologists')}
-              </h3>
-              <div className="text-xs text-on-surface-variant shrink-0">
-                {loading ? '...' : `${visiblePsychologists.length} `}
+          <div className="space-y-6">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-[color:var(--app-fg)]">{t('availablePsychologists')}</h3>
+                <p className="text-sm text-[color:var(--muted)]">
+                  {loading ? 'Loading profiles...' : `${filtered.length} professionals available`}
+                </p>
+              </div>
+              <div className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--muted)]">
+                {useLocation && location.lat != null && location.lng != null ? 'Sorted by nearest distance' : 'All locations'}
               </div>
             </div>
 
-            {(!loading && visiblePsychologists.length === 0) && (
-              <Glass className="mt-4 p-10 text-center rtl:text-right" dir={i18n.dir()}>
-                <div className="text-sm font-semibold">{t('noPsychologists')}</div>
-                <p className="mt-2 text-sm text-on-surface-variant">
-                  {t('changeFilters')}
+            <GlassPanel className="overflow-hidden p-0 xl:sticky xl:top-[92px]">
+              <div className="border-b border-[color:var(--panel-border)] px-5 py-4 sm:px-6">
+                <h2 className="text-sm font-semibold text-[color:var(--app-fg)]">{t('mapView')}</h2>
+                <p className="mt-1 text-xs text-[color:var(--muted)]">
+                  Explore clinic locations and open each professional profile directly from the map.
                 </p>
-              </Glass>
-            )}
+              </div>
 
-            <div className="mt-4">
-              {viewMode === 'map' ? (
-                <div className="h-[600px] rounded-3xl overflow-hidden border border-outline-variant/40 relative z-0 bg-surface-container-lowest/70">
-                  {filters.lat && (
-                    <button
-                      onClick={() => setRecenterTrigger(t => t + 1)}
-                      className="absolute bottom-6 left-6 z-[400] rounded-xl bg-surface/90 backdrop-blur border border-outline-variant/40 px-4 py-3 text-sm font-bold text-primary shadow-xl hover:brightness-110 transition rtl:right-6 rtl:left-auto"
-                    >
-                      {t('recenterLocation')}
-                    </button>
-                  )}
-                  {locationDenied && (
-                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] rounded-xl bg-error/90 px-4 py-2 text-sm font-bold text-on-error shadow-xl text-center w-max max-w-xs">
-                      {t('deniedLocation')}
-                    </div>
+              <div className="h-[500px] w-full">
+                <MapContainer center={[36.8065, 10.1815]} zoom={7} scrollWheelZoom={false} className="h-full w-full">
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <MapBounds points={mapPoints} />
+
+                  {useLocation && location.lat != null && location.lng != null && (
+                    <Marker position={[location.lat, location.lng]} icon={redIcon}>
+                      <Popup>
+                        <div className="text-sm font-semibold text-slate-800">{t('youAreHere')}</div>
+                      </Popup>
+                    </Marker>
                   )}
 
-                  <MapContainer center={filters.lat ? [filters.lat, filters.lng] : [36.8065, 10.1815]} zoom={13} className="h-full w-full bg-surface-container-high">
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    
-                    <MapEventHandler locationDenied={locationDenied} setFilters={setFilters} />
-                    <MapCenterControl lat={filters.lat} lng={filters.lng} recenterTrigger={recenterTrigger} />
+                  {filtered.map((psychologist) => {
+                    const position = getPsychologistPosition(psychologist);
+                    if (!position) return null;
 
-                    {filters.lat && (
-                      <Marker position={[filters.lat, filters.lng]} icon={redIcon}>
-                        <Popup><b className="text-slate-800">{t('youAreHere')}</b></Popup>
-                      </Marker>
-                    )}
-                    {visiblePsychologists.map(psy => (
-                      psy.location && psy.location.coordinates ? (
-                        <Marker key={psy._id} position={[psy.location.coordinates[1], psy.location.coordinates[0]]}>
-                          <Popup>
-                            <div className="font-semibold text-slate-800 rtl:text-right" dir={i18n.dir()}>{psy.firstName} {psy.lastName}</div>
-                            <div className="text-xs text-slate-600 mt-1 rtl:text-right" dir={i18n.dir()}>
-                              {psy.city || t('cityNotSet')}
-                              {useLocation && filters.lat && filters.lng && (
-                                <span className="block mt-1 font-semibold text-primary">
-                                  {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
+                    const distance = useLocation && location.lat != null && location.lng != null
+                      ? getDistanceKm(location.lat, location.lng, position[0], position[1])
+                      : null;
+
+                    return (
+                      <Marker key={psychologist._id} position={position}>
+                        <Popup>
+                          <div className="space-y-2 text-slate-800">
+                            <div className="font-semibold">
+                              {psychologist.firstName} {psychologist.lastName}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              {psychologist.city || t('cityNotSet')}
+                              {distance != null && (
+                                <span className="mt-1 block font-semibold text-[color:var(--accent)]">
+                                  {distance.toFixed(1)} km away
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs font-bold text-emerald-600 mt-1 rtl:text-right" dir={i18n.dir()}>
-                              {psy.sessionPrice ? `${psy.sessionPrice} TND` : ''}
-                            </div>
-                            <button
-                              onClick={() => navigate(`/p/psychologist/${psy._id}`)}
-                              className="mt-2 text-indigo-600 underline text-xs w-full rtl:text-right" dir={i18n.dir()}
-                            >
-                              {t('viewProfile')}
-                            </button>
-                          </Popup>
-                        </Marker>
-                      ) : null
-                    ))}
-                  </MapContainer>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {visiblePsychologists.map((psy) => {
-                    const initials = `${psy.firstName?.[0] || ''}${psy.lastName?.[0] || ''}`.toUpperCase();
-                    const psychologistUserId = String(psy.userId?._id || psy.userId || '');
-                    const photoUrl = toAbsoluteUrl(psy.photo);
-
-                    return (
-                      <Glass key={psy._id} className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="h-12 w-12 overflow-hidden rounded-2xl border border-outline-variant/40 bg-surface-container-lowest/70">
-                            {photoUrl ? (
-                              <img src={photoUrl} alt={`${psy.firstName} ${psy.lastName}`} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="grid h-full w-full place-items-center text-sm font-bold text-primary">
-                                {initials || 'P'}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0" dir={i18n.dir()}>
-                                <div className="truncate text-base font-semibold">
-                                  {psy.firstName} {psy.lastName}
-                                </div>
-                                <div className="mt-1 text-sm text-on-surface-variant flex flex-wrap gap-1 items-center">
-                                  {psy.city || t('notSet')}
-                                  {useLocation && filters.lat && filters.lng && psy.location?.coordinates && (
-                                    <span className="font-semibold text-primary">
-                                      | {t('kmAway', { distance: getDistanceFromLatLonInKm(filters.lat, filters.lng, psy.location.coordinates[1], psy.location.coordinates[0])?.toFixed(1) })}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="shrink-0 text-right rtl:text-left">
-                                <div className="rounded-full border border-outline-variant/40 bg-surface-container-lowest/70 px-3 py-1 text-xs font-semibold text-on-surface-variant">
-                                  {psy.sessionPrice > 0 ? `${psy.sessionPrice} TND` : t('priceNotSet')}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="mt-3 flex" dir={i18n.dir()}>
-                              <StarRating rating={psy.averageRating || 0} total={psy.totalRatings || 0} />
-                            </div>
-
-                            {psy.nextAvailableAt && (
-                              <div className="mt-2 text-xs text-secondary" dir={i18n.dir()}>
-                                {t('nextAvailable')}: {moment(psy.nextAvailableAt).format('ddd D MMM, HH:mm')}
-                              </div>
-                            )}
-
-                            <div className="mt-3 grid gap-2 text-sm text-on-surface-variant" dir={i18n.dir()}>
-                              <div className="truncate">
-                                <span className="text-on-surface-variant/70">{t('languages')}</span>{' '}
-                                {Array.isArray(psy.languages) ? psy.languages.join(', ') : (psy.languages || t('notSet'))}
-                              </div>
-                              <div className="truncate">
-                                <span className="text-on-surface-variant/70">{t('specializations')}</span>{' '}
-                                {Array.isArray(psy.specializations) ? psy.specializations.join(', ') : (psy.specializations || t('notSet'))}
-                              </div>
-                            </div>
-
-                            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                            <div className="flex items-center gap-2">
                               <button
-                                className="h-[44px] flex-1 rounded-2xl bg-secondary px-4 text-sm font-semibold text-on-secondary shadow hover:brightness-110 transition disabled:opacity-50"
-                                onClick={() => {
-                                  if (!psychologistUserId) return;
-                                  setSlotPickerTarget({
-                                    userId: psychologistUserId,
-                                    name: `${psy.firstName} ${psy.lastName}`,
-                                    sessionPrice: psy.sessionPrice || 0
-                                  });
-                                }}
-                                disabled={!psychologistUserId}
+                                type="button"
+                                onClick={() => isLoggedIn() ? navigate(`/session/create/${psychologist._id}`) : navigate('/register')}
+                                className="rounded-xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)]"
                               >
                                 {t('bookSession')}
                               </button>
+
                               <button
-                                className="h-[44px] flex-1 rounded-2xl bg-primary px-4 text-sm font-semibold text-on-primary shadow hover:brightness-110 transition"
-                                onClick={() => navigate(`/p/psychologist/${psy._id}`)}
+                                type="button"
+                                onClick={() => navigate(`/p/psychologist/${psychologist._id}`)}
+                                className="rounded-xl bg-[color:var(--accent)] px-3 py-2 text-xs font-semibold text-white"
                               >
                                 {t('viewProfile')}
                               </button>
                             </div>
                           </div>
-                        </div>
-                      </Glass>
+                        </Popup>
+                      </Marker>
                     );
                   })}
-                </div>
+                </MapContainer>
+              </div>
+            </GlassPanel>
+
+            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              {loading && Array.from({ length: 4 }).map((_, index) => (
+                <GlassPanel key={index} className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="h-16 w-16 rounded-full bg-white/10" />
+                    <div className="min-w-0 flex-1">
+                      <div className="h-4 w-2/3 rounded bg-white/10" />
+                      <div className="mt-3 h-3 w-1/2 rounded bg-white/10" />
+                      <div className="mt-4 h-3 w-full rounded bg-white/10" />
+                      <div className="mt-4 h-10 w-32 rounded-full bg-white/10" />
+                    </div>
+                  </div>
+                </GlassPanel>
+              ))}
+
+              {!loading && filtered.length === 0 && (
+                <GlassPanel className="p-8 text-center sm:col-span-2 2xl:col-span-3">
+                  <div className="text-3xl">🔍</div>
+                  <p className="mt-3 text-sm text-[color:var(--muted)]">{t('noPsychologistsFound')}</p>
+                </GlassPanel>
               )}
+
+              {!loading && filtered.map((psychologist) => {
+                const photoUrl = toAbsoluteUrl(psychologist.photo);
+                const initials = `${psychologist.firstName?.[0] || ''}${psychologist.lastName?.[0] || ''}`.toUpperCase() || 'P';
+                const price = Number(psychologist.sessionPrice ?? psychologist.hourlyRate ?? psychologist.price ?? 0);
+                const position = getPsychologistPosition(psychologist);
+                const distance = useLocation && position && location.lat != null && location.lng != null
+                  ? getDistanceKm(location.lat, location.lng, position[0], position[1])
+                  : null;
+
+                return (
+                  <GlassPanel key={psychologist._id} className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)]">
+                        {photoUrl ? (
+                          <img src={photoUrl} alt={`${psychologist.firstName} ${psychologist.lastName}`} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-sm font-bold text-[color:var(--app-fg)]">
+                            {initials}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold text-[color:var(--app-fg)]">
+                              {psychologist.firstName} {psychologist.lastName}
+                            </h3>
+                            <p className="mt-1 text-xs text-[color:var(--muted)]">{psychologist.city || t('notSet')}</p>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <div className="text-lg font-bold text-[color:var(--app-fg)]">{price} TND</div>
+                            <div className="text-[10px] text-[color:var(--muted)]">/ {t('hour')}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-2">
+                          <StarRating rating={psychologist.averageRating || 0} total={psychologist.totalRatings || 0} />
+                        </div>
+
+                        {distance != null && (
+                          <div className="mt-2 text-xs font-semibold text-[color:var(--accent)]">
+                            {distance.toFixed(1)} km away
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {Array.isArray(psychologist.specializations) && psychologist.specializations.slice(0, 3).map((specialty) => (
+                            <span
+                              key={specialty}
+                              className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2.5 py-0.5 text-[10px] font-medium text-[color:var(--app-fg)]"
+                            >
+                              {specialty}
+                            </span>
+                          ))}
+                        </div>
+
+                        <p className="mt-3 line-clamp-2 text-xs text-[color:var(--muted)]">
+                          {psychologist.bio || t('notSet')}
+                        </p>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-[color:var(--panel-border)] pt-3">
+                          <span className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-2.5 py-1 text-[10px] font-semibold text-[color:var(--app-fg)]">
+                            {psychologist.availability === 'available' ? 'Available' : 'Unavailable'}
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => isLoggedIn() ? navigate(`/session/create/${psychologist._id}`) : navigate('/register')}
+                              className="rounded-full border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)]"
+                            >
+                              {t('bookSession')}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/p/psychologist/${psychologist._id}`)}
+                              className="rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold text-white"
+                            >
+                              {t('viewProfile')}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </GlassPanel>
+                );
+              })}
             </div>
           </div>
-        </main>
+        </div>
+      </main>
 
-        <NotificationsDrawer
-          open={notificationsOpen}
-          onClose={() => {
-            setNotificationsOpen(false);
-            refreshUnreadNotifications();
-          }}
-        />
-
-      {/* Slot picker modal */}
-      {slotPickerTarget && (
-        <SlotPickerModal
-          psychologistUserId={slotPickerTarget.userId}
-          psychologistName={slotPickerTarget.name}
-          sessionPrice={slotPickerTarget.sessionPrice}
-          onClose={() => setSlotPickerTarget(null)}
-          onBooked={() => {
-            setSlotPickerTarget(null);
-            fetchOpenSessions();
-            fetchPsychologists();
-          }}
-        />
-      )}
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => {
+          setNotificationsOpen(false);
+          refreshUnreadNotifications();
+        }}
+      />
     </div>
   );
 }
-
-export default PsychologistList;

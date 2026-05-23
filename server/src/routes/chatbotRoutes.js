@@ -10,7 +10,9 @@ const {
   downloadReportPdf,
   submitSummaryFeedback,
   getSummaryFeedback,
-  getFeedbackAnalytics
+  getFeedbackAnalytics,
+  detectKnowledgeGaps,
+  triggerKnowledgeReseed
 } = require('../controllers/chatbotController');
 const { exportData, deleteData } = require('../controllers/dataRightsController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
@@ -21,6 +23,8 @@ router.post('/chatbot/end', protect, endSession);
 router.get('/messages', protect, getMessages);
 router.get('/summary', protect, getSummary);
 router.get('/analytics/feedback', protect, restrictTo('admin'), getFeedbackAnalytics);
+router.get('/analytics/knowledge-gaps', protect, restrictTo('admin'), detectKnowledgeGaps);
+router.post('/analytics/knowledge-gaps/reseed', protect, restrictTo('admin'), triggerKnowledgeReseed);
 router.get('/summary/:patientId/feedback', protect, restrictTo('psychologist', 'admin'), getSummaryFeedback);
 router.post('/summary/:patientId/feedback', protect, restrictTo('psychologist', 'admin'), submitSummaryFeedback);
 router.post('/logout-summary', protect, generateLogoutSummaries);

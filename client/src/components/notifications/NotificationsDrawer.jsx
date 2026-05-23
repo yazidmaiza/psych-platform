@@ -148,19 +148,26 @@ export default function NotificationsDrawer({ open, onClose }) {
 
             <div className="flex flex-col gap-3">
               {notifications.map((n) => (
-                <button
+                <div
                   key={n._id}
-                  type="button"
                   onClick={() => openNotification(n)}
                   className={[
-                    'text-left rounded-3xl border p-4 transition',
-                    'bg-white/5 hover:bg-white/10',
+                    'text-left rounded-3xl border p-4 transition cursor-pointer',
+                    n.type === 'auto_reseed_complete'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15'
+                      : n.type === 'knowledge_gap_monitoring'
+                        ? 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
+                      : 'bg-white/5 hover:bg-white/10',
                     n.isRead ? 'border-white/10' : 'border-indigo-400/30'
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-white">
+                      <div className={[
+                        'text-sm font-semibold',
+                        n.type === 'auto_reseed_complete' ? 'text-emerald-200' : 'text-white'
+                        , n.type === 'knowledge_gap_monitoring' ? 'text-amber-200' : ''
+                      ].join(' ')}>
                         {n.title || 'Notification'}
                       </div>
                       <div className="mt-1 text-sm text-white/70">
@@ -171,7 +178,31 @@ export default function NotificationsDrawer({ open, onClose }) {
                       {formatDateTime(n.createdAt)}
                     </div>
                   </div>
-                </button>
+                  {n.type === 'auto_reseed_complete' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/admin');
+                      }}
+                      className="mt-3 text-xs font-semibold text-emerald-200 underline decoration-emerald-200/40 underline-offset-4 hover:text-emerald-100"
+                    >
+                      View in admin panel
+                    </button>
+                  )}
+                  {n.type === 'knowledge_gap_monitoring' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/admin');
+                      }}
+                      className="mt-3 text-xs font-semibold text-amber-200 underline decoration-amber-200/40 underline-offset-4 hover:text-amber-100"
+                    >
+                      View in admin panel
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>

@@ -36,6 +36,58 @@ if (process.env.DNS_SERVERS) {
 const app = express();
 const server = http.createServer(app);
 
+const scheduleNightlyGapCheck = () => {
+  const intervalMs = Number(process.env.NIGHTLY_GAP_CHECK_INTERVAL_MS) || 24 * 60 * 60 * 1000;
+
+  const runCheck = async () => {
+    try {
+      const { runGapDetection, checkAndAutoReseed } = require('./controllers/chatbotController');
+      const { createNotification } = require('./services/notificationService');
+      const User = require('./models/User');
+
+      const result = await runGapDetection({ forceRefresh: true });
+
+      for (const gap of result.gaps || []) {
+        await checkAndAutoReseed(gap.emotion).catch((err) =>
+          console.error('[GapScheduler] Auto-reseed error:', err.message)
+        );
+      }
+
+      const unreseedableGaps = (result.gaps || []).filter(
+        (gap) => Number(gap.correctionCount || 0) < 3
+      );
+
+      if (unreseedableGaps.length > 0) {
+        const admins = await User.find({ role: 'admin' }, '_id');
+        for (const admin of admins) {
+          await createNotification({
+            userId: admin._id,
+            title: 'Knowledge base gaps detected',
+            message:
+              `${unreseedableGaps.length} gap(s) need more corrections before auto-reseed triggers. ` +
+              `Affected emotions: ${unreseedableGaps.map((g) => g.emotion).join(', ')}. ` +
+              `Visit the admin panel to monitor status.`,
+            link: '/admin',
+            type: 'knowledge_gap_monitoring',
+            channels: ['in_app'],
+            data: { gaps: unreseedableGaps, summary: result.summary },
+            priority: 'normal'
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[GapScheduler] Error:', err.message);
+    }
+  };
+
+  setTimeout(() => {
+    runCheck().catch(() => {});
+    setInterval(() => {
+      runCheck().catch(() => {});
+    }, intervalMs);
+  }, 5 * 60 * 1000);
+};
+
 //////////////////////////////////////////////////
 // 🔐 RATE LIMITERS
 //////////////////////////////////////////////////
@@ -347,6 +399,7 @@ mongoose
     console.log('MongoDB connected');
 
     startNotificationWorker();
+    scheduleNightlyGapCheck();
 
     server.listen(process.env.PORT || 5000, () => {
       console.log(

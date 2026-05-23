@@ -1,5 +1,6 @@
 const axios = require('axios');
 const PDFDocument = require('pdfkit');
+const mongoose = require('mongoose');
 const ChatbotMessage = require('../models/ChatbotMessage');
 const ChatbotSummary = require('../models/ChatbotSummary');
 const ChatbotSummaryArchive = require('../models/ChatbotSummaryArchive');
@@ -8,6 +9,7 @@ const Session = require('../models/Session');
 const User = require('../models/User');
 const EmotionalIndicator = require('../models/EmotionalIndicator');
 const ChatbotReport = require('../models/ChatbotReport');
+const ExtractVectorEmbedding = require('../skills/ExtractVectorEmbedding');
 const { createNotification } = require('../services/notificationService');
 const { sha256, resolvePrivatePath, writeFileAtomic } = require('../services/ttsStorage');
 const chatWorkflow = require('../workflows/chatRoute');
@@ -23,6 +25,232 @@ const getClientUrl = () => {
   const envUrl = String(process.env.CLIENT_URL || '').trim();
   if (envUrl) return envUrl.replace(/\/+$/, '');
   return 'http://localhost:3000';
+};
+
+const knowledgeGapCache = { value: null, expiresAt: 0 };
+const KNOWLEDGE_GAP_TTL_MS = 10 * 60 * 1000;
+
+const invalidateKnowledgeGapCache = () => {
+  knowledgeGapCache.value = null;
+  knowledgeGapCache.expiresAt = 0;
+};
+
+const getKnowledgeCollection = () => mongoose.connection.db.collection('darija_knowledge');
+
+const normalizeEmotionList = (emotions = []) => {
+  const seen = new Set();
+  return emotions
+    .map((emotion) => String(emotion || '').trim().toLowerCase())
+    .filter((emotion) => {
+      if (!emotion || seen.has(emotion)) return false;
+      seen.add(emotion);
+      return true;
+    })
+    .slice(0, 10);
+};
+
+const searchKnowledgeByVector = async (queryVector) => {
+  const collection = getKnowledgeCollection();
+  return collection.aggregate([
+    {
+      $vectorSearch: {
+        index: 'darija_vector_index',
+        path: 'embedding',
+        queryVector,
+        numCandidates: 100,
+        limit: 3
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        darija: 1,
+        english: 1,
+        category: 1,
+        embedding: 1,
+        score: { $meta: 'vectorSearchScore' }
+      }
+    }
+  ]).toArray();
+};
+
+const embedEmotionSequentially = async (emotion) => {
+  const embedding = await ExtractVectorEmbedding.execute(emotion);
+  const results = await searchKnowledgeByVector(embedding);
+  const topSimilarity = Number(results?.[0]?.score || 0);
+  return { embedding, results, topSimilarity };
+};
+
+const reseedHistory = new Map();
+// In-memory by design: auto-reseed cooldown only needs to survive within a
+// running process. If the server restarts, the worst case is one extra reseed.
+const RESEED_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+const performReseedForEmotions = async (emotions = []) => {
+  const results = { reseeded: [], failed: [], totalDocumentsUpdated: 0 };
+
+  for (const emotion of emotions) {
+    const normalizedEmotion = String(emotion || '').trim().toLowerCase();
+    if (!normalizedEmotion) continue;
+
+    try {
+      const collection = getKnowledgeCollection();
+      const docs = await collection.find({
+        $or: [
+          { content: { $regex: new RegExp(normalizedEmotion, 'i') } },
+          { darija: { $regex: new RegExp(normalizedEmotion, 'i') } },
+          { english: { $regex: new RegExp(normalizedEmotion, 'i') } }
+        ]
+      }).toArray();
+
+      if (!docs.length) {
+        console.warn(`[AutoReseed] No documents found for emotion: ${normalizedEmotion} — consider adding content to the knowledge base manually`);
+        results.reseeded.push({ emotion: normalizedEmotion, documentsUpdated: 0 });
+        continue;
+      }
+
+      let documentsUpdated = 0;
+      for (const doc of docs) {
+        try {
+          const sourceText = String(doc.content || doc.darija || doc.english || normalizedEmotion);
+          const embedding = await ExtractVectorEmbedding.execute(sourceText);
+          await collection.updateOne({ _id: doc._id }, { $set: { embedding } });
+          documentsUpdated += 1;
+          results.totalDocumentsUpdated += 1;
+        } catch (docErr) {
+          results.failed.push({
+            emotion: normalizedEmotion,
+            docId: String(doc._id),
+            error: docErr.message
+          });
+        }
+      }
+
+      results.reseeded.push({ emotion: normalizedEmotion, documentsUpdated });
+      console.info(`[Reseed] "${normalizedEmotion}" → ${documentsUpdated} documents updated`);
+    } catch (err) {
+      results.failed.push({ emotion: normalizedEmotion, error: err.message });
+    }
+  }
+
+  return results;
+};
+
+const checkAndAutoReseed = async (emotion) => {
+  const normalizedEmotion = String(emotion || '').trim().toLowerCase();
+  if (!normalizedEmotion) return;
+
+  const count = await ChatbotSummary.countDocuments({
+    'psychologistFeedback.correctedEmotion': { $regex: new RegExp(`^${normalizedEmotion}$`, 'i') },
+    'psychologistFeedback.submittedAt': { $ne: null }
+  });
+
+  console.info(`[AutoReseed] "${normalizedEmotion}" corrected ${count} time(s)`);
+  if (count < 3) return;
+
+  const history = reseedHistory.get(normalizedEmotion);
+  if (history) {
+    const timeSinceLastReseed = Date.now() - history.lastReseededAt;
+    if (timeSinceLastReseed < RESEED_COOLDOWN_MS) {
+      console.info(
+        `[AutoReseed] "${normalizedEmotion}" was reseeded ${Math.round(timeSinceLastReseed / 86400000)}d ago — skipping`
+      );
+      return;
+    }
+  }
+
+  console.info(`[AutoReseed] Threshold reached for "${normalizedEmotion}" — triggering reseed`);
+  const reseedResult = await performReseedForEmotions([normalizedEmotion]);
+  reseedHistory.set(normalizedEmotion, {
+    lastReseededAt: Date.now(),
+    count: (history?.count || 0) + 1
+  });
+
+  const admins = await User.find({ role: 'admin' }, '_id');
+  for (const admin of admins) {
+    await createNotification({
+      userId: admin._id,
+      title: 'Auto-reseed complete',
+      message:
+        `Auto-reseed triggered: "${normalizedEmotion}" was corrected ${count} times by psychologists. The knowledge base has been automatically updated.`,
+      link: '/admin',
+      type: 'auto_reseed_complete',
+      channels: ['in_app'],
+      data: { emotion: normalizedEmotion, correctionCount: count, ...reseedResult },
+      priority: 'normal'
+    });
+  }
+
+  invalidateKnowledgeGapCache();
+};
+
+const runGapDetection = async ({ forceRefresh = false } = {}) => {
+  if (!forceRefresh && knowledgeGapCache.value && knowledgeGapCache.expiresAt > Date.now()) {
+    return knowledgeGapCache.value;
+  }
+
+  const flagged = await ChatbotSummary.aggregate([
+    { $match: { 'psychologistFeedback.submittedAt': { $ne: null }, 'psychologistFeedback.correctedEmotion': { $ne: null, $ne: '' } } },
+    {
+      $group: {
+        _id: { $toLower: '$psychologistFeedback.correctedEmotion' },
+        correctionCount: { $sum: 1 }
+      }
+    },
+    { $match: { correctionCount: { $gte: 3 } } },
+    { $sort: { correctionCount: -1, _id: 1 } }
+  ]);
+
+  const gaps = [];
+  const covered = [];
+  const totalFlagged = flagged.length;
+
+  for (const item of flagged) {
+    const emotion = String(item?._id || '').trim().toLowerCase();
+    if (!emotion) continue;
+
+    try {
+      const { topSimilarity } = await embedEmotionSequentially(emotion);
+      const normalizedSimilarity = Number.isFinite(topSimilarity) ? Number(topSimilarity.toFixed(2)) : 0;
+      const payload = {
+        emotion,
+        correctionCount: item.correctionCount || 0,
+        topSimilarity: normalizedSimilarity,
+        status: normalizedSimilarity >= 0.75 ? 'COVERED' : 'GAP'
+      };
+
+      if (payload.status === 'GAP') {
+        payload.recommendation = 'Add psychological content about ' + emotion + ' to the RAG knowledge base and reseed embeddings.';
+        gaps.push(payload);
+      } else {
+        covered.push(payload);
+      }
+    } catch (error) {
+      console.error('[detectKnowledgeGaps] Failed for emotion', emotion, error.message);
+      gaps.push({
+        emotion,
+        correctionCount: item.correctionCount || 0,
+        status: 'UNKNOWN',
+        topSimilarity: 0,
+        error: error.message
+      });
+    }
+  }
+
+  const response = {
+    gaps,
+    covered,
+    summary: {
+      totalFlagged,
+      gapCount: gaps.filter((entry) => entry.status === 'GAP').length,
+      coveredCount: covered.length,
+      checkedAt: new Date().toISOString()
+    }
+  };
+
+  knowledgeGapCache.value = response;
+  knowledgeGapCache.expiresAt = Date.now() + KNOWLEDGE_GAP_TTL_MS;
+  return response;
 };
 
 const parseJsonFromModel = (rawContent) => {
@@ -678,6 +906,12 @@ exports.submitSummaryFeedback = async (req, res) => {
       { new: true }
     );
 
+    if (nextFeedback.correctedEmotion) {
+      checkAndAutoReseed(nextFeedback.correctedEmotion).catch((err) =>
+        console.error('[AutoReseed] Error:', err.message)
+      );
+    }
+
     // FEEDBACK LOOP HOOK: In a future iteration, send this payload
     // to a retraining queue or prompt-tuning pipeline to improve
     // GenerateEmpatheticResponse and the summary generation prompt.
@@ -886,6 +1120,79 @@ exports.getFeedbackAnalytics = async (req, res) => {
   }
 };
 
+exports.detectKnowledgeGaps = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const response = await runGapDetection();
+    res.status(200).json(response);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.triggerKnowledgeReseed = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const emotions = normalizeEmotionList(Array.isArray(req.body?.emotions) ? req.body.emotions : []);
+    if (!emotions.length) {
+      return res.status(400).json({ message: 'emotions must be a non-empty array of strings' });
+    }
+
+    const startTime = Date.now();
+    const combined = { reseeded: [], failed: [], totalDocumentsUpdated: 0 };
+
+    for (let index = 0; index < emotions.length; index += 1) {
+      const emotion = emotions[index];
+      const result = await performReseedForEmotions([emotion]);
+      combined.reseeded.push(...result.reseeded);
+      combined.failed.push(...result.failed);
+      combined.totalDocumentsUpdated += result.totalDocumentsUpdated;
+
+      if (Date.now() - startTime > 30000 && index < emotions.length - 1) {
+        const remainingEmotions = emotions.slice(index + 1);
+        setImmediate(async () => {
+          try {
+            const asyncResult = await performReseedForEmotions(remainingEmotions);
+            console.log('[KnowledgeReseed] Async job finished', {
+              reseeded: asyncResult.reseeded,
+              failed: asyncResult.failed,
+              totalDocumentsUpdated: asyncResult.totalDocumentsUpdated,
+              timestamp: new Date().toISOString()
+            });
+          } finally {
+            invalidateKnowledgeGapCache();
+          }
+        });
+
+        return res.status(202).json({
+          jobId: sha256([Date.now(), req.user.id, emotions.join(',')].join(':')),
+          accepted: true,
+          reseeded: combined.reseeded,
+          failed: combined.failed,
+          totalDocumentsUpdated: combined.totalDocumentsUpdated,
+          cacheInvalidated: false,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    invalidateKnowledgeGapCache();
+
+    res.status(200).json({
+      ...combined,
+      cacheInvalidated: true,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 exports.generateLogoutSummaries = async (req, res) => {
   try {
     if (req.user.role !== 'patient') return res.status(403).json({ message: 'Access denied' });
@@ -1016,3 +1323,6 @@ exports.downloadReportPdf = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+exports.runGapDetection = runGapDetection;
+exports.checkAndAutoReseed = checkAndAutoReseed;
