@@ -4,21 +4,20 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 
-const SESSION_TYPES = [
-    { id: 'prep', label: 'preparationSession', desc: 'preparationDesc' },
-    { id: 'followup', label: 'followUpSession', desc: 'followUpDesc' },
-    { id: 'crisis', label: 'crisisSession', desc: 'crisisDesc' },
-];
-
 export default function CreateSession() {
     const { psychologistId } = useParams();
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const [selectedType, setSelectedType] = useState('followup');
+    const [selectedDuration, setSelectedDuration] = useState(60);
+    const [selectedDayKey, setSelectedDayKey] = useState('');
+    const [selectedWindowKey, setSelectedWindowKey] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [slotsError, setSlotsError] = useState('');
     const [psychologist, setPsychologist] = useState(null);
     const [psyLoading, setPsyLoading] = useState(true);
+    const [slots, setSlots] = useState([]);
+    const [slotsLoading, setSlotsLoading] = useState(true);
 
     useEffect(() => {
         let mounted = true;
@@ -60,25 +59,149 @@ export default function CreateSession() {
         };
     }, [psychologistId]);
 
-    const selectedSession = useMemo(
-        () => SESSION_TYPES.find((s) => s.id === selectedType) || SESSION_TYPES[1],
-        [selectedType]
+    useEffect(() => {
+        let mounted = true;
+
+        const fetchSlots = async () => {
+            const slotOwnerId = psychologist?.userId?._id || psychologist?.userId || psychologistId;
+            if (!slotOwnerId) {
+                if (mounted) {
+                    setSlots([]);
+                    setSlotsLoading(false);
+                    setSlotsError('');
+                }
+                return;
+            }
+
+            if (mounted) {
+                setSlotsLoading(true);
+                setSlotsError('');
+            }
+
+            try {
+                const data = await api.get(`/api/calendar/slots/${slotOwnerId}`);
+                if (mounted) {
+                    setSlots(Array.isArray(data) ? data : []);
+                }
+            } catch {
+                if (mounted) {
+                    setSlots([]);
+                    setSlotsError('Could not load availability slots right now.');
+                }
+            } finally {
+                if (mounted) {
+                    setSlotsLoading(false);
+                }
+            }
+        };
+
+        fetchSlots();
+        return () => {
+            mounted = false;
+        };
+    }, [psychologistId, psychologist]);
+
+    const sessionPrice = useMemo(
+        () => Number(psychologist?.sessionPrice || psychologist?.hourlyRate || 120),
+        [psychologist]
     );
 
-    const getSessionPrice = (typeId) => {
-        const base = Number(psychologist?.sessionPrice || psychologist?.hourlyRate || 120);
-        if (typeId === 'prep') return 0;
-        if (typeId === 'crisis') return base + 30;
-        return base;
-    };
+    const availableSlots = useMemo(() => {
+        const now = Date.now();
+        return (Array.isArray(slots) ? slots : [])
+            .filter((slot) => slot?.start && !slot.isBooked && !slot.pendingSessionId && new Date(slot.start).getTime() >= now)
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    }, [slots]);
+
+    const bookableWindows = useMemo(() => {
+        const durationMs = selectedDuration * 60 * 1000;
+        const stepMs = 30 * 60 * 1000;
+        const now = Date.now();
+        const windows = [];
+
+        for (const slot of availableSlots) {
+            const slotStartMs = new Date(slot.start).getTime();
+            const slotEndMs = new Date(slot.end).getTime();
+
+            for (let startMs = slotStartMs; startMs + durationMs <= slotEndMs; startMs += stepMs) {
+                if (startMs < now) continue;
+                const endMs = startMs + durationMs;
+                const key = `${slot._id}_${startMs}_${selectedDuration}`;
+                const startDate = new Date(startMs);
+                const dayKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+
+                windows.push({
+                    key,
+                    slotId: slot._id,
+                    startIso: new Date(startMs).toISOString(),
+                    endIso: new Date(endMs).toISOString(),
+                    dayKey,
+                });
+            }
+        }
+
+        return windows;
+    }, [availableSlots, selectedDuration]);
+
+    const selectedWindow = useMemo(
+        () => bookableWindows.find((window) => window.key === selectedWindowKey) || null,
+        [bookableWindows, selectedWindowKey]
+    );
+
+    useEffect(() => {
+        setSelectedWindowKey('');
+    }, [selectedDuration]);
+
+    const dayOptions = useMemo(() => {
+        const map = new Map();
+
+        for (const window of bookableWindows) {
+            if (!map.has(window.dayKey)) {
+                map.set(window.dayKey, {
+                    dayKey: window.dayKey,
+                    date: new Date(window.startIso),
+                    count: 0,
+                });
+            }
+            map.get(window.dayKey).count += 1;
+        }
+
+        return Array.from(map.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+    }, [bookableWindows]);
+
+    useEffect(() => {
+        if (!dayOptions.length) {
+            setSelectedDayKey('');
+            return;
+        }
+
+        const exists = dayOptions.some((d) => d.dayKey === selectedDayKey);
+        if (!exists) {
+            setSelectedDayKey(dayOptions[0].dayKey);
+        }
+    }, [dayOptions, selectedDayKey]);
+
+    useEffect(() => {
+        setSelectedWindowKey('');
+    }, [selectedDayKey]);
+
+    const visibleWindows = useMemo(
+        () => bookableWindows.filter((window) => window.dayKey === selectedDayKey),
+        [bookableWindows, selectedDayKey]
+    );
 
     const handleCreate = async () => {
+        if (!selectedWindow) {
+            setError(t('selectAvailabilitySlot'));
+            return;
+        }
+
         setLoading(true);
         setError('');
         try {
-            const data = await api.post('/api/sessions', {
-                psychologistId,
-                type: selectedType,
+            const data = await api.post(`/api/calendar/slots/${selectedWindow.slotId}/request`, {
+                chosenStart: selectedWindow.startIso,
+                chosenDuration: selectedDuration,
             });
             const sessionId = data?.sessionId || data?._id || data?.data?.sessionId || data?.data?._id;
             if (!sessionId) throw new Error(t('bookingFailed'));
@@ -121,65 +244,122 @@ export default function CreateSession() {
                                 <span key={spec} className="text-xs text-white/40">{spec}</span>
                             ))}
                         </div>
+                        <div className="mt-2 text-xs text-white/55">
+                            {psychologist?.availability
+                                ? `Availability: ${psychologist.availability}`
+                                : 'Availability not provided'}
+                        </div>
                     </div>
                 </div>
 
-                <h2 className="text-lg font-semibold text-white mb-4">{t('selectSessionType')}</h2>
-                <div className="space-y-3 mb-8">
-                    {SESSION_TYPES.map((type) => {
-                        const price = getSessionPrice(type.id);
-                        return (
-                            <GlassPanel
-                                key={type.id}
-                                className={`p-5 cursor-pointer transition ${
-                                    selectedType === type.id
-                                        ? 'border-indigo-500/50 bg-indigo-500/5'
-                                        : ''
-                                }`}
-                                onClick={() => setSelectedType(type.id)}
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-4">
-                                        <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                                            selectedType === type.id
-                                                ? 'border-indigo-500 bg-indigo-500'
-                                                : 'border-white/20'
-                                        }`}>
-                                            {selectedType === type.id && <span className="text-white text-xs">✓</span>}
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold text-white">{t(type.label)}</h3>
-                                            <p className="text-sm text-white/60 mt-1">{t(type.desc)}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                        <p className="text-lg font-semibold text-white">
-                                            {price === 0 ? t('free') : `$${price}`}
-                                        </p>
-                                        <p className="text-xs text-white/40">{price === 0 ? '' : t('perSession')}</p>
-                                    </div>
-                                </div>
-                            </GlassPanel>
-                        );
-                    })}
-                </div>
+                <GlassPanel className="p-5 mb-8 border border-indigo-500/20 bg-indigo-500/5">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">{t('singleOffer')}</h2>
+                            <p className="mt-1 text-sm text-white/60">{t('singleOfferDesc')}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                            <p className="text-lg font-semibold text-white">${sessionPrice}</p>
+                            <p className="text-xs text-white/40">{t('perSession')}</p>
+                        </div>
+                    </div>
+                </GlassPanel>
 
                 <GlassPanel className="p-5 mb-8">
-                    <h3 className="font-semibold text-white mb-2">{t('whatToExpect')}</h3>
-                    <ul className="space-y-2 text-sm text-white/60">
-                        <li className="flex items-start gap-2">
-                            <span className="text-indigo-400 mt-0.5">•</span>
-                            {t('expectation1')}
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="text-indigo-400 mt-0.5">•</span>
-                            {t('expectation2')}
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="text-indigo-400 mt-0.5">•</span>
-                            {t('expectation3')}
-                        </li>
-                    </ul>
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                        <h3 className="font-semibold text-white">{t('selectAvailabilitySlot')}</h3>
+                        <div className="text-xs text-white/45">
+                            {slotsLoading ? t('loading') : `${bookableWindows.length} option${bookableWindows.length === 1 ? '' : 's'}`}
+                        </div>
+                    </div>
+
+                    <div className="mb-4 flex items-center gap-2">
+                        <span className="text-xs text-white/60">Duration</span>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDuration(60)}
+                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 60 ? 'border-indigo-500/60 bg-indigo-500/10 text-white' : 'border-white/15 bg-white/5 text-white/70'}`}
+                        >
+                            {t('1hour')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDuration(90)}
+                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 90 ? 'border-indigo-500/60 bg-indigo-500/10 text-white' : 'border-white/15 bg-white/5 text-white/70'}`}
+                        >
+                            {t('1h30min')}
+                        </button>
+                    </div>
+
+                    {slotsError && (
+                        <div className="mb-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50">
+                            {slotsError}
+                        </div>
+                    )}
+
+                    {!slotsLoading && bookableWindows.length === 0 && (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                            {t('noSlots')}
+                        </div>
+                    )}
+
+                    {!slotsLoading && dayOptions.length > 0 && (
+                        <div className="mb-4">
+                            <div className="mb-2 text-xs text-white/60">Choose a day</div>
+                            <div className="flex flex-wrap gap-2">
+                                {dayOptions.map((day) => {
+                                    const isSelected = selectedDayKey === day.dayKey;
+                                    return (
+                                        <button
+                                            key={day.dayKey}
+                                            type="button"
+                                            onClick={() => setSelectedDayKey(day.dayKey)}
+                                            className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                                                isSelected
+                                                    ? 'border-indigo-500/60 bg-indigo-500/10 text-white'
+                                                    : 'border-white/15 bg-white/5 text-white/70 hover:border-white/25'
+                                            }`}
+                                        >
+                                            {day.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ({day.count})
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        {visibleWindows.map((window) => {
+                            const isSelected = selectedWindowKey === window.key;
+                            const start = new Date(window.startIso);
+                            const end = new Date(window.endIso);
+
+                            return (
+                                <button
+                                    key={window.key}
+                                    type="button"
+                                    onClick={() => setSelectedWindowKey(window.key)}
+                                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                                        isSelected
+                                            ? 'border-indigo-500/60 bg-indigo-500/10 text-white'
+                                            : 'border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:bg-white/8'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-semibold">{start.toLocaleDateString()}</div>
+                                            <div className="mt-1 text-xs text-white/55">
+                                                {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                        <div className={`h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-indigo-400 bg-indigo-500' : 'border-white/20'}`}>
+                                            {isSelected && <span className="text-[10px] text-white">✓</span>}
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </GlassPanel>
 
                 {error && (
@@ -192,12 +372,12 @@ export default function CreateSession() {
                     <div>
                         <p className="text-sm text-white/60">{t('total')}</p>
                         <p className="text-2xl font-semibold text-white">
-                            {getSessionPrice(selectedSession.id) === 0 ? t('free') : `$${getSessionPrice(selectedSession.id)}`}
+                                ${sessionPrice}
                         </p>
                     </div>
                     <button
                         onClick={handleCreate}
-                        disabled={loading}
+                        disabled={loading || slotsLoading || bookableWindows.length === 0}
                         className="glass-button disabled:opacity-50"
                     >
                         {loading ? t('processing') : t('proceedToPayment')}

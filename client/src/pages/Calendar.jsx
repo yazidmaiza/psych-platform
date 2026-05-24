@@ -73,7 +73,7 @@ export default function CalendarPage() {
         };
       });
 
-      setEvents(mapped);
+      setEvents(isPsychologistOwnCalendar ? mapped.filter((event) => event.isBooked || event.isPending) : mapped);
 
       // If calendar resets after logout/login, keep the user anchored near their slots
       if (!localStorage.getItem(storageKey) && mapped.length > 0) {
@@ -83,7 +83,7 @@ export default function CalendarPage() {
       setEvents([]);
       setError(e.message || 'Failed to load slots');
     }
-  }, [role, storageKey, targetId, userId]);
+  }, [isPsychologistOwnCalendar, role, storageKey, targetId, userId]);
 
   const fetchMyBookings = useCallback(async () => {
     setError('');
@@ -343,7 +343,7 @@ export default function CalendarPage() {
       return 'Your bookings are shown here. Open an item to see details, pay (if required), or cancel.';
     }
     if (isPsychologistOwnCalendar) {
-      return 'Select a time range to add availability. Click pending slots to confirm or reject.';
+      return 'Booked consultations and pending requests are shown here. Click a pending slot to confirm or reject.';
     }
     return 'Click an available slot to request a booking. Click your pending slot to cancel it.';
   }, [isPatientOwnCalendar, isPsychologistOwnCalendar]);
@@ -384,7 +384,7 @@ export default function CalendarPage() {
                   {isPatientOwnCalendar
                     ? 'This calendar shows your booked dates and their current status.'
                     : isPsychologistOwnCalendar
-                      ? 'Your availability is shown in blue. Pending requests appear in amber.'
+                      ? 'Booked consultations are shown in rose. Pending requests appear in amber.'
                       : 'Available times are shown in blue. Your pending request is amber.'}
                 </div>
               </div>

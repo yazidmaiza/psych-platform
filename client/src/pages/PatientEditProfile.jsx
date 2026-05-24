@@ -140,6 +140,13 @@ export default function PatientEditProfile() {
           <nav className="hidden md:flex gap-8 items-center">
             <button
               type="button"
+              onClick={() => navigate('/')}
+              className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
+            >
+              {t('navHome')}
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/patient/discovery')}
               className="text-[color:var(--muted)] hover:text-[color:var(--app-fg)] transition-colors font-body-md text-body-md"
             >

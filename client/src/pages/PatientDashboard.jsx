@@ -35,6 +35,7 @@ function getInitials(name) {
 function NavTabs({ navigate, t }) {
   const location = useLocation();
   const path = location.pathname || '';
+  const isHome = path === '/' || path.startsWith('/home');
   const isDiscovery = path.startsWith('/patient/discovery');
   const isDashboard = path.startsWith('/patient/dashboard') || path === '/patient' || path === '/patient/';
   const isHistory = path.startsWith('/history') || path.startsWith('/patient/history');
@@ -43,6 +44,13 @@ function NavTabs({ navigate, t }) {
 
   return (
     <div className="flex items-center gap-6">
+      <button
+        type="button"
+        onClick={() => navigate('/')}
+        className={`${common} ${isHome ? 'text-[color:var(--app-fg)] border-b-2 border-[color:var(--accent)] pb-1' : 'text-[color:var(--muted)] hover:text-[color:var(--app-fg)]'}`}
+      >
+        {t('navHome')}
+      </button>
       <button
         type="button"
         onClick={() => navigate('/patient/discovery')}

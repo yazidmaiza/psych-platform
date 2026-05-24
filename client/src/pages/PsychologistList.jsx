@@ -244,6 +244,13 @@ export default function PsychologistList() {
             <nav className="hidden flex-1 items-center justify-center gap-10 md:flex">
               <button
                 type="button"
+                onClick={() => navigate('/')}
+                className="px-2 text-sm font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--app-fg)]"
+              >
+                {t('navHome')}
+              </button>
+              <button
+                type="button"
                 onClick={() => navigate('/patient/discovery')}
                 className="border-b-2 border-[color:var(--accent)] pb-1 px-2 text-sm font-semibold text-[color:var(--app-fg)] transition"
               >
