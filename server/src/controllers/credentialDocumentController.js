@@ -206,7 +206,17 @@ const canAccessDocument = async ({ requester, credentialDocumentId }) => {
     throw err;
   }
 
-  if (requester.role === 'admin') return doc;
+  if (requester.role === 'admin') {
+    // Admins can review onboarding docs, but should not be able to directly view/download ID card images.
+    // Face verification runs server-side via `/api/verification/face-check/:userId` and does not require access URLs.
+    const type = String(doc.type || '');
+    if (type === 'idFront' || type === 'idBack') {
+      const err = new Error('Access denied');
+      err.status = 403;
+      throw err;
+    }
+    return doc;
+  }
 
   if (requester.role === 'psychologist') {
     if (String(doc.ownerUserId) !== String(requester.id)) {

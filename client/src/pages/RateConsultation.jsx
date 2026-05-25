@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 
 const RATING_QUESTIONS = [
@@ -128,7 +128,12 @@ export default function RateConsultation() {
                 <div className="flex items-center gap-4 mb-8">
                     <div className="h-16 w-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
                         {!psyLoading && psy?.photo ? (
-                            <img src={psy.photo} alt={displayName || 'Psychologist'} className="h-full w-full object-cover" />
+                            <img
+                              src={toAbsoluteUrl(psy.photo)}
+                              alt={displayName || 'Psychologist'}
+                              className="h-full w-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
                         ) : (
                             <div className="text-white/50">{psyLoading ? '...' : initials}</div>
                         )}

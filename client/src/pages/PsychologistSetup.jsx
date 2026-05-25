@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
@@ -25,17 +25,67 @@ export default function PsychologistSetup() {
     bio: '',
     city: '',
     country: '',
-    availability: {},
     specializations: [],
     languages: [],
     hourlyRate: '',
     documents: { cv: null, diploma: null, idFront: null, idBack: null, video: null },
   });
   const [previews, setPreviews] = useState({});
+  const [hydrating, setHydrating] = useState(true);
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrate = async () => {
+      setHydrating(true);
+      try {
+        const me = await api.get('/api/psychologists/me');
+        if (!mounted) return;
+        setFormData((prev) => ({
+          ...prev,
+          firstName: me?.firstName || '',
+          lastName: me?.lastName || '',
+          bio: me?.bio || '',
+          city: me?.city || '',
+          country: me?.country || '',
+          specializations: Array.isArray(me?.specializations) ? me.specializations : [],
+          languages: Array.isArray(me?.languages) ? me.languages : [],
+          hourlyRate: me?.sessionPrice != null ? String(me.sessionPrice) : '',
+        }));
+      } catch (e) {
+        try {
+          const userId = localStorage.getItem('userId');
+          if (!userId) throw e;
+          const byUser = await api.get('/api/psychologists/by-user/' + userId);
+          if (!mounted) return;
+          setFormData((prev) => ({
+            ...prev,
+            firstName: byUser?.firstName || '',
+            lastName: byUser?.lastName || '',
+            bio: byUser?.bio || '',
+            city: byUser?.city || '',
+            country: byUser?.country || '',
+            specializations: Array.isArray(byUser?.specializations) ? byUser.specializations : [],
+            languages: Array.isArray(byUser?.languages) ? byUser.languages : [],
+            hourlyRate: byUser?.sessionPrice != null ? String(byUser.sessionPrice) : '',
+          }));
+        } catch {
+          // ignore hydration errors; user can still fill manually
+        }
+      } finally {
+        if (mounted) setHydrating(false);
+      }
+    };
+
+    hydrate();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const toggleSpecialization = (spec) => {
     setFormData(prev => ({
@@ -68,7 +118,25 @@ export default function PsychologistSetup() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await api.post('/api/psychologist/setup', formData);
+      await api.put('/api/psychologists/me', {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        bio: formData.bio,
+        city: formData.city,
+        country: formData.country,
+        specializations: formData.specializations,
+        languages: formData.languages,
+        sessionPrice: formData.hourlyRate ? Number(formData.hourlyRate) : 0,
+      });
+
+      const fd = new FormData();
+      fd.append('cv', formData.documents.cv);
+      fd.append('diploma', formData.documents.diploma);
+      fd.append('idFront', formData.documents.idFront);
+      fd.append('idBack', formData.documents.idBack);
+      if (formData.documents.video) fd.append('introVideo', formData.documents.video);
+
+      await api.postForm('/api/verification/upload', fd);
       navigate('/psychologist/dashboard');
     } catch (e) {
       console.error(e);
@@ -81,7 +149,7 @@ export default function PsychologistSetup() {
     if (step === 1) return formData.firstName && formData.lastName && formData.bio;
     if (step === 2) return formData.city && formData.country;
     if (step === 3) return formData.specializations.length > 0 && formData.languages.length > 0;
-    if (step === 4) return formData.documents.cv && formData.documents.diploma && formData.documents.idFront;
+    if (step === 4) return formData.documents.cv && formData.documents.diploma && formData.documents.idFront && formData.documents.idBack && formData.documents.video;
     return false;
   };
 
@@ -93,6 +161,11 @@ export default function PsychologistSetup() {
       </div>
 
       <div className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
+        {hydrating && (
+          <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+            Loading your saved setup…
+          </div>
+        )}
         <div className="mb-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>

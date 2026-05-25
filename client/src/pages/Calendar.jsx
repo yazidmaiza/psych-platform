@@ -36,6 +36,14 @@ export default function CalendarPage() {
   const isPatientViewingPsychologist = role === 'patient' && !!psychologistId;
   const isPsychologistOwnCalendar = role === 'psychologist' && !psychologistId;
 
+  const normalizeSlot = useCallback((slot) => {
+    if (!slot) return slot;
+    const normalized = { ...slot };
+    if (normalized.start && !(normalized.start instanceof Date)) normalized.start = new Date(normalized.start);
+    if (normalized.end && !(normalized.end instanceof Date)) normalized.end = new Date(normalized.end);
+    return normalized;
+  }, []);
+
   const targetId = psychologistId || userId || '';
   const storageKey = `calendar:lastDate:${role || 'unknown'}:${targetId || 'unknown'}`;
 
@@ -158,7 +166,7 @@ export default function CalendarPage() {
     if (isPatientViewingPsychologist) {
       if (event.isBooked) return;
       if (event.isPending && !event.isMyPending) return;
-      setSelectedSlot(event.resource);
+      setSelectedSlot(normalizeSlot(event.resource));
       setSessionDetails(null);
       setShowModal(true);
       return;
@@ -166,7 +174,7 @@ export default function CalendarPage() {
 
     if (isPsychologistOwnCalendar) {
       if (!event.resource?.pendingSessionId) return;
-      setSelectedSlot(event.resource);
+      setSelectedSlot(normalizeSlot(event.resource));
       setSessionDetails(null);
       setShowModal(true);
       // Fetch the session to get the patient's chosen time window
@@ -187,7 +195,9 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (!selectedSlot?.start) return;
-    const defaultEnd = new Date(selectedSlot.start.getTime() + 28 * 24 * 60 * 60 * 1000);
+    const startDate = selectedSlot.start instanceof Date ? selectedSlot.start : new Date(selectedSlot.start);
+    if (Number.isNaN(startDate.getTime())) return;
+    const defaultEnd = new Date(startDate.getTime() + 28 * 24 * 60 * 60 * 1000);
     const iso = defaultEnd.toISOString().slice(0, 10);
     setRepeatUntil(iso);
   }, [selectedSlot]);
@@ -239,8 +249,7 @@ export default function CalendarPage() {
     try {
       await api.post(`/api/calendar/slots/${selectedSlot._id}/request`, {});
       closeModal();
-      fetchSlots();
-      alert('A booking request was sent to the psychologist. You will be notified once it is confirmed.');
+      navigate('/patient/dashboard');
     } catch (e) {
       alert(e.message || 'Failed to request slot.');
     } finally {

@@ -1,6 +1,7 @@
 const Session = require('../models/Session');
 const SessionCode = require('../models/SessionCode');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 const CalendarSlot = require('../models/CalendarSlot');
@@ -29,16 +30,8 @@ const cancelSessionAndFreeSlot = async (session, reason) => {
     });
   }
 
-  try {
-    await createNotification({
-      userId: session.patientId,
-      title: 'Booking canceled',
-      message: reason || 'Your booking was canceled.',
-      link: '/patient/dashboard',
-      type: 'booking_canceled',
-      channels: ['in_app', 'email']
-    });
-  } catch {}
+  // Intentionally no automatic notification here to avoid confusing
+  // "Booking canceled" messages during booking attempts.
 };
 
 const expireOverduePaymentsForPatient = async (patientId) => {
@@ -80,6 +73,10 @@ exports.confirmPayment = async (req, res) => {
     const session = await Session.findById(req.params.id);
     if (!session) return res.status(404).json({ message: 'Session not found' });
     if (session.patientId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+
+    if (session.status !== 'pending_payment') {
+      return res.status(400).json({ message: 'This booking is not ready for payment yet. Wait for psychologist confirmation.' });
+    }
 
     if (
       session.status === 'pending_payment' &&
@@ -141,6 +138,17 @@ exports.verifyCode = async (req, res) => {
     sessionCode.used = true;
     await sessionCode.save();
     await Session.findByIdAndUpdate(req.params.id, { status: 'active' });
+
+    // Cleanup: remove payment-related notifications once the session is started
+    try {
+      await Notification.deleteMany({
+        userId: session.patientId,
+        $or: [
+          { link: '/payment/' + session._id },
+          { type: 'booking_confirmed', link: '/payment/' + session._id }
+        ]
+      });
+    } catch {}
 
     try {
       await createNotification({

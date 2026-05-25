@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { uploadDocuments, getPendingVerifications, approvePsychologist, rejectPsychologist } = require('../controllers/verificationController');
-const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { protect, protectAllowUnverified, restrictTo } = require('../middleware/authMiddleware');
 const { verifyFaceMatch, getFaceCheckDiagnostics } = require('../services/faceVerificationService');
 
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png']);
@@ -32,7 +32,7 @@ const upload = multer({
     }
 });
 
-router.post('/upload', protect, restrictTo('psychologist'), upload.fields([
+router.post('/upload', protectAllowUnverified, restrictTo('psychologist'), upload.fields([
     { name: 'cv', maxCount: 1 },
     { name: 'diploma', maxCount: 1 },
     { name: 'idFront', maxCount: 1 },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -7,6 +7,50 @@ export default function PaymentConfirm() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [session, setSession] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    let alive = true;
+    setSessionLoading(true);
+    api.get('/api/sessions/' + sessionId)
+      .then((data) => {
+        if (!alive) return;
+        setSession(data || null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSession(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setSessionLoading(false);
+      });
+    return () => { alive = false; };
+  }, [sessionId]);
+
+  const canPay = useMemo(() => {
+    if (!session) return true;
+    if (String(session.status || '') !== 'pending_payment') return false;
+    if (!session.paymentDueAt) return true;
+    const dueAt = new Date(session.paymentDueAt);
+    if (Number.isNaN(dueAt.getTime())) return true;
+    return dueAt.getTime() > nowTick;
+  }, [nowTick, session]);
+
+  const dueMeta = useMemo(() => {
+    if (!session?.paymentDueAt) return null;
+    const dueAt = new Date(session.paymentDueAt);
+    if (Number.isNaN(dueAt.getTime())) return null;
+    return { dueAtMs: dueAt.getTime(), dueAt };
+  }, [session?.paymentDueAt]);
+
+  useEffect(() => {
+    if (!dueMeta) return;
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [dueMeta]);
 
   const handlePayment = async () => {
     setLoading(true);
@@ -15,7 +59,7 @@ export default function PaymentConfirm() {
       await api.post('/api/sessions/' + sessionId + '/payment', {});
       navigate('/verify/' + sessionId);
     } catch (err) {
-      setError('Payment failed. Please try again.');
+      setError(err?.message || 'Payment failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -68,20 +112,62 @@ export default function PaymentConfirm() {
 
               <div className="flex items-center justify-between gap-3 border-t border-[color:var(--panel-border)] pt-3">
                 <span className="font-semibold text-[color:var(--app-fg)]">Status</span>
-                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  Ready to pay
-                </span>
+                {sessionLoading ? (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                    Loading...
+                  </span>
+                ) : String(session?.status || '') === 'pending_payment' ? (
+                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    Ready to pay (24h)
+                  </span>
+                ) : String(session?.status || '') === 'requested' ? (
+                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                    Awaiting psychologist
+                  </span>
+                ) : String(session?.status || '') === 'canceled' ? (
+                  <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-100">
+                    Canceled
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/70">
+                    {String(session?.status || 'unknown')}
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-            After payment confirmation, your access code is sent immediately to your email inbox.
-          </div>
+          {String(session?.status || '') === 'requested' ? (
+            <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              This booking request must be accepted by the psychologist before payment is enabled.
+              <button
+                type="button"
+                onClick={() => navigate('/patient/dashboard')}
+                className="ml-3 rounded-xl bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/15 transition"
+              >
+                Go to dashboard
+              </button>
+            </div>
+          ) : dueMeta && dueMeta.dueAtMs <= nowTick ? (
+            <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              Payment window expired. This booking will be canceled automatically.
+              <button
+                type="button"
+                onClick={() => navigate('/patient/dashboard')}
+                className="ml-3 rounded-xl bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/15 transition"
+              >
+                Go to dashboard
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+              After payment confirmation, your access code is sent immediately to your email inbox.
+            </div>
+          )}
 
           <button
             onClick={handlePayment}
-            disabled={loading}
+            disabled={loading || !canPay}
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="material-symbols-outlined text-base">credit_card</span>

@@ -16,7 +16,7 @@ const SESSION_TYPE_LABELS = {
 
 const STATUS_STYLES = {
   requested: 'border-amber-400/20 bg-amber-500/10 text-amber-100',
-  pending: 'border-white/10 bg-white/5 text-white/70',
+  pending: 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)]',
   pending_payment: 'border-yellow-400/20 bg-yellow-500/10 text-yellow-100',
   paid: 'border-yellow-400/20 bg-yellow-500/10 text-yellow-100',
   active: 'border-indigo-400/20 bg-indigo-500/10 text-indigo-100',
@@ -163,7 +163,7 @@ export default function MySessionHistory() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[color:var(--app-bg)] text-[color:var(--app-fg)] flex items-center justify-center">
-        <GlassPanel className="px-6 py-4 text-sm text-white/70 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+        <GlassPanel className="px-6 py-4 text-sm text-[color:var(--muted)] shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
           Loading your sessions...
         </GlassPanel>
       </div>
@@ -281,19 +281,19 @@ export default function MySessionHistory() {
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <GlassPanel className="p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/45">Total sessions</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">Total sessions</div>
               <div className="mt-2 text-3xl font-semibold">{summaryStats.total}</div>
             </GlassPanel>
             <GlassPanel className="p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/45">Active</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">Active</div>
               <div className="mt-2 text-3xl font-semibold text-indigo-200">{summaryStats.active}</div>
             </GlassPanel>
             <GlassPanel className="p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/45">Completed</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">Completed</div>
               <div className="mt-2 text-3xl font-semibold text-emerald-200">{summaryStats.completed}</div>
             </GlassPanel>
             <GlassPanel className="p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/45">Needs action</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">Needs action</div>
               <div className="mt-2 text-3xl font-semibold text-amber-200">{summaryStats.pending}</div>
             </GlassPanel>
           </div>
@@ -301,8 +301,8 @@ export default function MySessionHistory() {
           <GlassPanel className="mt-4 p-4 sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-white/45">Filters</div>
-                <div className="mt-2 text-sm text-white/60">
+                <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">Filters</div>
+                <div className="mt-2 text-sm text-[color:var(--muted)]">
                   Switch between statuses to focus on what needs attention.
                 </div>
               </div>
@@ -315,7 +315,7 @@ export default function MySessionHistory() {
                     className={`h-9 rounded-xl px-4 text-sm font-semibold capitalize transition whitespace-nowrap ${
                       filter === status
                         ? 'bg-indigo-500 text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                        : 'bg-[color:var(--panel-bg)] text-[color:var(--muted)] hover:brightness-110'
                     }`}
                   >
                     {status.replace(/_/g, ' ')}
@@ -331,7 +331,7 @@ export default function MySessionHistory() {
                 📅
               </div>
               <div className="mt-4 text-lg font-semibold">No sessions yet</div>
-              <p className="mt-2 text-sm text-white/60">
+              <p className="mt-2 text-sm text-[color:var(--muted)]">
                 Book your first session to get started.
               </p>
               <button
@@ -345,7 +345,7 @@ export default function MySessionHistory() {
           )}
 
           {hasSessions && visibleSessions.length === 0 && (
-            <GlassPanel className="mt-4 p-10 text-center text-white/50">
+            <GlassPanel className="mt-4 p-10 text-center text-[color:var(--muted)]">
               No sessions match this filter.
             </GlassPanel>
           )}
@@ -378,21 +378,21 @@ export default function MySessionHistory() {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-semibold text-white">
+                          <div className="text-sm font-semibold text-[color:var(--app-fg)]">
                             {SESSION_TYPE_LABELS[session.sessionType] || session.sessionType}
                           </div>
                           <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${STATUS_STYLES[session.status] || STATUS_STYLES.pending}`}>
                             {meta.label}
                           </span>
-                          <span className="text-[11px] text-white/50">
+                          <span className="text-[11px] text-[color:var(--muted)]">
                             {formatDate(session.createdAt)}
                           </span>
                         </div>
 
-                        <div className="mt-2 text-lg font-semibold tracking-tight text-white">
+                        <div className="mt-2 text-lg font-semibold tracking-tight text-[color:var(--app-fg)]">
                           {psychologistName}
                         </div>
-                        <p className="mt-1 text-sm text-white/60">
+                        <p className="mt-1 text-sm text-[color:var(--muted)]">
                           {session.summary || session.reason || 'Session details are available after expanding the card.'}
                         </p>
 
@@ -483,7 +483,7 @@ export default function MySessionHistory() {
                       <button
                         type="button"
                         onClick={() => setExpandedId(isExpanded ? null : session._id)}
-                        className="h-[44px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                        className="h-[44px] w-full rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 text-sm font-semibold text-[color:var(--app-fg)] hover:brightness-110 transition"
                       >
                         {isExpanded ? 'Collapse details' : 'Expand details'}
                       </button>
@@ -496,25 +496,25 @@ export default function MySessionHistory() {
                         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-center">
-                              <div className="text-[11px] font-semibold text-white/50">Emotion</div>
-                              <div className="mt-1 text-sm font-semibold text-white">
+                              <div className="text-[11px] font-semibold text-[color:var(--muted)]">Emotion</div>
+                              <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">
                                 {summary.emotionalIndicators?.dominantEmotion || 'N/A'}
                               </div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-center">
-                              <div className="text-[11px] font-semibold text-white/50">
+                              <div className="text-[11px] font-semibold text-[color:var(--muted)]">
                                 Clinical urgency
-                                <span className="ml-1 text-[10px] text-white/40" title="Clinical assessment, not a chatbot quality score.">
+                                <span className="ml-1 text-[10px] text-[color:var(--muted)]" title="Clinical assessment, not a chatbot quality score.">
                                   info
                                 </span>
                               </div>
-                              <div className="mt-1 text-sm font-semibold text-white">
+                              <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">
                                 {summary.emotionalIndicators?.urgencyScore || 'N/A'} / 5
                               </div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-center">
-                              <div className="text-[11px] font-semibold text-white/50">Trend</div>
-                              <div className="mt-1 text-sm font-semibold text-white">
+                              <div className="text-[11px] font-semibold text-[color:var(--muted)]">Trend</div>
+                              <div className="mt-1 text-sm font-semibold text-[color:var(--app-fg)]">
                                 {summary.emotionalIndicators?.sentimentTrend || 'N/A'}
                               </div>
                             </div>
@@ -522,7 +522,7 @@ export default function MySessionHistory() {
 
                           {Array.isArray(summary.keyThemes) && summary.keyThemes.length > 0 && (
                             <div className="mt-4">
-                              <div className="text-xs font-semibold text-white/60">Key themes</div>
+                              <div className="text-xs font-semibold text-[color:var(--muted)]">Key themes</div>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {summary.keyThemes.map((theme, index) => (
                                   <span key={index} className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-100">
@@ -533,7 +533,7 @@ export default function MySessionHistory() {
                             </div>
                           )}
 
-                          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-white/70">
+                          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-[color:var(--app-fg)]">
                             {summary.rawSummary}
                           </div>
 
@@ -543,12 +543,12 @@ export default function MySessionHistory() {
 
                             return (
                               <div className="mt-5 border-t border-white/10 pt-4">
-                                <div className="mb-3 text-xs font-semibold text-white/60">Psychologist's notes</div>
+                                <div className="mb-3 text-xs font-semibold text-[color:var(--muted)]">Psychologist's notes</div>
                                 <div className="flex flex-col gap-2">
                                   {sessionNotes.map((note) => (
                                     <div key={note._id} className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3">
                                       <p className="text-sm text-amber-100">{note.content}</p>
-                                      <p className="mt-1 text-[11px] text-white/40">
+                                      <p className="mt-1 text-[11px] text-[color:var(--muted)]">
                                         {new Date(note.createdAt).toLocaleDateString()}
                                       </p>
                                     </div>
@@ -559,7 +559,7 @@ export default function MySessionHistory() {
                           })()}
                         </div>
                       ) : (
-                        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
+                        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-[color:var(--muted)]">
                           {session.status === 'completed'
                             ? 'No AI summary available.'
                             : 'Expand this card to review the session details.'}

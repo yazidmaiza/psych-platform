@@ -280,7 +280,85 @@ export default function PatientDashboard() {
         </div>
 
         {loading ? (
-          <div className="ui-glass px-6 py-4 text-[color:var(--muted)]">{t('loadingDashboard')}</div>
+          <div className="animate-pulse">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-gutter">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i} className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-32 rounded bg-white/10" />
+                    <div className="h-9 w-9 rounded-full bg-white/10" />
+                  </div>
+                  <div>
+                    <div className="h-6 w-48 rounded bg-white/10" />
+                    <div className="mt-3 h-4 w-32 rounded bg-white/10" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+              <div className="lg:col-span-2 flex flex-col gap-gutter">
+                <section className="bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] backdrop-blur-md border border-[color:var(--panel-border)] p-8 rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)]">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="h-5 w-40 rounded bg-white/10" />
+                    <div className="h-4 w-16 rounded bg-white/10" />
+                  </div>
+                  <div className="space-y-4">
+                    {Array.from({ length: 2 }).map((_, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-white/10" />
+                          <div>
+                            <div className="h-4 w-44 rounded bg-white/10" />
+                            <div className="mt-2 h-3 w-32 rounded bg-white/10" />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="h-4 w-16 rounded bg-white/10 ml-auto" />
+                          <div className="mt-2 h-3 w-12 rounded bg-white/10 ml-auto" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] backdrop-blur-md border border-[color:var(--panel-border)] p-8 rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)]">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="h-5 w-28 rounded bg-white/10" />
+                  </div>
+                  <div className="space-y-6">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="flex gap-4">
+                        <div className="h-3 w-3 rounded-full bg-white/10 mt-2" />
+                        <div className="flex-1">
+                          <div className="h-4 w-40 rounded bg-white/10" />
+                          <div className="mt-2 h-3 w-56 rounded bg-white/10" />
+                          <div className="mt-3 h-3 w-full rounded bg-white/10" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <div className="lg:col-span-1">
+                <aside className="bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] backdrop-blur-md border border-[color:var(--panel-border)] p-8 rounded-[24px] shadow-[0_8px_30px_rgba(27,77,92,0.08)] h-full">
+                  <div className="h-5 w-48 rounded bg-white/10 mb-6" />
+                  <div className="space-y-6">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="flex gap-4 items-start">
+                        <div className="h-9 w-9 rounded-full bg-white/10" />
+                        <div className="flex-1">
+                          <div className="h-4 w-32 rounded bg-white/10" />
+                          <div className="mt-2 h-3 w-full rounded bg-white/10" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-gutter">

@@ -1,11 +1,81 @@
 const Psychologist = require('../models/Psychologist');
 const User = require('../models/User');
+const CredentialDocument = require('../models/CredentialDocument');
+const axios = require('axios');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
 const { audit } = require('../services/auditService');
 const { notifyUser } = require('../services/notificationService');
 const {
   validateProfileCompleteness,
   validateDocumentsCompleteness
 } = require('../services/onboardingValidationService');
+const { resolvePrivatePath } = require('../services/credentialDocumentStorage');
+
+const truncateText = (value, maxChars) => {
+  const text = String(value || '');
+  if (!maxChars || text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + `\n\n[Truncated to ${maxChars} characters]`;
+};
+
+const extractPDFTextFromCredentialDoc = async (credentialDocId) => {
+  if (!credentialDocId) return '';
+  const doc = await CredentialDocument.findById(credentialDocId).select('storagePath mimeType');
+  if (!doc) return '';
+  if (String(doc.mimeType || '') !== 'application/pdf') return '';
+  try {
+    const { absolute } = resolvePrivatePath(doc.storagePath);
+    if (!fs.existsSync(absolute)) return '';
+    const buffer = fs.readFileSync(absolute);
+    const data = await pdfParse(buffer);
+    return data.text || '';
+  } catch (err) {
+    return '';
+  }
+};
+
+const analyzeWithGroq = async (cvText, diplomaText) => {
+  if (!process.env.GROQ_API_KEY) {
+    return 'AI summary unavailable: GROQ_API_KEY is not configured on the server.';
+  }
+
+  const MAX_DOC_CHARS = 12000;
+  const safeCvText = truncateText(cvText, MAX_DOC_CHARS);
+  const safeDiplomaText = truncateText(diplomaText, MAX_DOC_CHARS);
+
+  const response = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an assistant that verifies psychologist credentials. Analyze the provided CV and diploma and give a structured summary for the admin to help them decide whether to approve this psychologist. Be concise and professional.'
+        },
+        {
+          role: 'user',
+          content:
+            'CV:\n' +
+            safeCvText +
+            '\n\nDIPLOMA:\n' +
+            safeDiplomaText +
+            '\n\nPlease provide: 1) A summary of qualifications 2) Years of experience 3) Specializations mentioned 4) Whether the diploma appears legitimate 5) Overall recommendation (Approve/Review/Reject) with reason.'
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 800
+    },
+    {
+      headers: {
+        Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 45_000
+    }
+  );
+
+  return response?.data?.choices?.[0]?.message?.content || '';
+};
 
 const notifyAdmins = async ({ title, message, link = '', type = 'onboarding' }) => {
   const admins = await User.find({ role: 'admin' }).select('_id');
@@ -45,7 +115,7 @@ exports.getMyOnboarding = async (req, res) => {
 // @POST /api/onboarding/submit
 exports.submitOnboarding = async (req, res) => {
   try {
-    const psychologist = await Psychologist.findOne({ userId: req.user.id });
+    const psychologist = await Psychologist.findOne({ userId: req.user.id }).select('_id userId profileStatus submittedAt lastResubmittedAt isApproved isRejected credentialDocs firstName lastName city rejectionReason rejectedAt rejectionDetails onboardingHistory');
     if (!psychologist) return res.status(404).json({ message: 'Psychologist not found' });
 
     const currentStatus = String(psychologist.profileStatus || 'Draft');
@@ -79,6 +149,16 @@ exports.submitOnboarding = async (req, res) => {
     const now = new Date();
     const isResubmission = currentStatus === 'Rejected';
 
+    // Build AI summary from stored credential docs (CV + diploma). Never block submission on AI failures.
+    let aiSummary = '';
+    try {
+      const cvText = await extractPDFTextFromCredentialDoc(psychologist.credentialDocs?.cv);
+      const diplomaText = await extractPDFTextFromCredentialDoc(psychologist.credentialDocs?.diploma);
+      aiSummary = await analyzeWithGroq(cvText, diplomaText);
+    } catch (e) {
+      aiSummary = `AI summary unavailable: ${e?.message || 'unknown error'}`;
+    }
+
     await Psychologist.updateOne(
       { _id: psychologist._id },
       {
@@ -90,7 +170,8 @@ exports.submitOnboarding = async (req, res) => {
           rejectionReason: '',
           rejectedAt: null,
           rejectedByUserId: null,
-          rejectionDetails: { fields: [], documents: [] }
+          rejectionDetails: { fields: [], documents: [] },
+          aiVerificationSummary: String(aiSummary || '')
         }
       }
     );
@@ -126,4 +207,3 @@ exports.submitOnboarding = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
-

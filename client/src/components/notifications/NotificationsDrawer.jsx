@@ -77,6 +77,16 @@ export default function NotificationsDrawer({ open, onClose }) {
     }
   };
 
+  const clearAll = async () => {
+    if (!window.confirm('Delete all notifications?')) return;
+    try {
+      await api.del('/api/notifications');
+      setNotifications([]);
+    } catch (e) {
+      setError(e.message || 'Failed to delete notifications');
+    }
+  };
+
   return (
     <div className={`fixed inset-0 z-[70] ${open ? '' : 'pointer-events-none'}`}>
       <button
@@ -129,6 +139,14 @@ export default function NotificationsDrawer({ open, onClose }) {
                 className="rounded-xl bg-[color:var(--accent-90)] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 transition"
               >
                 Mark all read
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/15 transition"
+                title="Delete all notifications"
+              >
+                Clear all
               </button>
             </div>
 

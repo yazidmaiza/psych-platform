@@ -2,13 +2,13 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { isLoggedIn } from '../services/auth';
 
-function ProtectedRoute({ children, role }) {
+function ProtectedRoute({ children, role, allowUnverified = false }) {
     if (!isLoggedIn()) {
         return <Navigate to="/login" />;
     }
 
     const isVerified = localStorage.getItem('isVerified');
-    if (isVerified === 'false') {
+    if (!allowUnverified && isVerified === 'false') {
         const email = localStorage.getItem('email') || '';
         return <Navigate to={email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email'} />;
     }

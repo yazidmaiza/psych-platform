@@ -179,8 +179,6 @@ const getApplicationDocs = (application) => {
   return [
     ['cv', docs.cv],
     ['diploma', docs.diploma],
-    ['idFront', docs.idFront],
-    ['idBack', docs.idBack],
     ['introVideo', docs.introVideo]
   ].filter(([, doc]) => Boolean(doc && doc._id));
 };

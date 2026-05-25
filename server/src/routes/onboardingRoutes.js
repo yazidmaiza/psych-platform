@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { protectAllowUnverified, restrictTo } = require('../middleware/authMiddleware');
 const { getMyOnboarding, submitOnboarding } = require('../controllers/onboardingController');
 
-router.get('/me', protect, restrictTo('psychologist'), getMyOnboarding);
-router.post('/submit', protect, restrictTo('psychologist'), submitOnboarding);
+router.get('/me', protectAllowUnverified, restrictTo('psychologist'), getMyOnboarding);
+router.post('/submit', protectAllowUnverified, restrictTo('psychologist'), submitOnboarding);
 
 module.exports = router;
-

@@ -14,6 +14,7 @@ const path = require('path');
 const multer = require('multer');
 
 const { startNotificationWorker } = require('./services/notificationWorker');
+const { startBookingExpiryWorker } = require('./services/bookingExpiryWorker');
 const { getPublicUploadsRoot } = require('./utils/uploadRoots');
 
 // Routes
@@ -399,6 +400,7 @@ mongoose
     console.log('MongoDB connected');
 
     startNotificationWorker();
+    startBookingExpiryWorker();
     scheduleNightlyGapCheck();
 
     server.listen(process.env.PORT || 5000, () => {

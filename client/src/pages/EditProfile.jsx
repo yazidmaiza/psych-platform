@@ -30,6 +30,18 @@ export default function EditProfile() {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [error, setError] = useState('');
+  const [credentialDocs, setCredentialDocs] = useState([]);
+  const [credentialDocsLoading, setCredentialDocsLoading] = useState(false);
+  const [credentialDocsError, setCredentialDocsError] = useState('');
+  const [credentialUploadType, setCredentialUploadType] = useState('');
+  const [credentialUploadLoading, setCredentialUploadLoading] = useState(false);
+  const [credentialUploadFiles, setCredentialUploadFiles] = useState({
+    cv: null,
+    diploma: null,
+    idFront: null,
+    idBack: null,
+    introVideo: null,
+  });
 
   const userId = localStorage.getItem('userId');
 
@@ -80,6 +92,67 @@ export default function EditProfile() {
     fetchProfile();
     return () => { mounted = false; };
   }, [userId, t]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchCredentialDocs = async () => {
+      if (activeTab !== 'documents') return;
+      setCredentialDocsLoading(true);
+      setCredentialDocsError('');
+      try {
+        const data = await api.get('/api/credential-documents/my');
+        if (!mounted) return;
+        setCredentialDocs(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!mounted) return;
+        setCredentialDocs([]);
+        setCredentialDocsError(e.message || 'Failed to load credential documents');
+      } finally {
+        if (mounted) setCredentialDocsLoading(false);
+      }
+    };
+
+    fetchCredentialDocs();
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab]);
+
+  const openCredentialDoc = async (doc) => {
+    if (!doc?._id) return;
+    try {
+      const data = await api.get(`/api/credential-documents/${doc._id}/access-url`);
+      const url = toAbsoluteUrl(data?.url || '');
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setCredentialDocsError(e.message || 'Could not open document');
+    }
+  };
+
+  const uploadCredentialDoc = async (type) => {
+    const file = credentialUploadFiles?.[type] || null;
+    if (!file) return;
+
+    setCredentialUploadType(type);
+    setCredentialUploadLoading(true);
+    setCredentialDocsError('');
+    try {
+      const formData = new FormData();
+      formData.append('type', type);
+      formData.append('file', file);
+      await api.postForm('/api/credential-documents/upload', formData);
+      setCredentialUploadFiles((prev) => ({ ...prev, [type]: null }));
+
+      const data = await api.get('/api/credential-documents/my');
+      setCredentialDocs(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setCredentialDocsError(e.message || 'Failed to upload document');
+    } finally {
+      setCredentialUploadLoading(false);
+      setCredentialUploadType('');
+    }
+  };
 
   const updateField = (field, value) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -362,7 +435,74 @@ export default function EditProfile() {
 
           {activeTab === 'documents' && (
             <div className="space-y-4">
-              {['CV', 'Diploma', 'ID (Front)', 'ID (Back)', 'Intro Video'].map(doc => (
+              {credentialDocsError && (
+                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                  {credentialDocsError}
+                </div>
+              )}
+
+              <GlassPanel className="p-5">
+                <h3 className="text-lg font-semibold text-white mb-4">{t('documents')}</h3>
+
+                {credentialDocsLoading ? (
+                  <div className="text-sm text-white/60">Loading documents…</div>
+                ) : credentialDocs.length === 0 ? (
+                  <div className="text-sm text-white/60">No documents uploaded yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {credentialDocs.map((doc) => (
+                      <div
+                        key={doc._id}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white capitalize">{String(doc.type || '')}</div>
+                          <div className="text-xs text-white/60 truncate">{doc.originalName || doc.storagePath}</div>
+                        </div>
+                        <button
+                          onClick={() => openCredentialDoc(doc)}
+                          className="h-9 rounded-xl bg-white/5 px-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                        >
+                          {t('view')}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GlassPanel>
+
+              <GlassPanel className="p-5">
+                <h3 className="text-lg font-semibold text-white mb-4">{t('replace')}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { type: 'cv', label: 'CV (PDF)', accept: 'application/pdf' },
+                    { type: 'diploma', label: 'Diploma (PDF)', accept: 'application/pdf' },
+                    { type: 'idFront', label: 'ID Front (JPG/PNG)', accept: 'image/jpeg,image/png' },
+                    { type: 'idBack', label: 'ID Back (JPG/PNG)', accept: 'image/jpeg,image/png' },
+                    { type: 'introVideo', label: 'Intro Video (MP4/MOV/WEBM)', accept: 'video/mp4,video/webm,video/quicktime' },
+                  ].map((item) => (
+                    <div key={item.type} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="text-sm font-semibold text-white mb-2">{item.label}</div>
+                      <input
+                        type="file"
+                        accept={item.accept}
+                        onChange={(e) =>
+                          setCredentialUploadFiles((prev) => ({ ...prev, [item.type]: e.target.files?.[0] || null }))
+                        }
+                        className="glass-input w-full"
+                      />
+                      <button
+                        onClick={() => uploadCredentialDoc(item.type)}
+                        disabled={!credentialUploadFiles?.[item.type] || credentialUploadLoading}
+                        className="glass-button w-full mt-3 disabled:opacity-50"
+                      >
+                        {credentialUploadLoading && credentialUploadType === item.type ? 'Uploading…' : t('replace')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </GlassPanel>
+              {false && ['CV', 'Diploma', 'ID (Front)', 'ID (Back)', 'Intro Video'].map((doc) => (
                 <GlassPanel key={doc} className="p-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

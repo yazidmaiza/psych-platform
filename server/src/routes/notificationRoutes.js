@@ -55,6 +55,16 @@ router.put('/read/all', protect, async (req, res) => {
   }
 });
 
+// Delete all notifications
+router.delete('/', protect, async (req, res) => {
+  try {
+    const result = await Notification.deleteMany({ userId: req.user.id });
+    res.status(200).json({ success: true, deletedCount: result.deletedCount || 0 });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Get notification preferences
 router.get('/preferences', protect, async (req, res) => {
   try {

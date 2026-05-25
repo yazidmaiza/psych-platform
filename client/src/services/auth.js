@@ -127,16 +127,9 @@ export const refreshSession = async () => {
 
 export const authService = {
     login: async (email, password) => {
-        const data = await api.post('/api/auth/login', { email, password });
-        storeAuth({
-            accessToken: data.accessToken || data.token,
-            refreshToken: data.refreshToken,
-            user: data.user
-        });
-        if (data?.user) {
-            localStorage.setItem('user', JSON.stringify(data.user));
-        }
-        return data;
+        // Login is 2-step (2FA) for non-admin users. This call starts the login and sends a code.
+        // Use `/api/auth/login/verify` to exchange the code for tokens.
+        return api.post('/api/auth/login', { email, password, deviceId: getDeviceId() });
     },
 
     register: async (userData) => {

@@ -63,6 +63,10 @@ const psychologistSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  country: {
+    type: String,
+    default: ''
+  },
   location: {
     type: {
       type: String,
@@ -85,8 +89,8 @@ const psychologistSchema = new mongoose.Schema({
     default: 0
   },
   availability: {
-    type: String,
-    default: ''
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   isApproved: {
     type: Boolean,

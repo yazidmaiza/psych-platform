@@ -51,6 +51,48 @@ const protect = async (req, res, next) => {
   }
 };
 
+// Same as `protect` but does NOT require email verification.
+// Use for onboarding flows where we still want authenticated access before email is verified.
+const protectAllowUnverified = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('role isVerified passwordChangedAt');
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+
+    if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
+      return res.status(401).json({ message: 'Token expired. Please log in again.' });
+    }
+
+    if (decoded.sid) {
+      const session = await AuthSession.findById(decoded.sid);
+      if (!session || session.revokedAt || session.expiresAt < new Date()) {
+        return res.status(401).json({ message: 'Session revoked. Please log in again.' });
+      }
+      req.authSession = session;
+    }
+
+    req.user = {
+      id: user._id.toString(),
+      role: user.role,
+      isVerified: user.isVerified,
+      sessionId: decoded.sid || null
+    };
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
 const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -60,4 +102,4 @@ const restrictTo = (...roles) => {
   };
 };
 
-module.exports = { protect, restrictTo };
+module.exports = { protect, protectAllowUnverified, restrictTo };

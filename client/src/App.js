@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import ProtectedRoute from './components/ProtectedRoute';
@@ -44,12 +44,23 @@ import AdminPanel from './pages/AdminPanel';
 import AuditLog from './pages/AuditLog';
 
 function App() {
-  useEffect(() => {
-    const userId = localStorage.getItem('userId');
+  const lastJoinedUserIdRef = useRef(null);
 
-    if (userId) {
+  useEffect(() => {
+    const tryJoin = () => {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+      if (lastJoinedUserIdRef.current === userId) return;
       socket.emit('join_user', userId);
-    }
+      lastJoinedUserIdRef.current = userId;
+    };
+
+    // Join immediately (covers page reload)
+    tryJoin();
+
+    // Also retry periodically (covers SPA login without full reload)
+    const interval = setInterval(tryJoin, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -207,7 +218,7 @@ function App() {
           <Route
             path="/setup"
             element={
-              <ProtectedRoute role="psychologist">
+              <ProtectedRoute role="psychologist" allowUnverified>
                 <PsychologistSetup />
               </ProtectedRoute>
             }
@@ -216,7 +227,7 @@ function App() {
           <Route
             path="/psychologist/draft-profile"
             element={
-              <ProtectedRoute role="psychologist">
+              <ProtectedRoute role="psychologist" allowUnverified>
                 <PsychologistDraftProfile />
               </ProtectedRoute>
             }
@@ -225,7 +236,7 @@ function App() {
           <Route
             path="/profile/edit"
             element={
-              <ProtectedRoute role="psychologist">
+              <ProtectedRoute role="psychologist" allowUnverified>
                 <EditProfile />
               </ProtectedRoute>
             }
@@ -234,7 +245,7 @@ function App() {
           <Route
             path="/psychologist/dashboard"
             element={
-              <ProtectedRoute role="psychologist">
+              <ProtectedRoute role="psychologist" allowUnverified>
                 <Dashboard />
               </ProtectedRoute>
             }

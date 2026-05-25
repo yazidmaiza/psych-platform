@@ -16,7 +16,7 @@ function PublicPsychologistProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await api.get(`/api/psychologists/${id}`);
+        const data = await api.getPublic(`/api/psychologists/${id}`);
         setPsy(data);
       } catch (err) {
         console.error(err);

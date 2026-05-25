@@ -2,12 +2,20 @@ const RAW_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 export const BASE_URL = RAW_API_URL.replace(/\/api\/?$/, '');
 
 const getHeaders = () => ({
-    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    ...(localStorage.getItem('token')
+        ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        : {}),
     'Content-Type': 'application/json'
 });
 
 const getAuthHeaders = () => ({
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
+    ...(localStorage.getItem('token')
+        ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        : {})
+});
+
+const getPublicHeaders = () => ({
+    'Content-Type': 'application/json'
 });
 
 const parseResponseBody = async (res) => {
@@ -39,6 +47,21 @@ const toErrorFromResponse = (data, res) => {
 export const api = {
     get: async (url) => {
         const res = await fetch(`${BASE_URL}${url}`, { headers: getHeaders() });
+        const data = await parseResponseBody(res);
+        if (!res.ok) {
+            const err = new Error(toErrorFromResponse(data, res));
+            err.status = res.status;
+            throw err;
+        }
+        if (data && data.__nonJson) {
+            const err = new Error(toErrorFromResponse(data, res));
+            err.status = res.status;
+            throw err;
+        }
+        return data;
+    },
+    getPublic: async (url) => {
+        const res = await fetch(`${BASE_URL}${url}`, { headers: getPublicHeaders() });
         const data = await parseResponseBody(res);
         if (!res.ok) {
             const err = new Error(toErrorFromResponse(data, res));
@@ -95,6 +118,24 @@ export const api = {
             method: 'PUT',
             headers: getHeaders(),
             body: JSON.stringify(body)
+        });
+        const data = await parseResponseBody(res);
+        if (!res.ok) {
+            const err = new Error(toErrorFromResponse(data, res));
+            err.status = res.status;
+            throw err;
+        }
+        if (data && data.__nonJson) {
+            const err = new Error(toErrorFromResponse(data, res));
+            err.status = res.status;
+            throw err;
+        }
+        return data;
+    },
+    del: async (url) => {
+        const res = await fetch(`${BASE_URL}${url}`, {
+            method: 'DELETE',
+            headers: getHeaders()
         });
         const data = await parseResponseBody(res);
         if (!res.ok) {

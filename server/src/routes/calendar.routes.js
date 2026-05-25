@@ -26,16 +26,11 @@ const cancelSessionAndFreeSlot = async (session, reason) => {
         });
     }
 
-    try {
-        await createNotification({
-            userId: session.patientId,
-            title: 'Booking canceled',
-            message: reason || 'Your booking was canceled.',
-            link: '/patient/dashboard',
-            type: 'booking_canceled',
-            channels: ['in_app', 'email']
-        });
-    } catch {}
+    const when = session.scheduledStart ? new Date(session.scheduledStart).toLocaleString() : '';
+    const safeReason = reason || 'Your booking was canceled.';
+    const patientMessage = when ? `${safeReason} (Session: ${when})` : safeReason;
+
+    // Intentionally no notification for auto-cancel/free-slot helper.
 };
 
 const patientHasOpenSessionWithPsychologist = async ({ patientId, psychologistId }) => {
@@ -401,7 +396,9 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
         // 2 — Update the session to point to the new booked sub-slot
         session.calendarSlotId = bookedSlot._id;
         session.status = 'pending_payment';
-        session.paymentDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        // Guard against server clock skew causing immediate expiry
+        const nowMs = Date.now();
+        session.paymentDueAt = new Date(nowMs + 24 * 60 * 60 * 1000);
         session.confirmedAt = new Date();
         await session.save();
 

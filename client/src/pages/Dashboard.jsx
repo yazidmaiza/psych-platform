@@ -141,8 +141,15 @@ function Dashboard() {
     try {
       const data = await api.get('/api/psychologists/me');
       setPsychologistProfile(data || null);
-    } catch {
-      setPsychologistProfile(null);
+    } catch (e) {
+      try {
+        const fallbackUserId = localStorage.getItem('userId');
+        if (!fallbackUserId) throw e;
+        const data = await api.get('/api/psychologists/by-user/' + fallbackUserId);
+        setPsychologistProfile(data || null);
+      } catch {
+        setPsychologistProfile(null);
+      }
     } finally {
       setPsychologistProfileLoading(false);
     }

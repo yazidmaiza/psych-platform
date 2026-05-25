@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api } from '../services/api';
+import { api, toAbsoluteUrl } from '../services/api';
 import GlassPanel from '../components/dashboard/GlassPanel';
 
 export default function CreateSession() {
@@ -205,7 +205,7 @@ export default function CreateSession() {
             });
             const sessionId = data?.sessionId || data?._id || data?.data?.sessionId || data?.data?._id;
             if (!sessionId) throw new Error(t('bookingFailed'));
-            navigate('/payment/' + sessionId);
+            navigate('/patient/dashboard');
         } catch (e) {
             setError(e.message || t('bookingFailed'));
             setLoading(false);
@@ -224,27 +224,28 @@ export default function CreateSession() {
                     <div className="h-16 w-16 rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
                         {!psyLoading && psychologist?.photo ? (
                             <img
-                                src={psychologist.photo}
+                                src={toAbsoluteUrl(psychologist.photo)}
                                 alt={`${psychologist.firstName || ''} ${psychologist.lastName || ''}`}
                                 className="h-full w-full object-cover"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                             />
                         ) : (
-                            <div className="text-white/50">{psyLoading ? '...' : (psychologist?.firstName?.[0] || 'P')}</div>
+                            <div className="text-[color:var(--muted)]">{psyLoading ? '...' : (psychologist?.firstName?.[0] || 'P')}</div>
                         )}
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold text-white">{t('bookSessionWith')}</h1>
-                        <p className="text-sm text-white/60">
+                        <h1 className="text-xl font-semibold text-[color:var(--app-fg)]">{t('bookSessionWith')}</h1>
+                        <p className="text-sm text-[color:var(--muted)]">
                             {psyLoading
                                 ? t('loading')
                                 : (psychologist ? `${psychologist.firstName || ''} ${psychologist.lastName || ''}` : t('psychologist'))}
                         </p>
                         <div className="flex gap-1.5 mt-1">
                             {(psychologist?.specializations || []).slice(0, 3).map((spec) => (
-                                <span key={spec} className="text-xs text-white/40">{spec}</span>
+                                <span key={spec} className="text-xs text-[color:var(--muted)]">{spec}</span>
                             ))}
                         </div>
-                        <div className="mt-2 text-xs text-white/55">
+                        <div className="mt-2 text-xs text-[color:var(--muted)]">
                             {psychologist?.availability
                                 ? `Availability: ${psychologist.availability}`
                                 : 'Availability not provided'}
@@ -255,37 +256,37 @@ export default function CreateSession() {
                 <GlassPanel className="p-5 mb-8 border border-indigo-500/20 bg-indigo-500/5">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <h2 className="text-lg font-semibold text-white">{t('singleOffer')}</h2>
-                            <p className="mt-1 text-sm text-white/60">{t('singleOfferDesc')}</p>
+                            <h2 className="text-lg font-semibold text-[color:var(--app-fg)]">{t('singleOffer')}</h2>
+                            <p className="mt-1 text-sm text-[color:var(--muted)]">{t('singleOfferDesc')}</p>
                         </div>
                         <div className="text-right shrink-0">
-                            <p className="text-lg font-semibold text-white">${sessionPrice}</p>
-                            <p className="text-xs text-white/40">{t('perSession')}</p>
+                            <p className="text-lg font-semibold text-[color:var(--app-fg)]">${sessionPrice}</p>
+                            <p className="text-xs text-[color:var(--muted)]">{t('perSession')}</p>
                         </div>
                     </div>
                 </GlassPanel>
 
                 <GlassPanel className="p-5 mb-8">
                     <div className="flex items-center justify-between gap-3 mb-4">
-                        <h3 className="font-semibold text-white">{t('selectAvailabilitySlot')}</h3>
-                        <div className="text-xs text-white/45">
+                        <h3 className="font-semibold text-[color:var(--app-fg)]">{t('selectAvailabilitySlot')}</h3>
+                        <div className="text-xs text-[color:var(--muted)]">
                             {slotsLoading ? t('loading') : `${bookableWindows.length} option${bookableWindows.length === 1 ? '' : 's'}`}
                         </div>
                     </div>
 
                     <div className="mb-4 flex items-center gap-2">
-                        <span className="text-xs text-white/60">Duration</span>
+                        <span className="text-xs text-[color:var(--muted)]">Duration</span>
                         <button
                             type="button"
                             onClick={() => setSelectedDuration(60)}
-                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 60 ? 'border-indigo-500/60 bg-indigo-500/10 text-white' : 'border-white/15 bg-white/5 text-white/70'}`}
+                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 60 ? 'border-indigo-500/60 bg-indigo-500/10 text-[color:var(--app-fg)]' : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)]'}`}
                         >
                             {t('1hour')}
                         </button>
                         <button
                             type="button"
                             onClick={() => setSelectedDuration(90)}
-                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 90 ? 'border-indigo-500/60 bg-indigo-500/10 text-white' : 'border-white/15 bg-white/5 text-white/70'}`}
+                            className={`rounded-full border px-3 py-1 text-xs ${selectedDuration === 90 ? 'border-indigo-500/60 bg-indigo-500/10 text-[color:var(--app-fg)]' : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)]'}`}
                         >
                             {t('1h30min')}
                         </button>
@@ -298,14 +299,14 @@ export default function CreateSession() {
                     )}
 
                     {!slotsLoading && bookableWindows.length === 0 && (
-                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                        <div className="rounded-2xl border border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] px-4 py-3 text-sm text-[color:var(--muted)]">
                             {t('noSlots')}
                         </div>
                     )}
 
                     {!slotsLoading && dayOptions.length > 0 && (
                         <div className="mb-4">
-                            <div className="mb-2 text-xs text-white/60">Choose a day</div>
+                            <div className="mb-2 text-xs text-[color:var(--muted)]">Choose a day</div>
                             <div className="flex flex-wrap gap-2">
                                 {dayOptions.map((day) => {
                                     const isSelected = selectedDayKey === day.dayKey;
@@ -316,8 +317,8 @@ export default function CreateSession() {
                                             onClick={() => setSelectedDayKey(day.dayKey)}
                                             className={`rounded-full border px-3 py-1.5 text-xs transition ${
                                                 isSelected
-                                                    ? 'border-indigo-500/60 bg-indigo-500/10 text-white'
-                                                    : 'border-white/15 bg-white/5 text-white/70 hover:border-white/25'
+                                                    ? 'border-indigo-500/60 bg-indigo-500/10 text-[color:var(--app-fg)]'
+                                                    : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--muted)] hover:brightness-110'
                                             }`}
                                         >
                                             {day.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} ({day.count})
@@ -341,14 +342,14 @@ export default function CreateSession() {
                                     onClick={() => setSelectedWindowKey(window.key)}
                                     className={`rounded-2xl border px-4 py-4 text-left transition ${
                                         isSelected
-                                            ? 'border-indigo-500/60 bg-indigo-500/10 text-white'
-                                            : 'border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:bg-white/8'
+                                            ? 'border-indigo-500/60 bg-indigo-500/10 text-[color:var(--app-fg)]'
+                                            : 'border-[color:var(--panel-border)] bg-[color:var(--panel-bg)] text-[color:var(--app-fg)] hover:brightness-110'
                                     }`}
                                 >
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
                                             <div className="text-sm font-semibold">{start.toLocaleDateString()}</div>
-                                            <div className="mt-1 text-xs text-white/55">
+                                            <div className="mt-1 text-xs text-[color:var(--muted)]">
                                                 {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </div>
@@ -370,8 +371,8 @@ export default function CreateSession() {
 
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-sm text-white/60">{t('total')}</p>
-                        <p className="text-2xl font-semibold text-white">
+                        <p className="text-sm text-[color:var(--muted)]">{t('total')}</p>
+                        <p className="text-2xl font-semibold text-[color:var(--app-fg)]">
                                 ${sessionPrice}
                         </p>
                     </div>

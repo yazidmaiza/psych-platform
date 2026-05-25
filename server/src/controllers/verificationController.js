@@ -457,6 +457,18 @@ exports.approvePsychologist = async (req, res) => {
         }
       }
     );
+
+    try {
+      await notifyUser({
+        userId: psychologist.userId,
+        title: 'Account approved',
+        message: 'Your psychologist account has been approved. You are now visible to users and can start receiving bookings.',
+        link: '/psychologist/dashboard',
+        type: 'onboarding'
+      });
+    } catch (e) {
+      // best-effort notification
+    }
     res.status(200).json({ message: 'Psychologist approved', psychologist });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -506,6 +518,18 @@ exports.rejectPsychologist = async (req, res) => {
         }
       }
     );
+
+    try {
+      await notifyUser({
+        userId: psychologist.userId,
+        title: 'Account rejected',
+        message: `Your psychologist verification was rejected. Reason: ${reason}`,
+        link: '/profile/edit',
+        type: 'onboarding'
+      });
+    } catch (e) {
+      // best-effort notification
+    }
     res.status(200).json({ message: 'Psychologist rejected', psychologist });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
