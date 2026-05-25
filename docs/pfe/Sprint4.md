@@ -207,6 +207,61 @@ Sprint 4 requires combining secure payment authorization, real-time messaging, a
 - asynchronous workers for heavy processing,
 - and AI integration with enforceable safety policies and auditing.
 
+## Technical Architecture and Implementation
+
+### Real-time Messaging Architecture
+- The Socket.IO gateway runs alongside the Express API or as a separate horizontally scalable gateway. Authentication occurs during the Socket.IO handshake: the client provides an access token (JWT), which the gateway validates and maps to a user id. After validation, the socket is joined to rooms such as `session:{sessionId}` and `user:{userId}`.
+- For multi-instance scaling, the Socket.IO Redis adapter is used to propagate events across nodes. Presence information is kept ephemeral in a Redis store while message persistence is written to MongoDB for auditability and history retrieval.
+
+### Session Code Generation and Validation
+- Session codes are generated server-side as high-entropy tokens. After payment confirmation, the server issues a single-use session code bound to `sessionId`, `userId`, and an issuance timestamp. Codes are hashed before being stored to allow safe verification without raw token persistence.
+- Validation accepts code submissions via a secure `POST /api/sessions/{id}/join` endpoint that checks: code hash match, expiry window, and that the requester is a participant on the booking. Successful validation transitions the session to `ACTIVE` for the participant and issues socket join permission.
+
+### Payment Integration and Webhooks
+- Payments use a provider (e.g., Stripe) with server-side creation of payment intents and verification via webhook handlers. Webhook handlers are idempotent and verify signatures before changing booking/payment states. On success, the payment handler triggers issuance of the session code and notifies the participants.
+
+### Voice and Attachment Handling
+- Clients upload voice artifacts using presigned URLs. The backend records metadata (duration, mime-type, checksum) and the messaging system references the artifact URL in persisted message documents. Transcoding and duration extraction are performed by background workers where needed.
+
+### PDF Report Generation
+- Report generation is performed by a worker that composes session metadata, selectable conversation excerpts, clinician notes, and templates into a PDF using a rendering library (e.g., Puppeteer or wkhtmltopdf). PDFs are stored in secure object storage and access is controlled via signed download links.
+
+### AI Integration Points
+- The AI chatbot is integrated through a constrained service that mediates requests to the LLM provider. The service enforces prompt templates, safety filters, and maintains a minimal request/response log for audit. During sessions, the chatbot can provide supportive prompts and a therapist briefing generator which summarizes salient emotional signals — always flagged as AI-assistive and subject to clinician review.
+
+### AI Chatbot: In-Session Integration — Implementation Details
+
+- Architecture: The chatbot is implemented as a modular subsystem composed of a low-latency turn API, background workers for heavy tasks (embedding, PDF/OCR ingestion, summarization), an index service for vectors, and a policy/risk service. The turn API validates identity, loads `IntakeSession` context, performs retrieval and safety checks, and orchestrates generation through a guarded LLM interface.
+- Runtime pipeline (per turn):
+  1. Authenticate and load session/context.
+  2. Normalize language (Darija/Arabizi mapping) and pre-process input.
+  3. Retrieve relevant dialect lexicon candidates and document chunks (permission-filtered).
+  4. Run deterministic phrase detectors and an LLM-based risk classifier; escalate if needed.
+  5. Construct a stage-aware prompt incorporating persona constraints, retrieved context and safety instructions.
+  6. Execute generation via the guarded LLM service; post-filter outputs and attach provenance metadata.
+  7. Persist `ChatbotMessage`, update `IntakeSession`, enqueue summarization/compression tasks and emit events for notifications or clinician review.
+
+- Safety & Escalation: The system uses a hybrid approach — immediate regex/phrase detectors for high-precision crisis signals and an LLM classifier for contextual risk scoring. Escalations create `risk_alert` notifications, persist `AuditEvent` records, and surface clinician-facing summaries with evidence snippets.
+- Emotional Analysis: Per-turn emotional indicators are computed (lexical + LLM-derived vectors, plus prosodic features when audio is available) and aggregated into an emotional timeline used in clinician briefings and post-session analytics.
+- Human-in-the-loop: Summaries and emotion inferences are presented to clinicians for verification; corrections feed an active-learning pipeline (label storage, periodic re-indexing, and calibration). Low-confidence outputs are flagged for mandatory clinician review.
+- Observability and auditing: Every generation and retrieval call records minimal provenance: model id/version, retrieval ids, confidence scores, and a non-sensitive snapshot of inputs to support reproducibility and incident analysis.
+
+### Operational Recommendations for Chatbot in Sessions
+- Keep the turn API stateless and push heavy processing to workers; monitor queue depths and LLM call latencies.
+- Maintain a model registry that records which model version produced each embedding or generation result.
+- Provide clinician controls to disable AI assistance per-session and to request human-only mode when preferred.
+
+### Security and Compliance
+- All message and attachment accesses are permission-checked. Signed URLs include short TTLs and are scoped to the requester. Worker-to-storage access uses per-job short-lived credentials.
+- Webhook endpoints (payments, transcription callbacks) verify provider signatures and use idempotency keys to prevent duplicated processing.
+
+### Observability and Operational Recommendations
+- Instrument socket events, join/leave rates, message delivery latencies, and worker queue depths. Maintain dashboards and alerts for failed PDF generations, webhook failures, and high message error rates.
+
+### Suggested Next Steps
+- Add automated integration tests for the socket handshake and room authorization.
+- Implement an operational runbook for handling payment webhook retries and disputed payments.
+
 # Design (UML diagrams)
 This section describes UML artifacts textually and includes optional Mermaid diagrams for clarity.
 

@@ -114,239 +114,147 @@ Psych Platform is a production-oriented mental health platform that unifies pati
 
 ## 10. Chatbot Technical Deep Dive (PFE Focus)
 
-### 10.1 Design Goals
-The chatbot is not a generic Q&A bot. It is designed as a structured pre-session intake assistant with four technical goals:
-- collect clinically useful context through staged conversation,
-- maintain empathetic and professional communication quality,
-- detect risk early and escalate safely,
-- generate structured summaries for psychologist review.
+### 10. Chatbot Technical Deep Dive (PFE Focus)
 
-### 10.2 High-Level Runtime Architecture
-The chat pipeline is implemented as an orchestrated workflow in `server/src/workflows/chatRoute.js`, where each turn passes through modular skills.
+10.1 Overview and Design Objectives
 
-Pipeline overview for one user turn:
-1. Validate access and load intake stage/session state.
-2. Run risk analysis (rule-based + LLM classification).
-3. Run manipulation analysis and persona resolution.
-4. Compute stage warning/transition logic.
-5. Build RAG context from two sources:
-	 - Darija psychological lexicon vector retrieval.
-	 - PDF knowledge retrieval from vector chunks.
-6. Generate response with prompt hierarchy and guardrails.
-7. Persist turn and update stage counters.
-8. Compress older context asynchronously for long conversations.
+The chatbot subsystem is engineered as an assistive clinical intelligence layer that supports intake, longitudinal monitoring, and clinician briefing. It is explicitly designed to augment the clinician workflow (not to replace professional judgment) and prioritizes safety, transparency, and auditability. Primary goals:
+- Collect structured clinical intake data through a stage-oriented conversational protocol.
+- Provide empathetic, culturally-aware responses (Darija/Arabic/French/English) while enforcing safety constraints.
+- Detect and escalate risk (self-harm, abuse, acute distress) using a hybrid rule + ML pipeline.
+- Produce concise, explainable session summaries and emotional timelines to support clinician decision-making.
 
-### 10.3 Session and Stage-Oriented Intake Strategy
-The chatbot uses a stage-based protocol (5 stages) stored in MongoDB (`intake_protocol` collection) and loaded through `IntakeProtocolServer`.
+10.2 System Architecture and Runtime Pipeline
 
-Key mechanism:
-- `IntakeSession` tracks `currentStage`, per-stage turn counts, completion status, risk counters, and rolling context summary.
-- `AdvanceIntakeStage` implements soft transitions:
-	- warning one turn before stage limit,
-	- transition when the limit is reached,
-	- progression to the next stage without abruptly interrupting the patient.
+The chatbot is implemented as a set of modular microservices within the backend monorepo: a lightweight HTTP turn API, dedicated worker processes for heavy tasks (embedding, OCR, PDF parsing, summarization), an embedding/indexing service, and a policy & risk service. The runtime turn pipeline executed by `server/src/workflows/chatRoute.js` follows these stages:
+1. Authentication & authorization: validate user identity and session permissions.
+2. Session/load context: load `IntakeSession`, recent `ChatbotMessage` history, localized preferences, and active intake protocol.
+3. Pre-processing: language & dialect normalization (Darija mapping), token-cleaning, and short-cache lookups.
+4. Retrieval: query dialect lexicon and document RAG indices to assemble a bounded context (top-k chunks with provenance metadata).
+5. Safety checks: run deterministic phrase detectors and an LLM-based risk classifier; short-circuit or escalate if immediate harm is detected.
+6. Prompt construction: build a staged, persona-aware prompt that composes retrieved passages, recent turns, and constrained instructions.
+7. Generation & post-filtering: execute LLM call(s) through a guarded service, post-process outputs, and apply policy filters.
+8. Persistence & side-effects: store the turn (`ChatbotMessage`), update `IntakeSession` state, enqueue summarization/compression jobs if needed, and emit notifications/events.
 
-This creates controlled data collection quality while preserving conversational naturalness.
+Decoupling heavy tasks into workers (embedding, OCR, PDF ingestion, summarization) keeps the turn API low-latency and horizontally scalable.
 
-### 10.4 Hybrid RAG Strategy
-The chatbot uses a hybrid retrieval strategy composed of two distinct knowledge channels.
+10.3 Stage-Oriented Intake Protocol
 
-#### A) Darija semantic knowledge retrieval
-Purpose: improve interpretation of Tunisian dialect and Arabizi expressions.
+Intake is modeled as a finite-state, stage-based protocol captured in `intake_protocol` documents. Each `IntakeSession` records `currentStage`, per-stage counters, soft timeouts, and risk counters. Transitions are implemented as soft policies that warn the user before moving stages, allow manual clinician overrides, and preserve partial responses as draft data. This design balances structured data capture with conversational naturalness.
 
-Technical flow:
-1. Normalize message (`NormalizeDarijaText`) by mapping Arabizi patterns (for example `7 -> ح`, `9 -> ق`, `3 -> ع`).
-2. Generate embedding with `ExtractVectorEmbedding` using `GeminiLLMServer.embedContent`.
-3. Query MongoDB Atlas Vector Search (`darija_vector_index`, collection `darija_knowledge`).
-4. Retrieve top candidates and convert them into structured context text.
-5. If no relevant match is found, trigger auto-enrichment (`EnrichDarijaVocabulary`) to infer meaning and insert a new vectorized entry.
+10.4 Hybrid RAG and Dialect Adaptation
 
-Important implementation detail:
-- The darija retrieval path is optimized for lexical and dialect understanding, not only general clinical PDFs.
+The retrieval layer combines two orthogonal channels:
+- Dialect lexicon channel (Darija): a curated, growing vectorized lexicon for Tunisian dialect and Arabizi transliterations. Inputs are normalized using deterministic mapping rules before embedding. The lexicon supports fast lookups for cultural idioms and mapped clinical expressions.
+- Document RAG channel: domain knowledge and patient documents (PDFs) are chunked, embedded, and stored in an index (Atlas Vector Search or FAISS/Milvus in production). Each chunk stores provenance metadata (source id, page, offset) to enable explicit citations in generated responses.
 
-#### B) Document/PDF RAG retrieval
-Purpose: inject evidence from curated clinical documents.
+Retrieval is permission-aware: patient-specific documents are filtered by ownership and session-level consent before being included in the prompt.
 
-Ingestion and storage:
-- `ingestKnowledge.js` ingests PDFs from `server/knowledge_base/`.
-- Files are split with `RecursiveCharacterTextSplitter`.
-- Chunks are embedded with Google Gemini embeddings (`text-embedding-004`).
-- Stored in MongoDB collection `rag_chunks` using Atlas Vector Search index `vector_index`.
+10.5 Embeddings, Chunking and Indexing
 
-Query-time retrieval:
-- `RetrieveKnowledgeChunks` runs similarity search with top-k retrieval (k=4).
-- Retrieved chunks are injected into prompt context with source metadata.
+- Chunking: PDFs and long texts are split using configurable chunk sizes (e.g., 700–1200 chars with overlaps) to balance context and retrieval precision.
+- Embeddings: a stable embeddings model is used (provider-backed or open-source) and stored alongside chunk metadata. The system records model version and parameters for each embedding to support reproducibility and audits.
+- Indexing: vector indices are periodically compacted and backed up. A text-index fallback is implemented for resilience (when vector services are offline).
 
-### 10.5 Additional Document RAG Subsystem (Psychologist Uploads)
-In parallel to global knowledge RAG, the platform includes patient-specific document RAG:
-- upload endpoint accepts PDF files,
-- text extraction via `pdf-parse`,
-- chunking (default `DOC_CHUNK_SIZE=800`, overlap `DOC_CHUNK_OVERLAP=100`),
-- embeddings with `text-embedding-004`,
-- storage in `patient_doc_chunks`.
+10.6 Prompt Engineering, Persona and Explainability
 
-Retrieval strategy is resilient by design:
-1. vector search if embeddings/index are available,
-2. text-index search fallback,
-3. regex fallback.
+Prompt templates are hierarchical and stage-aware. Templates explicitly require the model to cite sources and to mark any low-confidence claims. Personality/persona settings (tone, directiveness) are applied as surface-level modifiers; safety and escalation constraints are supremely prioritized and cannot be overridden by persona settings.
 
-This guarantees graceful degradation even when vector infrastructure is missing.
+Explainability measures include:
+- Returning the list of retrieved chunks used as context (with source references).
+- Attaching a `confidence` field and note when the model's answer relied on low-confidence extractions.
 
-### 10.6 Prompt Engineering Techniques
-The response generator (`GenerateEmpatheticResponse.js`) applies multiple prompt-engineering techniques:
+10.7 Context Compression and Long-Horizon Memory
 
-1. Hierarchical instruction design:
-- strict response rules,
-- safety and risk behavior constraints,
-- persona style constraints,
-- example-guided style adaptation.
+To support long conversations while bounding token usage, the system employs a two-tier memory strategy:
+- Short-term memory: recent N turns preserved verbatim for immediate context (configurable N, default 8).
+- Long-term memory: older turns are summarized via an LLM compression job into a structured `contextSummary` that preserves clinically salient facts, sentiment/emotion markers, and unresolved action items. Compression jobs are asynchronous and versioned.
 
-2. Stage-aware prompting:
-- stage name, goal, and probe suggestions are injected at each turn.
+10.8 Safety, Risk Detection and Escalation
 
-3. Retrieval-grounded context composition:
-- darija context,
-- PDF clinical context,
-- manipulation flag notes,
-- recent chat history,
-- compressed early-session summary.
+Risk detection is hybrid:
+- Deterministic detectors (regex, phrase lists) capture high-precision suicidal ideation or violent intent indicators for immediate escalation.
+- An LLM-based classifier provides contextual risk scoring (LOW/MEDIUM/HIGH) with category labels and confidence. Classifier outputs are audited and versioned.
 
-4. Active disclosure linking:
-- when old context is compressed, stage-specific linking instructions force the model to connect earlier disclosures with current messages instead of re-asking.
-erflow, the system uses a rolling context window:
-- recent turns are kept verbatim (limit=8),
-- older turns are compressed into a clinical summary (`contextSummary`) via LLM,
-- compressed summary is reinjected in later prompts.
+Escalation policy:
+- Immediate termination + clinician notification for high-certainty crisis indicators.
+- Escalation events create `risk_alert` notifications, persist an `AuditEvent`, and, when configured, surface a clinician-facing summary with timestamps and evidence snippets.
 
-Fallback strategy:
-- primary compression provider: Groq,
-- fallback: Gemini,
-- failure is non-fatal (chat still continues).
+10.9 Emotional Analysis and Longitudinal Tracking
 
-### 10.8 Safety, Risk, and Escalation Design
-Risk analysis is implemented as a multi-layer defense:
+Emotional indicators are computed per turn using a combination of lexical sentiment analysis, prosodic signals (if voice is available), and LLM-derived emotion vectors. These are normalized into an `EmotionalIndicator` vector stored per turn and aggregated into a session-level emotional timeline used in clinician briefings and analytics.
 
-1. Immediate phrase detector:
-- direct self-harm / harm-to-others / coercion patterns trigger instant high-risk payload.
+10.10 Human-in-the-Loop Workflows and Active Learning
 
-2. LLM risk classifier:
-- `RiskAnalysisServer` classifies into LOW/MEDIUM/HIGH + category + confidence + urgency.
+Summaries and emotion inferences are surfaced to clinicians with an explicit feedback mechanism. Psychologists can annotate summaries, correct emotion labels, and mark hallucinations. Corrections feed an active learning pipeline that:
+- logs corrections as labeled examples,
+- triggers periodic model re-indexing or calibration (manual review required),
+- records provenance so that retraining or model updates remain auditable.
 
-3. Stateful escalation policy:
-- consecutive HIGH messages are tracked.
-- when threshold is reached (`CRISIS_HOLD_THRESHOLD=2`), session enters `crisisHold`.
+10.11 Data Models and API Contracts
 
-4. Operational escalation:
-- generates risk alerts,
-- creates notifications for psychologists,
-- emits Socket.IO events (`risk_alert`, `crisis_alert`),
-- supports urgent dashboard behavior.
+Key models (abbreviated):
+- `ChatbotMessage` {id, sessionId, role, content, lang, tokens, emotionalVector, createdAt}
+- `IntakeSession` {id, userId, currentStage, riskCounters, contextSummary, status}
+- `ChatbotSummary` {sessionId, summaryText, themes, dominantEmotion, confidence, createdAt}
+- `PatientDocumentChunk` {docId, chunkText, embeddingRef, sourceMeta, createdAt}
+- `AuditEvent` {actorId, action, targetRef, payloadSnapshot, createdAt}
 
-This architecture couples AI classification with deterministic safety controls.
+API contracts expose typed JSON DTOs and always include minimal provenance metadata (model versions, retrieval ids, confidence scores). Endpoints include `/api/chatbot/turn`, `/api/chatbot/summary`, `/api/chatbot/feedback`, and document ingestion/query endpoints under `/api/documents`.
 
-### 10.9 Manipulation and Boundary-Testing Detection
-Separate analysis detects emotional coercion/boundary testing:
-- classifier returns `is_manipulative`, type, confidence, and reasoning,
-- if flagged, prompt context instructs the assistant to keep firm professional boundaries.
+10.12 Evaluation, Metrics and Research Rigor
 
-This prevents compliance with unsafe coercive language while preserving empathetic communication.
+Evaluation is multi-dimensional:
+- Retrieval metrics: Hit@k, MRR for RAG retrievals against a curated validation set.
+- Generation groundedness: fraction of answers with correct citations and a hallucination score (manual or automated evaluation).
+- Safety metrics: false negatives/false positives on crisis detection using a labeled safety test set.
+- Usability metrics: completion rates across intake stages, drop-off points, and average time-to-complete.
+- Clinical relevance: psychometric evaluation via clinician-rated summary quality (blind review) and inter-rater agreement.
 
-### 10.10 Persona-Conditioned Response Layer
-The platform personalizes response style according to psychologist persona configuration:
-- tone,
-- reflection level,
-- question style,
-- directiveness,
-- verbosity,
-- pacing,
-- preferred language,
-- optional first-turn greeting.
+Recommended experimental protocol for the PFE:
+1. Construct held-out test sets for retrieval (document-query pairs) and safety (annotated crisis/non-crisis messages).
+2. Report embedding model version, retrieval hyperparameters (k, similarity metric), and prompt templates.
+3. Present ablation studies: with/without dialect lexicon, with/without compression, and different persona templates.
 
-Critical safety rule:
-- persona controls style only,
-- safety and risk protocols always override persona settings.
+10.13 Deployment, Scaling and Observability
 
-### 10.11 Reliability and Fault Tolerance
-Reliability techniques implemented in code:
-- shared exponential backoff retry utility (`withRetry`),
-- transient error detection (429, 5xx, network timeouts),
-- provider fallback chains (Gemini <-> Groq in specific steps),
-- non-fatal handling for optional enrichment/critique paths.
+Deployment recommendations:
+- Host turn API behind an autoscaling group with low-latency routing; use workers (queue consumers) for embedding, OCR and summarization.
+- Use Redis-backed queues (BullMQ) and monitor queue depth, worker error rates, and task latencies.
+- Scale vector index with a managed vector DB (Milvus/FAISS/Atlas Vector Search); shard or replicate as necessary.
 
-The system is engineered to degrade gracefully rather than fail hard.
+Observability:
+- Instrument latency per pipeline stage, LLM call durations, retrieval hit rates, and safety classifier metrics.
+- Audit logs must be write-once and include model versions, decisions, and minimal contextual data necessary for post-hoc review.
 
-### 10.12 Human-in-the-Loop Quality Control
-Summary generation is not fully autonomous. It includes review loops:
+10.14 Security, Privacy, and Compliance
 
-1. Primary summary pass:
-- outputs dominant emotion, urgency score, sentiment trend, key themes, and raw summary.
+- Consent: explicit user consent is recorded prior to ingesting clinical documents into RAG indices; consent status is checked at retrieval time.
+- Data minimization: retain only necessary context for clinical utility; store PHI in encrypted storage and reduce prompt retention in logs.
+- Access control: RBAC enforced for all endpoints; admin-level operations are logged and require justifications.
+- Key management: secrets and model API keys are stored in a secrets manager; workers obtain short-lived credentials.
 
-2. Secondary critique pass:
-- returns `confidenceScore` (1-5) and critique note.
-- low-confidence summaries are flagged for psychologist verification.
+10.15 Ethical AI, Governance and Clinical Integration
 
-3. Psychologist feedback loop:
-- psychologists can submit rating, accuracy flag, corrected emotion/themes, and notes.
+The platform treats AI outputs as assistive. Governance measures:
+- Model registry: record model/artifact id and version for every embedding/generation call.
+- Human oversight: clinician validation required for any automated clinical decisioning; AI-only flags are advisory.
+- Transparency: UI displays provenance and confidence, and provides an easy path for patients/clinicians to contest or correct outputs.
 
-4. Knowledge gap analytics:
-- repeated corrected emotions (>=3) trigger gap detection.
-- auto-reseed updates embeddings for matching knowledge items.
+10.16 Limitations, Reproducibility and Future Work
 
-This is a practical active-learning pattern for continuous improvement.
+Known limitations include dependency on embedding coverage, variable PDF extraction quality, and the need for larger, annotated datasets for safety evaluation. For reproducibility, the PFE should include:
+- A snapshot of the evaluation dataset(s), retrieval queries, and scoring scripts.
+- A versioned prompt and model registry entry describing exact prompts and model parameters used in experiments.
 
-### 10.13 Data Models Used by Chatbot Stack
-Main chatbot-related data structures:
-- `ChatbotMessage`: role, content, intake stage, timestamps.
-- `IntakeSession`: stage state, risk counters, crisis hold, context summary.
-- `ChatbotSummary`: structured summary, recommendations, confidence, psychologist feedback.
-- `ChatbotSummaryArchive`: preserves snapshots when conversation is reset.
-- `EmotionalIndicator`: computed emotional score vectors per patient/session.
-- `ChatbotReport`: generated PDF summary metadata and storage path.
+Future research directions:
+- Formal evaluation of dialect handling (Darija) and cross-lingual retrieval effectiveness.
+- Integrating lightweight on-device preprocessing for privacy-sensitive scenarios.
+- Developing continuous evaluation pipelines to detect drift in retrieval and generation quality.
 
-RAG-related models:
-- `PatientDocument`,
-- `PatientDocumentChunk` (with optional embeddings and text index fallback support).
+10.17 Practical Recommendations for the PFE Submission
 
-### 10.14 Chatbot and RAG Endpoints (Practical View)
-Operational routes include:
-- `/api/chatbot/chatbot` (main turn endpoint),
-- `/api/chatbot/reset`, `/api/chatbot/chatbot/end`,
-- `/api/chatbot/messages`, `/api/chatbot/summary`,
-- summary feedback routes for psychologist/admin,
-- knowledge gap analytics and manual reseed endpoints,
-- patient data export/delete routes for rights handling.
+- Include a compact experimental appendix with dataset descriptions, evaluation metrics, and selected prompts used in the defense.
+- Provide exemplar anonymized transcripts showing intake progression, retrieved citations, and the final clinician-facing summary.
+- Emphasize the human-in-the-loop design and ethical safeguards in both written chapters and the oral defense.
 
-Document RAG routes:
-- `/api/documents/upload/:patientId`,
-- `/api/documents/patient/:patientId`,
-- `/api/documents/query/:id`.
-
-### 10.15 Techniques You Can Explicitly Mention in PFE Defense
-For your oral defense/report, you can frame the implementation as the combination of these techniques:
-- Retrieval-Augmented Generation (hybrid dual-RAG: dialect knowledge + PDF knowledge).
-- Semantic vector search with Atlas Vector Search.
-- Dynamic prompt orchestration with stage-aware control.
-- Context window compression for long-horizon conversational memory.
-- Rule + LLM hybrid risk classification.
-- Crisis-state machine with deterministic escalation threshold.
-- Persona-conditioned generation under safety constraints.
-- Human-in-the-loop correction and active knowledge refinement.
-
-### 10.16 Current Limitations and Improvement Opportunities
-Current constraints:
-- retrieval quality depends on embedding coverage and index quality,
-- PDF parsing robustness can vary by document type,
-- retrieval currently has limited explicit citation ranking calibration,
-- no formal offline benchmark metrics are yet documented.
-
-Recommended PFE next steps:
-1. Add offline RAG evaluation metrics (Hit@k, MRR, groundedness).
-2. Add hallucination scoring and automated red-team tests.
-3. Add multilingual retrieval evaluation for Darija/French/English mixtures.
-4. Add per-stage quality KPIs (completion quality, drop-off, escalation precision).
-5. Add continuous prompt/version registry for reproducibility.
-5. Few-shot style guidance:
-- dynamic examples are selected to guide tone and response structure.
-
-### 10.7 Context Compression and Long-Conversation Memory
-To avoid context loss and token ov
