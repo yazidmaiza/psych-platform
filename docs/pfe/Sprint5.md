@@ -154,6 +154,72 @@ Definition of Done (DoD):
 # Analysis
 Sprint 5 introduces enrichment features that increase platform adoption and operational maturity. The main challenges include (1) permission-scoped AI retrieval, (2) correctness and fairness of ratings, (3) reliable notifications, and (4) consistent multilingual UI behavior including RTL.
 
+## Technical Implementation and AI Design
+
+### Document AI Indexing and RAG Pipeline
+ Document ingestion follows a secure pipeline: user uploads are stored in encrypted object storage, text is extracted (OCR for images/PDFs), content is chunked into overlapping passages, and embeddings are computed using an embeddings model (open-source or provider API). Chunks and metadata are stored in an embedding index (e.g., FAISS, Milvus) and a small document registry holds provenance and access controls.
+ During queries, the system retrieves nearest-neighbour chunks from the embedding index, then performs a retrieval-augmented generation (RAG) pass where the LLM is provided only the retrieved passages and strict prompt templates that require source attribution. The response includes cited excerpts and a relevance map so clinicians can verify outputs.
+
+### Document RAG — Implementation and Governance
+
+- Architecture and components: The RAG subsystem comprises ingestion workers (OCR, chunking, embedding), a vector index (Atlas Vector Search / FAISS / Milvus), a document registry containing provenance and permissions, and a guarded generation service that composes RAG prompts with retrieved chunks and persona/safety constraints.
+- Chunking and embeddings: Documents are split into chunks (700–1200 characters with overlap) to balance retrieval granularity and context. Each chunk stores embedding metadata including model id and parameters for auditability. A fallback text-index is kept for resilience when vector services are degraded.
+- Permission scoping: At query time, retrieved chunks are filtered by ownership and consent flags. Patient-uploaded documents are only included in a clinician or patient query if explicit consent has been recorded and the requester is authorized.
+- Explainability: Every RAG response includes a `sources` array with retrieval ids, source filenames, and page offsets. The UI highlights cited excerpts next to the generated answer so clinicians can validate grounding.
+
+### Dialect Handling and the Floating Assistant
+
+- Darija lexicon: The floating assistant integrates a dialect lexicon channel that normalizes Arabizi and Tunisian dialect input using deterministic mappings (e.g., `7 -> ح`). Normalized tokens are embedded and matched against a curated Darija knowledge index to surface culturally-relevant phrasing and avoid misinterpretation.
+- Assistant behavior: The floating assistant uses the same guarded generation pipeline as the session chatbot but with reduced clinical permissions; it favors navigation, FAQs, and non-diagnostic suggestions unless explicitly authorized to access patient documents.
+
+### Evaluation and Metrics (applies to document-AI and assistant)
+
+- Retrieval metrics: evaluate Hit@k and MRR on curated query-document pairs.
+- Groundedness: measure fraction of outputs with verifiable citations; incorporate manual spot-checks into quality assurance.
+- Safety: maintain a labeled safety test set to track false negatives/positives of crisis detection.
+- Usability: measure assistant usage rates, task completion, and feedback scores from clinicians.
+
+### Human-in-the-Loop and Active Learning for Document QA
+
+- Feedback loop: Clinicians can flag incorrect excerpts, mark hallucinations, or adjust relevance. Flags are logged and used as labeled examples for retraining or re-indexing.
+- Model/version tracking: Store model/version metadata with each embedding/generation to allow rollback and reproducibility in research experiments.
+
+### Operational and Security Notes
+
+- Consent enforcement is critical: document ingestion records consent metadata and retrieval checks consent at query time.
+- Data minimization: do not include raw PHI in prompts; include only necessary extracted fields and chunk excerpts.
+- Rate-limiting and cost controls: monitor embedding and generation calls and apply quotas per-tenant to control provider costs.
+
+### Suggested Additions for Sprint 5 Documentation
+
+- Add sample datasets and an evaluation appendix with example queries and scoring scripts to demonstrate RAG performance in the PFE.
+- Include anonymized example interactions for the floating assistant showing how cited sources are attached to answers.
+
+### Permission Scopes and Privacy
+ Access control is enforced at query time: retrieved chunks are filtered by ownership and permission policies before being sent to the LLM. The system logs each AI query with minimal retained prompt context and links it to the requesting user and document IDs for auditing while minimizing PHI retention.
+
+### Ratings and Moderation
+ Ratings are constrained to completed sessions and are stored with a link to the session id to prevent duplicate submissions. A moderation pipeline analyzes textual feedback for policy violations (PII leakage, abusive content) and surfaces questionable items for manual review. Aggregations (average rating, confidence intervals) are computed server-side to avoid client-side manipulation.
+
+### Notifications System Architecture
+ Events are emitted from domain services (booking, session, admin decisions) into an event bus. A notifications service consumes events, creates persistent notification records (read/unread), and attempts delivery via real-time gateway (socket emit) plus optional channels (email/push) using per-user preferences. Delivery retries and dead-letter handling ensure eventual consistency.
+
+### Psychologist Dashboard and Analytics
+ The dashboard aggregates read-optimized metrics: upcoming sessions, average session duration, rating trends, and AI-assisted flags (e.g., high emotional volatility). Metrics are pre-aggregated in background jobs to support low-latency UI rendering and decouple heavy queries from the main API.
+
+### I18n and RTL Implementation
+ The frontend uses a key-based i18n system with independent locale bundles for EN/FR/AR. Directionality is controlled at a top-level layout component which sets `dir="rtl"` for Arabic and adjusts CSS via logical properties or a direction-aware utility layer. Date/time and numeric formats use `Intl` with locale-aware formatting.
+
+### Ethical AI and Clinical Safeguards
+ AI components are explicitly framed as assistive: outputs include confidence scores, provenance links, and clinician-facing disclaimers. Crisis or safety-sensitive prompts are detected by a policy engine that blocks or elevates to human review. The system retains audit trails for AI interactions and supports model version tracking.
+
+### Scalability, Observability, and Operations
+ Embedding indexes and RAG layers are treated as separate horizontally scalable services. Usage costing and quota enforcement protect against runaway LLM usage. Observability spans embedding query latencies, RAG latencies, notification delivery rates, and audit logs for AI queries.
+
+### Suggested Improvements
+ Introduce differential translation review workflow for critical clinical content to ensure translations preserve therapeutic meaning.
+ Maintain a model registry and drift detection to monitor embedding and LLM behavior over time.
+
 ## UserStoryDeconstructionandRequirementsElicitation
 ### Functional Requirements
 **Psychologist dashboard**

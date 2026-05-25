@@ -191,6 +191,33 @@ Key integration highlights:
 ## AnalysisConclusion
 Sprint 3 requires a scheduling-aware design that connects discovery to booking without inconsistencies. The core technical challenges are (1) accurate time handling, (2) concurrency-safe booking, and (3) performant filtering with geospatial ranking. A state machine approach with clear invariants and strong authorization provides a robust foundation for patient engagement features.
 
+## Technical Implementation Details
+
+### Search & Geospatial Implementation
+- Psychologist location data is stored as GeoJSON points in MongoDB with a 2dsphere index to support proximity queries. Queries combine text filters (specialization, language) with geospatial `$near` clustering to compute a relevance score that mixes distance and profile quality signals (rating, availability).
+- For higher scale or richer ranking signals, a search engine (Elasticsearch or OpenSearch) can be introduced: documents would include precomputed embeddings (for semantic match), availability summaries, and coarse location fields to support hybrid ranking.
+
+### Availability Model and Slot Generation
+- Availability is expressed as recurring rules (RRULE-like objects: day-of-week, start/end times, timezone, exceptions). A slot-generation service materializes available slots for a query range by applying recurrence rules, subtracting exceptions, and excluding times blocked by confirmed bookings.
+- Slot generation is cacheable for short date ranges and parameterized by `psychologistId` and `timeRange` to keep cache granularity manageable.
+
+### Booking State Machine and Concurrency
+- Bookings progress through discrete states: `REQUESTED` -> `CONFIRMED` -> `ACTIVE` -> `COMPLETED` | `CANCELLED` | `EXPIRED`. Transition guards validate invariants (e.g., `CONFIRMED` requires payment or psychologist approval depending on configuration).
+- To avoid double-booking, creation of a `CONFIRMED` booking is guarded by an atomic database operation: either a transaction (MongoDB multi-document transactions when using replica sets) or a unique index on (`psychologistId`, `slotStart`, `slotEnd`, `status:CONFIRMED`) combined with retry logic in the API layer.
+
+### Timezones and Temporal Correctness
+- All timestamps are normalized to UTC in storage; user preferences include a timezone string for display and slot interpretation. The slot generator uses the psychologist's declared timezone and the patient's timezone (when showing suggestions) to avoid ambiguous DST effects.
+
+### API Contracts and Frontend Patterns
+- Search endpoints return a compact DTO including `distance`, `nextAvailableSlotPreview`, `coarseLocation`, and `profileScore`. The React client progressively enhances: initial results are lightweight, detailed profile pages fetch full availability and embedding-based summaries on demand to reduce initial payload sizes.
+
+### Observability and Monitoring
+- Key metrics: search latency, slot generation time, booking conflict rate, and rate of booking retries. Traces link search requests to slot-generation and booking operations to diagnose contention and performance hotspots.
+
+### Suggested Enhancements
+- Add server-side rate limiting on search to prevent abusive scraping and to protect embedding / search provider costs.
+- Consider precomputing short-horizon slot windows (24–72 hours) in a background job to speed up patient-facing queries for commonly requested ranges.
+
 # Design (UML diagrams)
 This section provides textual UML descriptions suitable for a report when visual diagrams are not embedded.
 

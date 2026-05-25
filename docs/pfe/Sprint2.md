@@ -286,6 +286,37 @@ Key associations (textual):
 - Psychologist 1..1 PsychologistProfile
 - Psychologist 1..* CredentialDocument
 - Psychologist 1..1 OnboardingApplication
+
+## Technical Implementation and AI Verification Pipeline
+
+### Backend Design and Services
+- The onboarding feature is implemented as a domain bounded module within the backend, exposed under `/api/onboarding` and `/api/documents`. It follows the same controller-service-repository layering used across the server to enable testability and clear separation of concerns.
+- Document uploads are handled with presigned URL flows: the backend validates the upload request, stores minimal metadata (uploader, file type, size, checksum) in a `CredentialDocument` record, and returns a signed URL for direct client-to-storage upload. This minimizes server bandwidth and reduces attack surface.
+
+### AI Verification Pipeline
+- The AI verification pipeline is designed as an asynchronous job-based system using a message queue (e.g., BullMQ with Redis or a cloud queue). When an application is submitted, a `verify_document` job is enqueued with references to the stored files and the onboarding record.
+- A worker picks up the job and performs a sequence: secure fetch of object storage artifacts, OCR (Tesseract or a managed OCR provider) to extract textual fields, structural analysis (layout detection), ML-based classification (document type, confidence), and entity extraction (names, license numbers, dates). The pipeline emits a compact `AIVerificationResult` JSON that includes extraction confidence scores, risk flags, and normalized fields.
+- All AI outputs are stored in the `AIVerificationResult` collection and linked to the `OnboardingApplication`. The backend surfaces the result to the admin UI while preserving the original file links behind signed download URLs.
+
+### Security and Privacy in the Pipeline
+- Workers fetch documents using short-lived credentials and perform in-memory processing where possible; persistent artifacts are stored only when necessary and are encrypted at rest. Access to raw documents is restricted and requires admin privileges.
+- AI results must be treated as advisory; they are displayed as structured findings with provenance (model id, version, confidence) and are never used as sole ground for automatic approval.
+
+### Admin Review UX and Auditability
+- The admin review endpoint aggregates the `OnboardingApplication`, associated `CredentialDocument` records, and `AIVerificationResult` summaries into a single payload for the admin dashboard. The admin decision API requires a reason field and creates an `AdminDecision` record with an audit entry for compliance.
+
+### Storage Strategy and Retention
+- Documents are stored in an S3-compatible store with server-side encryption and lifecycle policies. Retention rules are configured to minimize long-term storage of sensitive documents and to comply with jurisdictional requirements.
+
+### Scalability and Operational Considerations
+- The asynchronous verification model decouples user-facing latency from compute-intensive AI work, allows horizontal scaling of workers, and makes it straightforward to add alternative ML providers. Monitoring and retry policies are essential for robust operation (exponential backoff, dead-letter queues).
+
+### Integration Points
+- The onboarding subsystem integrates with: auth (to determine uploader identity), notifications (to alert psychologists/admins of status changes), storage (object store for documents), and the audit log service for traceability.
+
+### Suggested Improvements
+- Introduce versioned ML models and a small model registry to record which model version produced each verification result for future audits.
+- Add differential privacy controls and redaction for document previews in the admin UI to reduce inadvertent PHI exposure.
 - OnboardingApplication 0..1 AIVerificationResult
 - OnboardingApplication 0..1 AdminDecision
 - AuditLogEntry links to actions across entities (many-to-one via entityRef)

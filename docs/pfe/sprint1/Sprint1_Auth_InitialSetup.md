@@ -107,3 +107,39 @@ The sprint was highly successful. The MERN foundation was established, and the r
 ## Conclusion
 
 Sprint 1 successfully delivered the backbone of the application. With the authentication infrastructure firmly in place, user identities are securely managed, paving the way for personalized experiences, specialized dashboards, and complex clinical logic in the forthcoming sprints.
+
+## 3.6 Technical Implementation and Architectural Rationale
+
+### 3.6.1 Backend Architecture and Logic
+- The authentication subsystem is implemented in Node.js with Express following a modular controller-service-repository pattern. Controllers handle HTTP concerns and validation; services encapsulate business logic (token creation, password hashing, role assignment); repositories isolate Mongoose queries to keep data access testable and replaceable.
+- Passwords are hashed using `bcryptjs` with a configurable work factor stored in environment variables. The pre-save Mongoose middleware enforces hashing and the model validates unique email constraints at the database layer to avoid race conditions.
+- JWTs are issued using `jsonwebtoken` with separated signing keys for access and refresh tokens. Access tokens are short-lived (minutes to hours) and used for API authorization; refresh tokens are long-lived and stored hashed in the DB to allow revocation. Token rotation is supported to mitigate replay attacks.
+
+### 3.6.2 Frontend Architecture
+- The React client follows a composition and context pattern: `AuthContext` centralizes token storage and refresh flows, axios instances include interceptors that transparently attach access tokens and perform automatic token refresh when receiving `401` responses.
+- Protected routes are implemented via `ProtectedRoute` components that validate role membership prior to rendering. Role-based UI segments are separated into dedicated components to reduce permission-related logic duplication.
+
+### 3.6.3 API Contract and Interactions
+- Key endpoints: `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`, and `/api/auth/me` follow RESTful semantics. Payloads are typed and validated using a validation layer (e.g., `express-validator` or Joi) to ensure consistent error handling.
+- Session-less operations (email verification, password reset) use signed, time-limited tokens embedded in secure email links. All endpoints enforce rate limiting for safety against credential stuffing and brute force.
+
+### 3.6.4 Database Model and Relationships
+- The `User` schema contains core identity fields (`email`, `passwordHash`, `roles`, `isActive`, `profileRef`). Roles are represented as an enum and stored as a small array on the user document for efficient RBAC checks.
+- Refresh tokens and device metadata are stored in a separate collection to allow per-device revocation and auditing. Audit events for authentication actions (login, logout, token refresh, failed login) are recorded to an `AuthAudit` collection with minimal PII.
+
+### 3.6.5 Security and Privacy Considerations
+- Transport-level security requires HTTPS and secure cookie flags when cookies are used for refresh token storage. CORS is restricted to the client origin.
+- Secrets (JWT signing keys, SMTP credentials) are injected from a secrets manager or environment variables; no secrets are committed to the repository.
+- Data minimization: only fields required for authentication are stored in the `User` collection; sensitive fields are encrypted or hashed and access to them is logged.
+
+### 3.6.6 Scalability and Maintainability
+- The stateless nature of JWT-based access combined with a small state store for refresh tokens and audits enables horizontal scaling of API servers behind a load balancer. Sticky sessions are avoided.
+- Separation into controller/service/repository layers makes unit testing straightforward and reduces cognitive load for future contributors.
+
+### 3.6.7 Notes on Clinical Safety and Ethics
+- Authentication is the gatekeeper for all clinical data. Design decisions emphasize minimal exposure of personal health information (PHI) in logs and enforce strict RBAC checks for endpoints that return clinical artifacts.
+
+## 3.7 Suggested Next Engineering Steps
+- Harden input validation with `express-validator` for all public endpoints.
+- Add a short security review checklist to the README for deploy-time checks (CSP, secure cookies, correct TLS configuration).
+- Implement a monitoring/dashboard for authentication metrics (failed logins, token errors) to detect abuse early.
