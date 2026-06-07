@@ -303,7 +303,10 @@ export default function PatientDetail() {
 
   const downloadChatbotReport = useCallback(async (explicitReportId) => {
     try {
-      const reportId = explicitReportId || summary?.latestReport?._id;
+      const reportId =
+        typeof explicitReportId === 'string' && explicitReportId.trim().length > 0
+          ? explicitReportId
+          : summary?.latestReport?._id;
       if (!reportId) return;
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/chatbot/reports/${reportId}/pdf`, {
@@ -673,7 +676,7 @@ export default function PatientDetail() {
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={downloadChatbotReport}
+                            onClick={() => downloadChatbotReport()}
                             className="h-9 ui-btn-primary px-4 text-xs"
                           >
                             Download chatbot PDF

@@ -1,0 +1,67 @@
+@startuml
+title Sprint 1 - Verify Email and Activate Account
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor "Registered User" as User
+participant "React Frontend" as FE
+participant "Express Backend" as BE
+participant "Auth Controller" as AC
+database "User Model / MongoDB" as DB
+
+User -> FE: Open verification link\nor enter verification code
+activate FE
+FE -> BE: POST /api/auth/verify-email
+activate BE
+BE -> AC: Route verification request
+activate AC
+
+AC -> AC: Validate token or code
+alt Token or code is invalid
+  AC --> BE: 400 Verification error
+  deactivate AC
+  BE --> FE: Invalid verification response
+  deactivate BE
+  FE --> User: Show verification error
+  deactivate FE
+else Token or code format is valid
+  AC -> DB: Retrieve matching user
+  activate DB
+  DB --> AC: User found or not found
+  deactivate DB
+
+  alt User is not found
+    AC --> BE: 404 User not found
+    deactivate AC
+    BE --> FE: Verification failure
+    deactivate BE
+    FE --> User: Show account lookup error
+    deactivate FE
+  else User is found
+    AC -> AC: Check token validity and expiration
+    alt Token or code is expired
+      AC --> BE: 410 Verification expired
+      deactivate AC
+      BE --> FE: Retry or resend required
+      deactivate BE
+      FE --> User: Prompt retry or resend verification
+      deactivate FE
+    else Token or code is valid
+      AC -> DB: Update user verification flag to true
+      activate DB
+      DB --> AC: Updated user saved
+      deactivate DB
+      AC --> BE: 200 Activation successful
+      deactivate AC
+      BE --> FE: Activation success response
+      deactivate BE
+      FE --> User: Redirect to login or authenticated flow
+      deactivate FE
+    end
+  end
+end
+
+@enduml

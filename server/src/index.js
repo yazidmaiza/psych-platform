@@ -22,7 +22,7 @@ const calendarRoutes = require('./routes/calendar.routes');
 const ttsRoutes = require('./routes/ttsRoutes');
 const userRoutes = require('./routes/userRoutes');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 // Optional: force DNS resolvers
 if (process.env.DNS_SERVERS) {

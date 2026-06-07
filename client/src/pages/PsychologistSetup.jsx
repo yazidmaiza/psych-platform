@@ -209,7 +209,7 @@ export default function PsychologistSetup() {
                     className="glass-input w-full"
                     value={formData.firstName}
                     onChange={e => updateField('firstName', e.target.value)}
-                    placeholder={t('firstNamePlaceholder')}
+                    placeholder={t('firstName')}
                   />
                 </div>
                 <div>
@@ -218,7 +218,7 @@ export default function PsychologistSetup() {
                     className="glass-input w-full"
                     value={formData.lastName}
                     onChange={e => updateField('lastName', e.target.value)}
-                    placeholder={t('lastNamePlaceholder')}
+                    placeholder={t('lastName')}
                   />
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function PsychologistSetup() {
                   className="glass-input w-full min-h-[120px] resize-none"
                   value={formData.bio}
                   onChange={e => updateField('bio', e.target.value)}
-                  placeholder={t('bioPlaceholder')}
+                  placeholder={t('bio')}
                 />
               </div>
             </GlassPanel>
@@ -248,7 +248,7 @@ export default function PsychologistSetup() {
                     className="glass-input w-full"
                     value={formData.city}
                     onChange={e => updateField('city', e.target.value)}
-                    placeholder={t('cityPlaceholder')}
+                    placeholder={t('city')}
                   />
                 </div>
                 <div>
@@ -257,7 +257,7 @@ export default function PsychologistSetup() {
                     className="glass-input w-full"
                     value={formData.country}
                     onChange={e => updateField('country', e.target.value)}
-                    placeholder={t('countryPlaceholder')}
+                    placeholder={t('country')}
                   />
                 </div>
               </div>

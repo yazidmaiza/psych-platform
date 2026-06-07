@@ -1,0 +1,96 @@
+@startuml
+title Sprint 1 - Authenticate User
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor "Registered and verified user" as User
+participant "React Frontend" as FE
+participant "Express Backend" as BE
+participant "Auth Controller" as AC
+database "User Model / MongoDB" as DB
+participant "Password Hashing Service\n(bcrypt)" as BCRYPT
+participant "JWT Service" as JWT
+
+User -> FE: Open login page
+activate FE
+FE --> User: Display login form
+deactivate FE
+
+User -> FE: Submit email and password
+activate FE
+FE -> BE: POST /api/auth/login
+activate BE
+BE -> AC: Route login request
+activate AC
+
+AC -> DB: Retrieve user by email
+activate DB
+DB --> AC: User record or no match
+deactivate DB
+
+alt Email does not exist
+  AC --> BE: 401 Authentication error
+  deactivate AC
+  BE --> FE: Invalid credentials response
+  deactivate BE
+  FE --> User: Show authentication error
+  deactivate FE
+else Account exists
+  AC -> AC: Verify account exists and is activated
+  alt Account is not verified
+    AC --> BE: 403 Activation-required error
+    deactivate AC
+    BE --> FE: Verification required response
+    deactivate BE
+    FE --> User: Ask user to verify account
+    deactivate FE
+  else Account is verified
+    AC -> BCRYPT: Compare password with stored hash
+    activate BCRYPT
+    BCRYPT --> AC: Password matches or fails
+    deactivate BCRYPT
+
+    alt Password is incorrect
+      AC --> BE: 401 Authentication error
+      deactivate AC
+      BE --> FE: Invalid credentials response
+      deactivate BE
+      FE --> User: Show authentication error
+      deactivate FE
+    else Password is correct
+      AC -> JWT: Sign JWT with user id and role
+      activate JWT
+      alt JWT signing fails
+        JWT --> AC: Signing failure
+        deactivate JWT
+        AC --> BE: 500 Server error
+        deactivate AC
+        BE --> FE: Authentication failed
+        deactivate BE
+        FE --> User: Show server error
+        deactivate FE
+      else JWT issued successfully
+        JWT --> AC: Signed JWT
+        deactivate JWT
+        AC --> BE: 200 JWT and user payload
+        deactivate AC
+        BE --> FE: Login success response
+        deactivate BE
+        FE -> FE: Store JWT and auth state
+        alt Role is patient
+          FE --> User: Redirect to patient dashboard shell
+        else Role is psychologist
+          FE --> User: Redirect to psychologist dashboard shell
+        else Role is admin
+          FE --> User: Redirect to admin dashboard shell
+        end
+        deactivate FE
+      end
+    end
+  end
+end
+
+@enduml

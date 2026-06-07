@@ -136,7 +136,7 @@ export default function NotificationsDrawer({ open, onClose }) {
               <button
                 type="button"
                 onClick={markAllRead}
-                className="rounded-xl bg-[color:var(--accent-90)] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 transition"
+                className="light-filled-action rounded-xl bg-[color:var(--accent-90)] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 transition"
               >
                 Mark all read
               </button>

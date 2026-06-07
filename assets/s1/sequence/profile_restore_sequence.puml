@@ -1,0 +1,69 @@
+@startuml
+title Sprint 1 - Restore Authenticated Profile After Refresh
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor "Authenticated User" as User
+participant "React Frontend" as FE
+participant "Express Backend" as BE
+participant "Authentication Middleware" as AM
+participant "Auth Controller" as AC
+database "User Model / MongoDB" as DB
+
+User -> FE: Refresh browser or reopen application
+activate FE
+FE -> FE: Check local or session storage for saved JWT
+
+alt Token is missing
+  FE --> User: Redirect to login
+  deactivate FE
+else Token is present
+  FE -> BE: GET /api/auth/profile\nAuthorization: Bearer JWT
+  activate BE
+  BE -> AM: Invoke authentication middleware
+  activate AM
+  AM -> AM: Verify JWT
+
+  alt Token is expired or invalid
+    AM --> BE: 401 Unauthorized
+    deactivate AM
+    BE --> FE: Invalid token response
+    deactivate BE
+    FE -> FE: Clear stored session state
+    FE --> User: Redirect to login
+    deactivate FE
+  else Token is valid
+    AM -> AM: Extract user id and role from token
+    AM --> BE: Authenticated request context
+    deactivate AM
+    BE -> AC: Request authenticated profile
+    activate AC
+    AC -> DB: Retrieve latest user profile
+    activate DB
+    DB --> AC: User profile or no match
+    deactivate DB
+
+    alt User no longer exists
+      AC --> BE: 404 User not found
+      deactivate AC
+      BE --> FE: Profile restore failed
+      deactivate BE
+      FE -> FE: Clear stored session state
+      FE --> User: Redirect to login
+      deactivate FE
+    else User exists
+      AC --> BE: 200 Authenticated user context
+      deactivate AC
+      BE --> FE: Profile response
+      deactivate BE
+      FE -> FE: Restore auth context
+      FE --> User: Keep user on role-aware area
+      deactivate FE
+    end
+  end
+end
+
+@enduml

@@ -513,7 +513,7 @@ export default function HomePage() {
                 <div className="mt-4 grid gap-3">
                   <input
                     className="glass-input w-full transition focus:shadow-[0_0_0_4px_var(--accent-12)]"
-                    placeholder={t('searchPlaceholder')}
+                    placeholder={t('search')}
                     value={filters.search}
                     onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                   />

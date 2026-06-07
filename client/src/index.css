@@ -165,6 +165,71 @@
   color: rgba(15, 23, 42, 0.85) !important;
 }
 
+/* Keep filled action buttons readable after the broad light-mode text remap. */
+:root[data-theme='light'] .ui-btn-primary,
+:root[data-theme='light'] .glass-button,
+:root[data-theme='light'] .glass-button-danger,
+:root[data-theme='light'] .light-filled-action,
+:root[data-theme='light'] .bg-slate-900.text-white,
+:root[data-theme='light'] .bg-indigo-500.text-white,
+:root[data-theme='light'] .bg-indigo-500\/90.text-white,
+:root[data-theme='light'] .bg-emerald-500\/90.text-white,
+:root[data-theme='light'] .bg-rose-500\/90.text-white {
+  color: #ffffff !important;
+}
+
+/* Light-mode semantic colors need darker foregrounds than the dark palette. */
+:root[data-theme='light'] .text-emerald-200,
+:root[data-theme='light'] .text-emerald-300 {
+  color: #047857 !important;
+}
+
+:root[data-theme='light'] .text-amber-200,
+:root[data-theme='light'] .text-amber-300 {
+  color: #92400e !important;
+}
+
+:root[data-theme='light'] .text-rose-50,
+:root[data-theme='light'] .text-rose-200,
+:root[data-theme='light'] .text-rose-300 {
+  color: #be123c !important;
+}
+
+:root[data-theme='light'] .text-fuchsia-300 {
+  color: #a21caf !important;
+}
+
+:root[data-theme='light'] .text-sky-50 {
+  color: #0369a1 !important;
+}
+
+:root[data-theme='light'] .text-amber-50 {
+  color: #92400e !important;
+}
+
+:root[data-theme='light'] .text-emerald-50 {
+  color: #047857 !important;
+}
+
+/* Admin dashboard: lift dark-mode opacity utilities that become too faint in light mode. */
+:root[data-theme='light'] .admin-dashboard .text-white\/45 {
+  color: rgba(15, 23, 42, 0.64) !important;
+}
+
+:root[data-theme='light'] .admin-dashboard .text-white\/50,
+:root[data-theme='light'] .admin-dashboard .text-white\/55,
+:root[data-theme='light'] .admin-dashboard .text-white\/60,
+:root[data-theme='light'] .admin-dashboard .text-white\/65,
+:root[data-theme='light'] .admin-dashboard .text-white\/70,
+:root[data-theme='light'] .admin-dashboard .text-white\/75,
+:root[data-theme='light'] .admin-dashboard .text-white\/80 {
+  color: rgba(15, 23, 42, 0.78) !important;
+}
+
+:root[data-theme='light'] .admin-dashboard .bg-black\/10 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
 @layer components {
   /* Premium light-mode UI building blocks (used by Dashboard). */
   .ui-glass {

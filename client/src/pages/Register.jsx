@@ -298,7 +298,7 @@ export default function Register() {
                   className="glass-input w-full"
                   value={formData.fullName}
                   onChange={(e) => updateField('fullName', e.target.value)}
-                  placeholder={t('fullNamePlaceholder')}
+                  placeholder={t('fullName')}
                 />
               </div>
               <div>
@@ -312,7 +312,7 @@ export default function Register() {
                   type="tel"
                   value={formData.telephone}
                   onChange={(e) => updateField('telephone', e.target.value)}
-                  placeholder={t('telephonePlaceholder')}
+                  placeholder={t('telephone')}
                 />
               </div>
               <div className="flex gap-3">
@@ -335,7 +335,7 @@ export default function Register() {
                     className="glass-input w-full"
                     value={formData.firstName}
                     onChange={(e) => updateField('firstName', e.target.value)}
-                    placeholder={tr('firstNamePlaceholder', 'First name')}
+                    placeholder={tr('firstName', 'First name')}
                   />
                 </div>
                 <div>
@@ -344,7 +344,7 @@ export default function Register() {
                     className="glass-input w-full"
                     value={formData.lastName}
                     onChange={(e) => updateField('lastName', e.target.value)}
-                    placeholder={tr('lastNamePlaceholder', 'Last name')}
+                    placeholder={tr('lastName', 'Last name')}
                   />
                 </div>
               </div>
@@ -355,7 +355,7 @@ export default function Register() {
                   className="glass-input w-full min-h-[120px] resize-none"
                   value={formData.bio}
                   onChange={(e) => updateField('bio', e.target.value)}
-                  placeholder={tr('bioPlaceholder', 'Tell patients about your approach')}
+                  placeholder={tr('bio', 'Tell patients about your approach')}
                 />
               </div>
 
@@ -366,7 +366,7 @@ export default function Register() {
                     className="glass-input w-full"
                     value={formData.city}
                     onChange={(e) => updateField('city', e.target.value)}
-                    placeholder={tr('cityPlaceholder', 'City')}
+                    placeholder={tr('city', 'City')}
                   />
                 </div>
                 <div>
@@ -375,7 +375,7 @@ export default function Register() {
                     className="glass-input w-full"
                     value={formData.country}
                     onChange={(e) => updateField('country', e.target.value)}
-                    placeholder={tr('countryPlaceholder', 'Country')}
+                    placeholder={tr('country', 'Country')}
                   />
                 </div>
                 <div>
@@ -504,7 +504,7 @@ export default function Register() {
                   className="glass-input w-full"
                   value={formData.email}
                   onChange={(e) => updateField('email', e.target.value)}
-                  placeholder={t('emailPlaceholder')}
+                  placeholder={t('email')}
                   required
                 />
               </div>
@@ -516,7 +516,7 @@ export default function Register() {
                     className="glass-input w-full pr-12"
                     value={formData.password}
                     onChange={(e) => updateField('password', e.target.value)}
-                    placeholder={t('passwordPlaceholder')}
+                    placeholder={t('password')}
                     required
                   />
                   <button
@@ -536,7 +536,7 @@ export default function Register() {
                   className="glass-input w-full"
                   value={formData.confirmPassword}
                   onChange={(e) => updateField('confirmPassword', e.target.value)}
-                  placeholder={t('confirmPasswordPlaceholder')}
+                  placeholder={t('confirmPassword')}
                   required
                 />
               </div>

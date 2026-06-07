@@ -1,0 +1,66 @@
+@startuml
+title Sprint 1 - Role-Aware Dashboard Redirection
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor "Authenticated User" as User
+participant "React Frontend" as FE
+participant "React Auth Context" as AUTH
+participant "Frontend Route Guard" as GUARD
+
+User -> FE: Login succeeds or profile is restored
+activate FE
+FE --> FE: Receive user payload containing role
+FE -> AUTH: Store authenticated user and role
+activate AUTH
+AUTH --> FE: Auth state updated
+deactivate AUTH
+FE -> GUARD: Evaluate dashboard route
+activate GUARD
+
+alt Role is patient
+  GUARD --> FE: Allow patient dashboard route
+  deactivate GUARD
+  FE --> User: Redirect to patient dashboard shell
+  deactivate FE
+else Role is psychologist
+  GUARD --> FE: Allow psychologist dashboard route
+  deactivate GUARD
+  FE --> User: Redirect to psychologist dashboard shell
+  deactivate FE
+else Role is admin
+  GUARD --> FE: Allow admin dashboard route
+  deactivate GUARD
+  FE --> User: Redirect to admin dashboard shell
+  deactivate FE
+else Role is missing or unknown
+  GUARD --> FE: Reject invalid auth state
+  deactivate GUARD
+  FE -> AUTH: Clear stored session
+  activate AUTH
+  AUTH --> FE: Session cleared
+  deactivate AUTH
+  FE --> User: Redirect to login
+  deactivate FE
+end
+
+User -> FE: Manually navigate to another role dashboard
+activate FE
+FE -> GUARD: Re-evaluate requested route
+activate GUARD
+alt Requested dashboard matches stored role
+  GUARD --> FE: Permit navigation
+  deactivate GUARD
+  FE --> User: Render authorized dashboard shell
+  deactivate FE
+else Requested dashboard does not match role
+  GUARD --> FE: Block navigation
+  deactivate GUARD
+  FE --> User: Redirect to authorized area\nor unauthorized page
+  deactivate FE
+end
+
+@enduml

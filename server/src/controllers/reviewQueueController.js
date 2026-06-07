@@ -1,6 +1,11 @@
 const Psychologist = require('../models/Psychologist');
 const User = require('../models/User');
+const CredentialDocument = require('../models/CredentialDocument');
 const { audit } = require('../services/auditService');
+const axios = require('axios');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const { resolvePrivatePath } = require('../services/credentialDocumentStorage');
 
 const clampInt = (value, { min, max, fallback }) => {
   const n = Number.parseInt(String(value), 10);
@@ -44,6 +49,129 @@ const buildCompleteness = (psy) => {
 
 const safePopulateCredentialDocSelect = 'type version isCurrent originalName mimeType sizeBytes createdAt';
 const safePopulateUserSelect = 'email';
+
+const formatBytes = (bytes) => {
+  const n = Number(bytes || 0);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)}KB`;
+  return `${n}B`;
+};
+
+const buildVerificationSummary = (psy) => {
+  const stored = String(psy?.aiVerificationSummary || '').trim();
+  if (stored) return stored;
+
+  const docs = psy?.credentialDocs || {};
+  const attached = ['cv', 'diploma', 'idFront', 'idBack', 'introVideo']
+    .map((type) => {
+      const doc = docs?.[type];
+      if (!doc) return '';
+      const name = doc.originalName ? ` (${doc.originalName})` : '';
+      const size = doc.sizeBytes ? `, ${formatBytes(doc.sizeBytes)}` : '';
+      return `${type}${name}${size}`;
+    })
+    .filter(Boolean);
+
+  if (!attached.length) return '';
+  return `AI summary unavailable. Uploaded credential documents are attached for administrator review: ${attached.join('; ')}.`;
+};
+
+const buildAiUnavailableSummary = (psy, reason) => {
+  const fallback = buildVerificationSummary(psy);
+  const detail = String(reason || '').trim();
+  if (!fallback || !detail) return fallback;
+  return `${fallback} AI generation status: ${detail}.`;
+};
+
+const truncateText = (value, maxChars) => {
+  const text = String(value || '');
+  if (!maxChars || text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + `\n\n[Truncated to ${maxChars} characters]`;
+};
+
+const extractTextFromPopulatedCredentialDoc = async (doc) => {
+  if (!doc || String(doc.mimeType || '') !== 'application/pdf') return '';
+  try {
+    const storagePath = doc.storagePath || (doc._id
+      ? (await CredentialDocument.findById(doc._id).select('storagePath').lean())?.storagePath
+      : '');
+    if (!storagePath) return '';
+    const { absolute } = resolvePrivatePath(storagePath);
+    if (!fs.existsSync(absolute)) return '';
+    const buffer = fs.readFileSync(absolute);
+    const data = await pdfParse(buffer);
+    return data.text || '';
+  } catch (err) {
+    return '';
+  }
+};
+
+const generateAiVerificationSummary = async (psy) => {
+  if (!process.env.GROQ_API_KEY) {
+    return { summary: '', reason: 'GROQ_API_KEY is not configured' };
+  }
+
+  const MAX_DOC_CHARS = 12000;
+  const cvText = await extractTextFromPopulatedCredentialDoc(psy?.credentialDocs?.cv);
+  const diplomaText = await extractTextFromPopulatedCredentialDoc(psy?.credentialDocs?.diploma);
+  if (!String(cvText || diplomaText || '').trim()) {
+    return { summary: '', reason: 'no extractable text found in CV or diploma PDFs' };
+  }
+
+  const response = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an assistant that verifies psychologist credentials. Analyze the provided CV and diploma and give a structured summary for the admin to help them decide whether to approve this psychologist. Be concise and professional.'
+        },
+        {
+          role: 'user',
+          content:
+            'CV:\n' +
+            truncateText(cvText, MAX_DOC_CHARS) +
+            '\n\nDIPLOMA:\n' +
+            truncateText(diplomaText, MAX_DOC_CHARS) +
+            '\n\nPlease provide: 1) A summary of qualifications 2) Years of experience 3) Specializations mentioned 4) Whether the diploma appears legitimate 5) Overall recommendation (Approve/Review/Reject) with reason.'
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 800
+    },
+    {
+      headers: {
+        Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 45_000
+    }
+  );
+
+  const summary = String(response?.data?.choices?.[0]?.message?.content || '').trim();
+  return { summary, reason: summary ? '' : 'AI provider returned an empty response' };
+};
+
+const ensureAiVerificationSummary = async (psy) => {
+  if (String(psy?.aiVerificationSummary || '').trim()) return psy;
+
+  try {
+    const generated = await generateAiVerificationSummary(psy);
+    if (!generated.summary) {
+      return { ...psy, aiVerificationSummary: buildAiUnavailableSummary(psy, generated.reason) };
+    }
+
+    await Psychologist.updateOne(
+      { _id: psy._id, aiVerificationSummary: { $in: ['', null] } },
+      { $set: { aiVerificationSummary: generated.summary } }
+    );
+    return { ...psy, aiVerificationSummary: generated.summary };
+  } catch (err) {
+    return { ...psy, aiVerificationSummary: buildAiUnavailableSummary(psy, err?.message || 'AI generation failed') };
+  }
+};
 
 // @GET /api/review-queue/applications
 exports.listApplications = async (req, res) => {
@@ -154,7 +282,7 @@ exports.listApplications = async (req, res) => {
       isRejected: Boolean(psy.isRejected),
       rejectionReason: psy.isRejected ? String(psy.rejectionReason || '') : '',
       rejectedAt: psy.rejectedAt || null,
-      aiVerificationSummary: String(psy.aiVerificationSummary || ''),
+      aiVerificationSummary: buildVerificationSummary(psy),
       credentialDocs: psy.credentialDocs || {},
       completeness: completenessInfo,
       riskLevel: null
@@ -211,7 +339,8 @@ exports.getApplication = async (req, res) => {
 
     if (!psy) return res.status(404).json({ message: 'Application not found' });
 
-    const completenessInfo = buildCompleteness(psy);
+    const psyWithSummary = await ensureAiVerificationSummary(psy);
+    const completenessInfo = buildCompleteness(psyWithSummary);
 
     await audit(req, {
       action: 'REVIEW_QUEUE_VIEW',
@@ -221,24 +350,24 @@ exports.getApplication = async (req, res) => {
     });
 
     return res.status(200).json({
-      _id: psy._id,
-      user: { _id: psy.userId?._id || psy.userId, email: psy.userId?.email || '' },
-      firstName: psy.firstName || '',
-      lastName: psy.lastName || '',
-      city: psy.city || '',
-      profileStatus: psy.profileStatus,
-      submittedAt: psy.submittedAt || null,
-      lastResubmittedAt: psy.lastResubmittedAt || null,
-      createdAt: psy.createdAt || null,
-      updatedAt: psy.updatedAt || null,
-      isApproved: Boolean(psy.isApproved),
-      isRejected: Boolean(psy.isRejected),
-      rejectionReason: String(psy.rejectionReason || ''),
-      rejectedAt: psy.rejectedAt || null,
-      rejectionDetails: psy.rejectionDetails || { fields: [], documents: [] },
-      onboardingHistory: Array.isArray(psy.onboardingHistory) ? psy.onboardingHistory : [],
-      aiVerificationSummary: String(psy.aiVerificationSummary || ''),
-      credentialDocs: psy.credentialDocs || {},
+      _id: psyWithSummary._id,
+      user: { _id: psyWithSummary.userId?._id || psyWithSummary.userId, email: psyWithSummary.userId?.email || '' },
+      firstName: psyWithSummary.firstName || '',
+      lastName: psyWithSummary.lastName || '',
+      city: psyWithSummary.city || '',
+      profileStatus: psyWithSummary.profileStatus,
+      submittedAt: psyWithSummary.submittedAt || null,
+      lastResubmittedAt: psyWithSummary.lastResubmittedAt || null,
+      createdAt: psyWithSummary.createdAt || null,
+      updatedAt: psyWithSummary.updatedAt || null,
+      isApproved: Boolean(psyWithSummary.isApproved),
+      isRejected: Boolean(psyWithSummary.isRejected),
+      rejectionReason: String(psyWithSummary.rejectionReason || ''),
+      rejectedAt: psyWithSummary.rejectedAt || null,
+      rejectionDetails: psyWithSummary.rejectionDetails || { fields: [], documents: [] },
+      onboardingHistory: Array.isArray(psyWithSummary.onboardingHistory) ? psyWithSummary.onboardingHistory : [],
+      aiVerificationSummary: buildVerificationSummary(psyWithSummary),
+      credentialDocs: psyWithSummary.credentialDocs || {},
       completeness: completenessInfo,
       riskLevel: null
     });
@@ -246,4 +375,3 @@ exports.getApplication = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
-

@@ -127,6 +127,10 @@ const truncateText = (value, maxChars) => {
 
 // Helper: analyze documents with Groq
 const analyzeWithGroq = async (cvText, diplomaText) => {
+  if (!process.env.GROQ_API_KEY) {
+    return 'AI summary unavailable: GROQ_API_KEY is not configured on the server.';
+  }
+
   // Groq can return 413 if the prompt payload is too large.
   // Keep inputs bounded to avoid breaking onboarding for long PDFs.
   const MAX_DOC_CHARS = 12000;
@@ -154,10 +158,11 @@ const analyzeWithGroq = async (cvText, diplomaText) => {
       headers: {
         Authorization: 'Bearer ' + process.env.GROQ_API_KEY,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 45_000
     }
   );
-  return response.data.choices[0].message.content;
+  return response?.data?.choices?.[0]?.message?.content || 'AI summary unavailable: empty response from AI provider.';
 };
 
 // @POST /api/verification/upload
@@ -250,6 +255,14 @@ exports.uploadDocuments = async (req, res) => {
       return res.status(400).json({ message: 'Introduction video must be 100MB or less' });
     }
 
+    if (!psychologist.firstName || !psychologist.lastName || !psychologist.city) {
+      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
+      return res.status(400).json({
+        message: 'Profile is incomplete. Please complete required profile fields before submitting.',
+        missingFields: ['firstName', 'lastName', 'city'].filter((k) => !psychologist[k])
+      });
+    }
+
     // Extract text from PDFs
     console.log('extracting CV text...');
     const cvText = cvFile
@@ -262,16 +275,13 @@ exports.uploadDocuments = async (req, res) => {
       : await extractPDFTextFromCredentialDoc(psychologist.credentialDocs?.diploma);
     console.log('diploma text length:', diplomaText.length);
 
-    // Analyze with Groq
+    // Analyze with Groq. Never block credential uploads on AI/provider failures.
     console.log('analyzing with Groq...');
-    const aiSummary = await analyzeWithGroq(cvText, diplomaText);
-
-    if (!psychologist.firstName || !psychologist.lastName || !psychologist.city) {
-      Object.values(req.files || {}).flat().forEach(f => safeUnlink(f.path));
-      return res.status(400).json({
-        message: 'Profile is incomplete. Please complete required profile fields before submitting.',
-        missingFields: ['firstName', 'lastName', 'city'].filter((k) => !psychologist[k])
-      });
+    let aiSummary = '';
+    try {
+      aiSummary = await analyzeWithGroq(cvText, diplomaText);
+    } catch (e) {
+      aiSummary = `AI summary unavailable: ${e?.message || 'unknown error'}`;
     }
 
     const ownerUserId = req.user.id;
@@ -316,7 +326,7 @@ exports.uploadDocuments = async (req, res) => {
       {
         $set: {
           profileStatus: 'Submitted',
-          aiVerificationSummary: aiSummary,
+          aiVerificationSummary: String(aiSummary || ''),
           isApproved: false,
           isRejected: false,
           rejectionReason: '',

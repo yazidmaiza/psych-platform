@@ -194,7 +194,7 @@ export default function RateConsultation() {
                     <label className="form-label">{t('additionalComments')}</label>
                     <textarea
                         className="glass-input w-full min-h-[120px] resize-none"
-                        placeholder={t('commentPlaceholder')}
+                        placeholder={t('comment')}
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                     />

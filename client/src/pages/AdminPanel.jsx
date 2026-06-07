@@ -656,7 +656,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
+    <div className="admin-dashboard relative min-h-screen overflow-hidden bg-[color:var(--app-bg)] text-[color:var(--app-fg)]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-20 right-0 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
         <div className="absolute left-0 top-48 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />

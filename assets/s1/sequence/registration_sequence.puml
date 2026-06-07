@@ -1,0 +1,87 @@
+@startuml
+title Sprint 1 - Register a New User
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor Visitor
+participant "React Frontend" as FE
+participant "Express Backend" as BE
+participant "Auth Controller" as AC
+database "User Model / MongoDB" as DB
+participant "Password Hashing Service\n(bcrypt)" as BCRYPT
+participant "Email Service" as EMAIL
+
+Visitor -> FE: Open registration page
+activate FE
+FE --> Visitor: Display registration form
+deactivate FE
+
+Visitor -> FE: Submit name, email, password, role
+activate FE
+FE -> BE: POST /api/auth/register
+activate BE
+BE -> AC: Route registration request
+activate AC
+
+AC -> AC: Validate required fields and role
+alt Validation fails
+  AC --> BE: 400 Validation error
+  deactivate AC
+  BE --> FE: Registration error response
+  deactivate BE
+  FE --> Visitor: Show validation errors
+  deactivate FE
+else Validation succeeds
+  AC -> DB: Check whether email already exists
+  activate DB
+  DB --> AC: Existing user or no match
+  deactivate DB
+
+  alt Email already exists
+    AC --> BE: 409 Registration error
+    deactivate AC
+    BE --> FE: Email already used
+    deactivate BE
+    FE --> Visitor: Show registration error
+    deactivate FE
+  else Email is available
+    AC -> BCRYPT: Hash password
+    activate BCRYPT
+    BCRYPT --> AC: Hashed password
+    deactivate BCRYPT
+
+    AC -> DB: Create User document\n(hashed password, role, unverified status)
+    activate DB
+    DB --> AC: User created
+    deactivate DB
+
+    AC -> AC: Generate email verification token or code
+    AC -> EMAIL: Send verification email
+    activate EMAIL
+
+    alt Email sending fails
+      EMAIL --> AC: Delivery failure
+      deactivate EMAIL
+      AC --> BE: 201 Account created,\nverification retry required
+      deactivate AC
+      BE --> FE: Registration success with retry notice
+      deactivate BE
+      FE --> Visitor: Ask user to retry verification email
+      deactivate FE
+    else Email sent successfully
+      EMAIL --> AC: Delivery accepted
+      deactivate EMAIL
+      AC --> BE: 201 Registration successful
+      deactivate AC
+      BE --> FE: Success response
+      deactivate BE
+      FE --> Visitor: Prompt email verification
+      deactivate FE
+    end
+  end
+end
+
+@enduml

@@ -18,6 +18,11 @@ const truncateText = (value, maxChars) => {
   return text.slice(0, maxChars) + `\n\n[Truncated to ${maxChars} characters]`;
 };
 
+const buildUnavailableSummary = (reason = '') => {
+  const suffix = reason ? ` ${reason}` : '';
+  return `AI summary unavailable:${suffix} Uploaded CV and diploma documents are attached for administrator review.`;
+};
+
 const extractPDFTextFromCredentialDoc = async (credentialDocId) => {
   if (!credentialDocId) return '';
   const doc = await CredentialDocument.findById(credentialDocId).select('storagePath mimeType');
@@ -157,6 +162,9 @@ exports.submitOnboarding = async (req, res) => {
       aiSummary = await analyzeWithGroq(cvText, diplomaText);
     } catch (e) {
       aiSummary = `AI summary unavailable: ${e?.message || 'unknown error'}`;
+    }
+    if (!String(aiSummary || '').trim()) {
+      aiSummary = buildUnavailableSummary('The AI provider returned an empty response.');
     }
 
     await Psychologist.updateOne(

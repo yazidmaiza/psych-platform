@@ -1,0 +1,70 @@
+@startuml
+title Sprint 1 - Access a Protected Route
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+actor "Authenticated User" as User
+participant "React Frontend" as FE
+participant "Express Backend" as BE
+participant "Authentication Middleware" as AM
+participant "Role Middleware" as RM
+participant "Protected Controller / Resource" as PC
+
+User -> FE: Navigate to protected frontend route
+activate FE
+FE -> FE: Check authentication state
+FE -> FE: Check whether route requires a specific role
+FE -> BE: Protected API request\nAuthorization: Bearer JWT
+activate BE
+BE -> AM: Invoke authentication middleware
+activate AM
+AM -> AM: Verify JWT
+
+alt JWT is missing
+  AM --> BE: 401 Unauthorized
+  deactivate AM
+  BE --> FE: Unauthorized response
+  deactivate BE
+  FE --> User: Redirect to login
+  deactivate FE
+else JWT is invalid or expired
+  AM --> BE: 401 Unauthorized
+  deactivate AM
+  BE --> FE: Unauthorized response
+  deactivate BE
+  FE -> FE: Clear session state
+  FE --> User: Redirect to login
+  deactivate FE
+else JWT is valid
+  AM -> AM: Attach decoded user identity to request
+  AM --> BE: Authenticated request
+  deactivate AM
+  BE -> RM: Invoke role middleware
+  activate RM
+  RM -> RM: Check whether user role is allowed
+
+  alt Role is not allowed
+    RM --> BE: 403 Forbidden
+    deactivate RM
+    BE --> FE: Forbidden response
+    deactivate BE
+    FE --> User: Redirect to unauthorized page\nor authorized area
+    deactivate FE
+  else Role is allowed
+    RM --> BE: Authorized request
+    deactivate RM
+    BE -> PC: Grant access to protected controller or resource
+    activate PC
+    PC --> BE: Protected data
+    deactivate PC
+    BE --> FE: 200 Protected response
+    deactivate BE
+    FE --> User: Render protected page
+    deactivate FE
+  end
+end
+
+@enduml

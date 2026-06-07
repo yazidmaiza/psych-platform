@@ -142,7 +142,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('emailPlaceholder')}
+                placeholder={t('email')}
                 className="glass-input w-full"
                 required
               />
@@ -155,7 +155,7 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('passwordPlaceholder')}
+                  placeholder={t('password')}
                   className="glass-input w-full pr-12"
                   required
                 />
