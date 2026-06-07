@@ -11,6 +11,15 @@ const formatDateTime = (value) => {
   }
 };
 
+const getNotificationActionLabel = (notification) => {
+  if (!notification?.link) return '';
+  if (notification.type === 'booking_request') return 'Confirm booking';
+  if (['booking_confirmed', 'booking_rescheduled', 'booking_canceled', 'booking_rejected'].includes(notification.type)) {
+    return 'Open in calendar';
+  }
+  return 'Open';
+};
+
 export default function NotificationsDrawer({ open, onClose }) {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -218,6 +227,18 @@ export default function NotificationsDrawer({ open, onClose }) {
                       className="mt-3 text-xs font-semibold text-amber-200 underline decoration-amber-200/40 underline-offset-4 hover:text-amber-100"
                     >
                       View in admin panel
+                    </button>
+                  )}
+                  {n.link && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNotification(n);
+                      }}
+                      className="mt-3 inline-flex rounded-xl bg-indigo-500/90 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition"
+                    >
+                      {getNotificationActionLabel(n)}
                     </button>
                   )}
                 </div>

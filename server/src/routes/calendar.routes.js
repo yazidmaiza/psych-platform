@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const CalendarSlot = require('../models/CalendarSlot');
 const Session = require('../models/Session');
+const User = require('../models/User');
 const { createNotification } = require('../services/notificationService');
 const AvailabilityRule = require('../models/AvailabilityRule');
 const AvailabilityException = require('../models/AvailabilityException');
@@ -53,6 +54,27 @@ const hasOverlap = async ({ psychologistId, start, end }) => {
         start: { $lt: end },
         end: { $gt: start }
     });
+};
+
+const hasOverlapExcept = async ({ psychologistId, start, end, exceptSlotId }) => {
+    return CalendarSlot.exists({
+        _id: { $ne: exceptSlotId },
+        psychologistId,
+        isBooked: true,
+        start: { $lt: end },
+        end: { $gt: start }
+    });
+};
+
+const calendarLink = ({ date, eventId, sessionId, open = true, psychologistId = '' } = {}) => {
+    const params = new URLSearchParams();
+    if (date) params.set('date', new Date(date).toISOString());
+    if (eventId) params.set('eventId', String(eventId));
+    if (sessionId) params.set('sessionId', String(sessionId));
+    if (open) params.set('open', '1');
+    const base = psychologistId ? `/calendar/${psychologistId}` : '/calendar';
+    const query = params.toString();
+    return query ? `${base}?${query}` : base;
 };
 
 const expireOverduePayments = async (psychologistId) => {
@@ -179,14 +201,61 @@ router.get('/slots/:psychologistId', protect, async (req, res) => {
             query = {
                 ...baseQuery,
                 $or: [
+                    { isBooked: true },
                     { isBooked: false, pendingSessionId: null },
                     { pendingPatientId: req.user.id }
                 ]
             };
         }
 
-        const slots = await CalendarSlot.find(query).sort({ start: 1 });
-        res.json(slots);
+        const slots = await CalendarSlot.find(query).sort({ start: 1 }).lean();
+        const slotIds = slots.map((slot) => slot._id);
+        const patientIds = slots
+            .flatMap((slot) => {
+                const canSeeBookedPatient = req.user.role !== 'patient' || String(slot.patientId || '') === String(req.user.id);
+                return [canSeeBookedPatient ? slot.patientId : null, slot.pendingPatientId];
+            })
+            .filter(Boolean);
+
+        const [sessions, patients] = await Promise.all([
+            Session.find({
+                calendarSlotId: { $in: slotIds },
+                status: { $ne: 'canceled' }
+            }).lean(),
+            User.find({ _id: { $in: patientIds } })
+                .select('firstName lastName fullName email')
+                .lean()
+        ]);
+
+        const sessionBySlot = new Map(sessions.map((session) => [String(session.calendarSlotId), session]));
+        const patientById = new Map(patients.map((patient) => [String(patient._id), patient]));
+        const summarizePatient = (patient) => patient ? ({
+            _id: patient._id,
+            fullName: patient.fullName || [patient.firstName, patient.lastName].filter(Boolean).join(' ') || patient.email || 'Patient',
+            email: patient.email
+        }) : null;
+
+        res.json(slots.map((slot) => {
+            const session = slot.pendingSessionId
+                ? sessions.find((item) => String(item._id) === String(slot.pendingSessionId))
+                : sessionBySlot.get(String(slot._id));
+            const canSeeBookedPatient = req.user.role !== 'patient' || String(slot.patientId || '') === String(req.user.id);
+            const patientId = (canSeeBookedPatient ? slot.patientId : null) || slot.pendingPatientId || session?.patientId;
+            return {
+                ...slot,
+                patient: summarizePatient(patientById.get(String(patientId))),
+                session: session ? {
+                    _id: session._id,
+                    patientId: session.patientId,
+                    psychologistId: session.psychologistId,
+                    status: session.status,
+                    sessionType: session.sessionType,
+                    scheduledStart: session.scheduledStart,
+                    scheduledEnd: session.scheduledEnd,
+                    paymentDueAt: session.paymentDueAt
+                } : null
+            };
+        }));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -268,9 +337,16 @@ router.post('/slots/:id/book', protect, async (req, res) => {
             userId: slot.psychologistId,
             title: 'New booking request',
             message: 'A patient requested a session on ' + new Date(slot.start).toLocaleString(),
-            link: '/calendar',
+            link: calendarLink({ date: slot.start, eventId: updated._id, sessionId: session._id }),
             type: 'booking_request',
-            channels: ['in_app']
+            channels: ['in_app'],
+            data: {
+                calendarDate: slot.start,
+                calendarEventId: updated._id,
+                sessionId: session._id,
+                psychologistId: slot.psychologistId,
+                patientId: req.user.id
+            }
         });
 
         res.json({ slot: updated, sessionId: session._id });
@@ -346,9 +422,16 @@ router.post('/slots/:id/request', protect, async (req, res) => {
             userId: slot.psychologistId,
             title: 'New booking request',
             message: 'A patient requested a session on ' + new Date(scheduledStart).toLocaleString(),
-            link: '/calendar',
+            link: calendarLink({ date: scheduledStart, eventId: updated._id, sessionId: session._id }),
             type: 'booking_request',
-            channels: ['in_app']
+            channels: ['in_app'],
+            data: {
+                calendarDate: scheduledStart,
+                calendarEventId: updated._id,
+                sessionId: session._id,
+                psychologistId: slot.psychologistId,
+                patientId: req.user.id
+            }
         });
 
         res.status(201).json({ slot: updated, sessionId: session._id });
@@ -431,9 +514,16 @@ router.post('/slots/:id/confirm', protect, async (req, res) => {
             userId: session.patientId,
             title: 'Booking confirmed',
             message: 'Your psychologist confirmed your booking. Please complete payment within 24 hours.',
-            link: '/payment/' + session._id,
+            link: calendarLink({ date: bookedStart, eventId: bookedSlot._id, sessionId: session._id }),
             type: 'booking_confirmed',
-            channels: ['in_app', 'email']
+            channels: ['in_app', 'email'],
+            data: {
+                calendarDate: bookedStart,
+                calendarEventId: bookedSlot._id,
+                sessionId: session._id,
+                psychologistId: session.psychologistId,
+                paymentLink: '/payment/' + session._id
+            }
         });
 
         res.status(200).json({ slot: bookedSlot, sessionId: session._id });
@@ -462,9 +552,14 @@ router.post('/slots/:id/reject', protect, async (req, res) => {
                 userId: session.patientId,
                 title: 'Booking rejected',
                 message: 'Your booking request was rejected. Please choose another time slot.',
-                link: '/calendar/' + slot.psychologistId,
+                link: calendarLink({ date: slot.start, psychologistId: slot.psychologistId, open: false }),
                 type: 'booking_rejected',
-                channels: ['in_app', 'email']
+                channels: ['in_app', 'email'],
+                data: {
+                    calendarDate: slot.start,
+                    psychologistId: slot.psychologistId,
+                    sessionId: session._id
+                }
             });
         }
 
@@ -479,9 +574,129 @@ router.post('/slots/:id/reject', protect, async (req, res) => {
     }
 });
 
+// Psychologist reschedules a confirmed booked slot
+router.put('/slots/:id/reschedule', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+
+        const { start, end } = req.body;
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid start or end date.' });
+        }
+
+        const durationMinutes = (endDate - startDate) / 60000;
+        if (durationMinutes < 60) {
+            return res.status(400).json({ message: 'Sessions must be at least 1 hour long.' });
+        }
+
+        const slot = await CalendarSlot.findById(req.params.id);
+        if (!slot) return res.status(404).json({ message: 'Slot not found' });
+        if (slot.psychologistId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+        if (!slot.isBooked) return res.status(400).json({ message: 'Only confirmed sessions can be rescheduled.' });
+
+        const overlap = await hasOverlapExcept({
+            psychologistId: slot.psychologistId,
+            start: startDate,
+            end: endDate,
+            exceptSlotId: slot._id
+        });
+        if (overlap) return res.status(409).json({ message: 'This time overlaps another confirmed booking.' });
+
+        slot.start = startDate;
+        slot.end = endDate;
+        await slot.save();
+
+        const session = await Session.findOneAndUpdate(
+            { calendarSlotId: slot._id, status: { $nin: ['completed', 'canceled'] } },
+            { scheduledStart: startDate, scheduledEnd: endDate },
+            { new: true }
+        );
+
+        if (session) {
+            await createNotification({
+                userId: session.patientId,
+                title: 'Booking rescheduled',
+                message: 'Your psychologist rescheduled your session to ' + startDate.toLocaleString(),
+                link: calendarLink({ date: startDate, eventId: slot._id, sessionId: session._id }),
+                type: 'booking_rescheduled',
+                channels: ['in_app', 'email'],
+                data: {
+                    calendarDate: startDate,
+                    calendarEventId: slot._id,
+                    sessionId: session._id,
+                    psychologistId: slot.psychologistId
+                }
+            });
+        }
+
+        res.json({ slot, sessionId: session?._id || null });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Psychologist cancels a confirmed booked slot
+router.post('/slots/:id/cancel', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+
+        const slot = await CalendarSlot.findById(req.params.id);
+        if (!slot) return res.status(404).json({ message: 'Slot not found' });
+        if (slot.psychologistId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+        if (!slot.isBooked) return res.status(400).json({ message: 'Only confirmed sessions can be canceled here.' });
+
+        const session = await Session.findOne({
+            calendarSlotId: slot._id,
+            status: { $nin: ['completed', 'canceled'] }
+        });
+
+        if (session) {
+            session.status = 'canceled';
+            session.canceledAt = new Date();
+            await session.save();
+
+            await createNotification({
+                userId: session.patientId,
+                title: 'Booking canceled',
+                message: 'Your psychologist canceled the session scheduled for ' + new Date(slot.start).toLocaleString(),
+                link: calendarLink({ date: slot.start, eventId: slot._id, sessionId: session._id, open: false }),
+                type: 'booking_canceled',
+                channels: ['in_app', 'email'],
+                data: {
+                    calendarDate: slot.start,
+                    calendarEventId: slot._id,
+                    sessionId: session._id,
+                    psychologistId: slot.psychologistId
+                }
+            });
+        }
+
+        slot.isBooked = false;
+        slot.patientId = null;
+        slot.source = 'manual';
+        await slot.save();
+
+        res.json({ success: true, slot, sessionId: session?._id || null });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Delete a slot (psychologist only)
 router.delete('/slots/:id', protect, async (req, res) => {
     try {
+        if (req.user.role !== 'psychologist') return res.status(403).json({ message: 'Access denied' });
+
+        const slot = await CalendarSlot.findById(req.params.id);
+        if (!slot) return res.status(404).json({ message: 'Slot not found' });
+        if (slot.psychologistId.toString() !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+        if (slot.isBooked || slot.pendingSessionId) {
+            return res.status(400).json({ message: 'Booked or pending slots cannot be deleted here.' });
+        }
+
         await CalendarSlot.findByIdAndDelete(req.params.id);
         res.json({ message: 'Slot deleted' });
     } catch (err) {
