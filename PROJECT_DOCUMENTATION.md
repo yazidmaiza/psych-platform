@@ -211,6 +211,7 @@
     - Gemini LLM server
   - Empathetic response generation
   - Psychological context retrieval
+  - Full chatbot description: [docs/PRECONSULTATION_CHATBOT.md](docs/PRECONSULTATION_CHATBOT.md)
 
 - **AI Skills** (Atomic operations)
   - Normalize Darija text

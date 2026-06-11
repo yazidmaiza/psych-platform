@@ -90,6 +90,7 @@ class GenerateIntakeResponse {
           .map(m => `${m.role === 'user' ? 'PATIENT' : 'ASSISTANT'}: ${m.content}`)
           .join('\n')
       : 'This is the beginning of the conversation.';
+    const patientTurnCount = conversationHistory.filter(m => m.role === 'user').length;
 
     // ── Build early-context block + disclosure linking guide ─────────────
     //
@@ -169,8 +170,18 @@ Suggested probe questions:
 {earlyContextBlock}=== RECENT CONVERSATION HISTORY ===
 {historyText}
 
+=== CONVERSATION FLOW GUIDANCE ===
+Patient turns so far: {patientTurnCount}
+Prioritize validation before exploration when the user expresses pain, shame, fear, self-criticism, loneliness, numbness, or other vulnerable feelings.
+Do not ask a question after every response. Vary your style naturally: validation, reflection, summary, emotion identification, clarification, or gentle psychoeducation.
+Every few exchanges, if it helps the patient feel understood, offer a brief summary before moving on.
+If you do ask a question, make it concrete and grounded in a real experience from the user's message. A question is optional, not mandatory.
+
 === PATIENT'S CURRENT MESSAGE ===
 {originalInput}
+
+=== LANGUAGE INSTRUCTION (IMPORTANT) ===
+Detect the patient's language from their message and RESPOND IN THAT SAME LANGUAGE. Mirror the patient's level of formality (formal vs. informal) and keep tone gentle. If the patient message is only a greeting (e.g., "bonjour"), reply with a short greeting in the same language and, if helpful, one concise follow-up question.
 
 === RESPONSE RULES (STRICT) ===
 * Do NOT use phrases like "that takes courage", "I'm proud of you", "I hear you saying", or "I'm here for you".
@@ -178,13 +189,15 @@ Suggested probe questions:
 * Do NOT re-ask about topics already covered in the Earlier Conversation Summary above.
 * When an Earlier Conversation Summary exists, actively look for connections between the patient's current message and what they shared earlier. Weave those connections in naturally — do not ignore prior disclosures.
 * Paraphrase earlier disclosures — never quote the patient's exact words back verbatim. Reflection should show understanding, not just recall.
-* Use natural, conversational language (e.g., "Seems like...", "It sounds like...", "Earlier you mentioned...").
-* Response must be concise: max 2 sentences before the question, total response must be short.
-* Structure: 1 acknowledgment (natural, not formulaic — may reference earlier disclosure if relevant), then 1 specific, open-ended question grounded in the user's message. Nothing extra.
-* The question must be specific to the user's message, not generic.
-* Never ask more than one question or use more than one question mark.
-* If risk level is HIGH, respond with a short safety-first reply that acknowledges the user, expresses concern, asks whether they are safe right now, and encourages immediate human support.
-* Detect and use the patient's language (English, French, or Darija).
+* Use natural, conversational language that adds insight instead of repeating the user's wording.
+* If the user is expressing a high-vulnerability statement like "I'm broken", "I hate myself", or "I feel empty", pause exploration and lead with empathy before anything else.
+* Focus on emotions when appropriate: sadness, grief, anger, fear, guilt, shame, loneliness, disappointment, or numbness.
+* Ask concrete questions grounded in real experiences rather than abstract self-analysis.
+* A response may be validation only, reflection only, a brief summary, or a gentle question; a question is not required every turn.
+* If you do ask a question, use at most one question mark and keep it specific to the user's message.
+* Every 3-5 exchanges, include a brief summary to help the patient feel understood.
+* If risk level is HIGH, respond with a short safety-first reply that acknowledges the user, expresses concern, asks whether they are safe right now, and encourages immediate human support. Respond in the patient's language.
+* ALWAYS keep the response concise: usually 1-3 short sentences total. No additional context or suggestions unless explicitly asked.
 
 === EXAMPLES OF GOOD RESPONSES (STYLE GUIDANCE ONLY — do NOT copy verbatim) ===
 {fewShotExamples}`
@@ -198,18 +211,27 @@ Suggested probe questions:
       contextString:       contextString || 'No specific context retrieved.',
       earlyContextBlock,
       historyText,
+      patientTurnCount,
       originalInput,
       fewShotExamples:     fewShotExamples || 'No examples available.',
       personaInstructions: personaInstructions || '(No persona configured — use default warm, empathetic style.)'
     });
 
+    // Strong language hint: detect patient's language and prepend a clear
+    // instruction so the LLM must reply in that language and mirror tone.
+    const detectedLang = this._detectLanguage(originalInput);
+    const langLabelMap = { english: 'English', french: 'French', darija: 'Darija' };
+    const langLabel = langLabelMap[detectedLang] || 'English';
+    const languageHint = `LANGUAGE HINT: The patient's message appears to be in ${langLabel}. Respond ONLY in ${langLabel} and mirror the patient's level of formality. Keep replies concise and natural; a question is optional, but if you ask one, keep it to at most one.`;
+    const finalPrompt = `${languageHint}\n\n${formattedPrompt}`;
+
     // ── LLM generation: Gemini (primary) → Groq (fallback) ───────────────
     let rawResponse = '';
     try {
-      rawResponse = await this._generateWithGemini(formattedPrompt);
+      rawResponse = await this._generateWithGemini(finalPrompt);
     } catch (geminiError) {
       console.warn('[GenerateIntakeResponse] Gemini failed after retries, falling back to Groq:', geminiError.message);
-      rawResponse = await this._generateWithGroq(formattedPrompt);
+      rawResponse = await this._generateWithGroq(finalPrompt);
     }
 
     return this._postProcessResponse(rawResponse, originalInput);
@@ -290,6 +312,18 @@ Suggested probe questions:
     const language = this._detectLanguage(originalInput);
     const fallbackQuestion = this._fallbackQuestion(language);
 
+    // If the user's message is only a short greeting, return a brief localized
+    // greeting plus the fallback question to avoid verbose, off-topic replies.
+    const shortGreetingRe = /^(?:hi|hello|hey|hiya|bonjour|salut|salam|marhaba|ahlan|أهلن?|مرحبا)\b[!.,\s]*$/i;
+    if (String(originalInput || '').trim().length > 0 && shortGreetingRe.test(String(originalInput || '').trim())) {
+      const greet = {
+        english: 'Hi.',
+        french: 'Bonjour.',
+        darija: 'مرحبا.'
+      }[language] || 'Hello.';
+      return `${greet} ${fallbackQuestion}`;
+    }
+
     let text = String(rawResponse || '')
       .replace(/```json|```/gi, '')
       .replace(/^[\s>*-]+/gm, '')
@@ -335,26 +369,24 @@ Suggested probe questions:
       )
     );
 
-    let questionIdx = sentences.findIndex(s => s.includes('?'));
     let ack = mirrored;
     if (!ack && sentences.length > 0) {
-      // Find the first sentence that is not a question
+      // Prefer a non-question sentence for the acknowledgment when available.
       const nonQuestion = sentences.find(s => !s.includes('?'));
       if (nonQuestion) {
         ack = nonQuestion;
       }
     }
 
-    let question = '';
-    if (questionIdx === -1) {
-      question = fallbackQuestion;
-    } else {
-      question = sentences[questionIdx];
-    }
-
-    // Ensure the question ends with a question mark
-    if (question && !question.endsWith('?')) {
-      question = question.replace(/[.!?]+$/g, '') + '?';
+    const firstQuestionIndex = sentences.findIndex(s => s.includes('?'));
+    const resultSentences = [];
+    for (const [index, sentence] of sentences.entries()) {
+      if (sentence.includes('?') && index !== firstQuestionIndex) {
+        continue;
+      }
+      if (!resultSentences.includes(sentence)) {
+        resultSentences.push(sentence);
+      }
     }
 
     // Ensure the acknowledgment ends with a period
@@ -362,8 +394,17 @@ Suggested probe questions:
       ack = ack.replace(/[.!?]+$/g, '') + '.';
     }
 
-    let result = ack ? `${ack} ${question}` : question;
-    return result.replace(/\s+/g, ' ').trim();
+    let result = resultSentences.join(' ').replace(/\s+/g, ' ').trim();
+    if (!result) return fallbackQuestion;
+
+    // If a question exists, preserve at most one question mark.
+    const questionCount = (result.match(/\?/g) || []).length;
+    if (questionCount > 1) {
+      const firstQuestion = result.indexOf('?');
+      result = `${result.slice(0, firstQuestion + 1)}${result.slice(firstQuestion + 1).replace(/\?/g, '')}`;
+    }
+
+    return result;
   }
 
   // ── Hallucination guardrail ─────────────────────────────────────────────

@@ -53,8 +53,10 @@ class BuildPersonaInstructions {
     lines.push(`
 === STRUCTURE PRESERVATION (persona CANNOT override these) ===
 - ALWAYS begin your response with emotional acknowledgment before anything else
-- ALWAYS ask EXACTLY ONE question — never two, never zero
-  - ALWAYS keep the final response within 2-3 sentences total
+- A question is optional: use one only when it genuinely helps the conversation move forward
+- Never ask more than one question in a single reply
+- Prefer validation, reflection, or summary when the user needs to feel understood before exploration
+- Keep responses concise, usually within 2-3 short sentences total
 - Persona may modify the tone and phrasing of these elements, but NEVER skip them`);
 
     lines.push(`
@@ -116,19 +118,19 @@ class BuildPersonaInstructions {
     // ── Question Style ─────────────────────────────────────────────────────────
     const questionInstructions = {
       'open-ended': [
-        'Ask questions that begin with "What", "How", "Tell me more about"',
-        'Leave the answer entirely open — do not frame or suggest answers',
-        'Invite the patient to take the conversation where they need to go'
+        'Ask concrete questions that begin with "What", "How", or "When"',
+        'Keep questions grounded in a real recent experience, not abstract reflection',
+        'Invite the patient to describe what actually happens in practice'
       ],
       guided: [
         'Ask questions that gently point toward the current stage goal',
-        'Use light framing: "I\'m curious about…", "I\'d like to understand more about…"',
-        'Still open-ended, but oriented toward a specific theme'
+        'Use light framing such as "I\'d like to understand more about…"',
+        'Stay open-ended, but make the focus specific and easy to answer'
       ],
       structured: [
         'Ask specific, focused questions that help the patient organise their thoughts',
         'Use clear, direct phrasing that makes it easy to respond',
-        'Keep questions tied to the current intake stage objective'
+        'Keep questions tied to the current intake stage objective and recent disclosure'
       ]
     };
     lines.push(`Question Style (${p.questionStyle}):\n${(questionInstructions[p.questionStyle] || questionInstructions['open-ended']).map(i => `  • ${i}`).join('\n')}`);
@@ -174,6 +176,8 @@ class BuildPersonaInstructions {
 - Persona should influence your style SUBTLY, not mechanically
 - Responses must remain natural and human-like at all times
 - NEVER produce over-formal, robotic, scripted, or forced phrasing
+  - Vary response style across turns: validation, reflection, summary, emotion identification, clarification, gentle psychoeducation, or a question when appropriate
+  - Do not ask a question after every response; sometimes a brief summary or validation is enough
 - If following persona instructions would make a response feel artificial, prioritize naturalness`);
 
     // ── 5. CONFLICT RESOLUTION: Persona vs Examples ─────────────────────────
